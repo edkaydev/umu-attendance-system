@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Google Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    color: #1a1a2e;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #ffffff;
+  }
+}
+
+@layer components {
+  .code-font {
+    font-family: 'Google Sans Mono', 'Roboto Mono', 'Fira Code', monospace;
+  }
+}
