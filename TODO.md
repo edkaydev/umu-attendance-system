@@ -14,23 +14,23 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 2 — Server Foundation & Auth (8–24)
 
-- [ ] 8. Create db.ts config: Prisma client singleton
-- [ ] 9. Set up Express app entry point with middleware, CORS, cookie parsing
-- [ ] 10. Create global error handler and 404 handler
-- [ ] 11. Create API response utilities (success/error helpers)
-- [ ] 12. Implement auth middleware: JWT verify from HttpOnly cookie
-- [ ] 13. Implement requireRole RBAC middleware (03-roles)
-- [ ] 14. Implement request validation middleware (zod or manual)
-- [ ] 15. Set up Google OAuth with Passport: client ID/secret/callback
-- [ ] 16. Implement OAuth callback: email domain check (@stud.umu.ac.ug / @umu.ac.ug)
-- [ ] 17. Implement access-denied handling for unregistered emails (FR-01.6)
-- [ ] 18. Implement JWT issuance: access (1hr) + refresh (7d) HttpOnly cookies
-- [ ] 19. Implement refresh token rotation service (hash stored, revoked flag)
-- [ ] 20. Implement refresh endpoint: silent rotation (FR-01.8)
-- [ ] 21. Implement logout: clear cookies + revoke refresh token (FR-01.9)
-- [ ] 22. Implement GET /auth/me endpoint
-- [ ] 23. Write auth controller: google redirect, callback, refresh, logout, me
-- [ ] 24. Create seed:admin script to create first System Admin (08-deploy step 7)
+- [x] 8. Create db.ts config: Prisma client singleton
+- [x] 9. Set up Express app entry point with middleware, CORS, cookie parsing
+- [x] 10. Create global error handler and 404 handler
+- [x] 11. Create API response utilities (success/error helpers)
+- [x] 12. Implement auth middleware: JWT verify from HttpOnly cookie
+- [x] 13. Implement requireRole RBAC middleware (03-roles)
+- [x] 14. Implement request validation middleware (zod or manual)
+- [x] 15. Set up Google OAuth with Passport: client ID/secret/callback
+- [x] 16. Implement OAuth callback: email domain check (@stud.umu.ac.ug / @umu.ac.ug)
+- [x] 17. Implement access-denied handling for unregistered emails (FR-01.6)
+- [x] 18. Implement JWT issuance: access (1hr) + refresh (7d) HttpOnly cookies
+- [x] 19. Implement refresh token rotation service (hash stored, revoked flag)
+- [x] 20. Implement refresh endpoint: silent rotation (FR-01.8)
+- [x] 21. Implement logout: clear cookies + revoke refresh token (FR-01.9)
+- [x] 22. Implement GET /auth/me endpoint
+- [x] 23. Write auth controller: google redirect, callback, refresh, logout, me
+- [x] 24. Create seed:admin script to create first System Admin (08-deploy step 7)
 
 ## Phase 3 — Academic Structure, Users & Profiles (25–43)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **7** / 100
+Completed: **24** / 100
