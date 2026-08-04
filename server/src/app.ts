@@ -4,6 +4,10 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/google-oauth'
 import authRoutes from './routes/auth.routes'
+import academicRoutes from './routes/academic.routes'
+import userRoutes from './routes/user.routes'
+import profileRoutes from './routes/profile.routes'
+import assignmentRoutes from './routes/assignment.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
 
 const app = express()
@@ -26,6 +30,10 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.use('/api/auth', authRoutes)
+app.use('/api/academic', academicRoutes)
+app.use('/api/users', userRoutes)
+app.use('/api/profile', profileRoutes)
+app.use('/api/assignments', assignmentRoutes)
 
 // 404 + global error handler (must be last)
 app.use(notFoundHandler)
