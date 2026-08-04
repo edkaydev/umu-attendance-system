@@ -127,7 +127,7 @@ export async function listSessions(
   })
 }
 
-/** Get a single session. Lecturer (own units) or Faculty Admin (own faculty). */
+/** Get a single session + attendance list. Lecturer (own units) or Faculty Admin (own faculty). */
 export async function getSession(sessionId: string, actor: { id: string; role: string; facultyId: string | null }) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
@@ -136,6 +136,20 @@ export async function getSession(sessionId: string, actor: { id: string; role: s
         select: { id: true, code: true, name: true, facultyId: true },
       },
       lecturer: { select: { id: true, fullName: true, email: true } },
+      attendanceRecords: {
+        select: {
+          id: true,
+          status: true,
+          checkedInAt: true,
+          edits: {
+            take: 1,
+            orderBy: { changedAt: 'desc' },
+            select: { oldStatus: true, newStatus: true, reason: true, changedAt: true },
+          },
+          student: { select: { id: true, regNumber: true, fullName: true, email: true } },
+        },
+        orderBy: { student: { fullName: 'asc' } },
+      },
     },
   })
   if (!session) throw new ApiError('Session not found', 404)
@@ -151,11 +165,19 @@ export async function getSession(sessionId: string, actor: { id: string; role: s
     if (session.courseUnit.facultyId !== actor.facultyId) {
       throw new ApiError('Session is outside your faculty', 403)
     }
-  } else {
+  } else if (actor.role !== 'system_admin') {
     throw new ApiError('Forbidden', 403)
   }
 
-  return session
+  const counts = session.attendanceRecords.reduce<Record<string, number>>(
+    (acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1
+      return acc
+    },
+    { present: 0, absent: 0, excused: 0 }
+  )
+
+  return { ...session, counts }
 }
 
 /** Live check-in data for the lecturer's screen (FR-05.11). */

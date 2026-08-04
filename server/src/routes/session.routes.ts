@@ -19,7 +19,7 @@ router.post('/', authenticate, lecturerOnly, openSessionController)
 router.get('/', authenticate, lecturerOnly, listSessionsController)
 router.get('/:sessionId', authenticate, getSessionController)
 router.get('/:sessionId/live', authenticate, lecturerOnly, getLiveSessionController)
-router.post('/:sessionId/close', authenticate, lecturerOnly, closeSessionController)
-router.post('/:sessionId/reopen', authenticate, lecturerOnly, reopenSessionController)
+router.patch('/:sessionId/close', authenticate, lecturerOnly, closeSessionController)
+router.patch('/:sessionId/reopen', authenticate, lecturerOnly, reopenSessionController)
 
 export default router
