@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import passport from 'passport'
+import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import {
   finalizeLogin,
@@ -27,7 +28,7 @@ export function googleCallback(req: Request, res: Response, next: NextFunction):
       return
     }
 
-    finalizeLogin(user as Express.User, res)
+    finalizeLogin(user as { id: string; email: string; role: Role; profileComplete: boolean }, res)
       .then((redirectUrl) => res.redirect(redirectUrl))
       .catch(next)
   })(req, res, next)

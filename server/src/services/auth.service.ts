@@ -36,12 +36,19 @@ function clientUrl(): string {
   return process.env.CLIENT_URL || 'http://localhost:5173'
 }
 
+interface AuthUser {
+  id: string
+  email: string
+  role: Role
+  profileComplete: boolean
+}
+
 /**
  * Issue access + refresh tokens, set HttpOnly cookies, and return the
  * redirect URL for the browser (profile setup on first login, otherwise
  * the role dashboard).
  */
-export async function finalizeLogin(user: User, res: Response): Promise<string> {
+export async function finalizeLogin(user: AuthUser, res: Response): Promise<string> {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role })
   const refreshToken = await createRefreshToken(user.id)
   setAuthCookies(res, { accessToken, refreshToken })
