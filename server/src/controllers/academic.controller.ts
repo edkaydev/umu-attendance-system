@@ -19,6 +19,11 @@ import {
   listCurriculum,
   getProfileOptions,
 } from '../services/academic.service'
+import {
+  importStructure as importStructureCsv,
+  importStaff as importStaffCsv,
+  StructureImportType,
+} from '../services/import.service'
 
 export const campusSchema = z.object({
   name: z.string().min(1).max(100),
@@ -201,6 +206,47 @@ export async function deleteCurriculum(req: Request, res: Response, next: NextFu
 export async function getOptions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     ok(res, { campuses: await getProfileOptions() })
+  } catch (e) {
+    next(e)
+  }
+}
+
+// ─── CSV imports ───
+
+export async function importStructure(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const type = (req.body?.type as string) || ''
+    if (!['faculties', 'programmes', 'course_units', 'curriculum'].includes(type)) {
+      res.status(400).json({ error: 'type must be one of: faculties, programmes, course_units, curriculum' })
+      return
+    }
+    if (!req.file) {
+      res.status(400).json({ error: 'CSV file is required (field name: file)' })
+      return
+    }
+    const result = await importStructureCsv(req.file.buffer, type as StructureImportType)
+    ok(res, { result })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function importStaff(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'CSV file is required (field name: file)' })
+      return
+    }
+    const result = await importStaffCsv(req.file.buffer)
+    ok(res, { result })
   } catch (e) {
     next(e)
   }

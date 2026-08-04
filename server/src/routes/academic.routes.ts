@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { authenticate } from '../middleware/auth'
 import { requireRole } from '../middleware/role'
 import { validate } from '../middleware/validate'
@@ -19,6 +20,8 @@ import {
   postCurriculum,
   deleteCurriculum,
   getOptions,
+  importStructure,
+  importStaff,
   campusSchema,
   facultySchema,
   programmeSchema,
@@ -32,6 +35,11 @@ import {
 
 const router = Router()
 const adminOnly = requireRole('system_admin')
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+})
 
 // Profile cascade options — any authenticated user (profile setup)
 router.get('/options', authenticate, getOptions)
@@ -60,5 +68,9 @@ router.put('/course-units/:id', authenticate, adminOnly, validate(updateCourseUn
 router.get('/curriculum', authenticate, adminOnly, getCurriculum)
 router.post('/curriculum', authenticate, adminOnly, validate(curriculumSchema), postCurriculum)
 router.delete('/curriculum/:id', authenticate, adminOnly, deleteCurriculum)
+
+// CSV imports
+router.post('/import/structure', authenticate, adminOnly, upload.single('file'), importStructure)
+router.post('/import/staff', authenticate, adminOnly, upload.single('file'), importStaff)
 
 export default router
