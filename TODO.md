@@ -4,13 +4,13 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 1 — Project Setup (1–7)
 
-- [ ] 1. Initialize project: folder structure, git, .gitignore, README
-- [ ] 2. Set up server: package.json, TypeScript config, ts-node/dev scripts
-- [ ] 3. Set up client: Vite + React 18 + TypeScript scaffold
-- [ ] 4. Install client deps: tailwind, recharts, react-router, PWA plugin
-- [ ] 5. Configure Tailwind with UMU design tokens (09-design-system)
-- [ ] 6. Write full Prisma schema (05-database-schema) with all 12 models
-- [ ] 7. Add .env.example with all env vars (04-tech-stack)
+- [x] 1. Initialize project: folder structure, git, .gitignore, README
+- [x] 2. Set up server: package.json, TypeScript config, ts-node/dev scripts
+- [x] 3. Set up client: Vite + React 18 + TypeScript scaffold
+- [x] 4. Install client deps: tailwind, recharts, react-router, PWA plugin
+- [x] 5. Configure Tailwind with UMU design tokens (09-design-system)
+- [x] 6. Write full Prisma schema (05-database-schema) with all 12 models
+- [x] 7. Add .env.example with all env vars (04-tech-stack)
 
 ## Phase 2 — Server Foundation & Auth (8–24)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **0** / 100
+Completed: **7** / 100
