@@ -76,25 +76,25 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 5 — Email, Dashboards, Reports & Audit (61–79)
 
-- [ ] 61. Implement email service via Nodemailer + Google SMTP
-- [ ] 62. Implement alert email templates (student, lecturer, faculty admin recipients)
-- [ ] 63. Implement alert routes/controller (list alerts)
-- [ ] 64. Implement student dashboard service: units, %, eligibility, recent check-ins, weekly chart
-- [ ] 65. Implement lecturer dashboard service: units, today's sessions, at-risk students
-- [ ] 66. Implement faculty admin dashboard service: overview, at-risk counts, lecturer summary
-- [ ] 67. Implement system admin dashboard service: users, active sessions, import history
-- [ ] 68. Implement dashboard routes + controller
-- [ ] 69. Implement report services: lecturer report data
-- [ ] 70. Implement report services: programme report data
-- [ ] 71. Implement report services: course unit report data
-- [ ] 72. Implement report services: student report data
-- [ ] 73. Implement report routes + controller (JSON endpoints)
-- [ ] 74. Implement PDF generation service with Puppeteer + HTML template
-- [ ] 75. Embed UMU badge/logo in PDF templates (base64)
-- [ ] 76. Implement PDF download endpoints for all 4 report types + lecturer own units
-- [ ] 77. Implement audit log service: paginated list with filters
-- [ ] 78. Implement audit log routes + controller (Faculty Admin/System Admin)
-- [ ] 79. Create server unit tests (jest/vitest) for code generator, percentages, alerts
+- [x] 61. Implement email service via Nodemailer + Google SMTP
+- [x] 62. Implement alert email templates (student, lecturer, faculty admin recipients)
+- [x] 63. Implement alert routes/controller (list alerts)
+- [x] 64. Implement student dashboard service: units, %, eligibility, recent check-ins, weekly chart
+- [x] 65. Implement lecturer dashboard service: units, today's sessions, at-risk students
+- [x] 66. Implement faculty admin dashboard service: overview, at-risk counts, lecturer summary
+- [x] 67. Implement system admin dashboard service: users, active sessions, import history
+- [x] 68. Implement dashboard routes + controller
+- [x] 69. Implement report services: lecturer report data
+- [x] 70. Implement report services: programme report data
+- [x] 71. Implement report services: course unit report data
+- [x] 72. Implement report services: student report data
+- [x] 73. Implement report routes + controller (JSON endpoints)
+- [x] 74. Implement PDF generation service with Puppeteer + HTML template
+- [x] 75. Embed UMU badge/logo in PDF templates (base64)
+- [x] 76. Implement PDF download endpoints for all 4 report types + lecturer own units
+- [x] 77. Implement audit log service: paginated list with filters
+- [x] 78. Implement audit log routes + controller (Faculty Admin/System Admin)
+- [x] 79. Create server unit tests (jest/vitest) for code generator, percentages, alerts
 
 ## Phase 6 — Frontend (80–97)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **60** / 100
+Completed: **79** / 100
