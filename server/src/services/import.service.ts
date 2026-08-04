@@ -102,7 +102,7 @@ async function importProgrammeRow(row: Row): Promise<void> {
   if (!name || !code || !facultyCode) {
     throw new Error('Missing name, code or facultyCode')
   }
-  const faculty = await prisma.faculty.findUnique({ where: { code: facultyCode } })
+  const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode } })
   if (!faculty) throw new Error(`Faculty "${facultyCode}" not found`)
 
   await prisma.programme.upsert({
@@ -120,7 +120,7 @@ async function importCourseUnitRow(row: Row): Promise<void> {
   if (!name || !code || !facultyCode) {
     throw new Error('Missing name, code or facultyCode')
   }
-  const faculty = await prisma.faculty.findUnique({ where: { code: facultyCode } })
+  const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode } })
   if (!faculty) throw new Error(`Faculty "${facultyCode}" not found`)
 
   await prisma.courseUnit.upsert({
@@ -144,9 +144,9 @@ async function importCurriculumRow(row: Row): Promise<void> {
     throw new Error(`Invalid academicYear "${academicYear}"`)
   }
 
-  const courseUnit = await prisma.courseUnit.findUnique({ where: { code: courseUnitCode } })
+  const courseUnit = await prisma.courseUnit.findFirst({ where: { code: courseUnitCode } })
   if (!courseUnit) throw new Error(`Course unit "${courseUnitCode}" not found`)
-  const programme = await prisma.programme.findUnique({ where: { code: programmeCode } })
+  const programme = await prisma.programme.findFirst({ where: { code: programmeCode } })
   if (!programme) throw new Error(`Programme "${programmeCode}" not found`)
   if (courseUnit.facultyId !== programme.facultyId) {
     throw new Error('Course unit and programme must belong to the same faculty')
