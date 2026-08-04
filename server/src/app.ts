@@ -8,6 +8,9 @@ import academicRoutes from './routes/academic.routes'
 import userRoutes from './routes/user.routes'
 import profileRoutes from './routes/profile.routes'
 import assignmentRoutes from './routes/assignment.routes'
+import sessionRoutes from './routes/session.routes'
+import checkinRoutes from './routes/checkin.routes'
+import attendanceRoutes from './routes/attendance.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
 
 const app = express()
@@ -34,6 +37,9 @@ app.use('/api/academic', academicRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/assignments', assignmentRoutes)
+app.use('/api/sessions', sessionRoutes)
+app.use('/api/checkin', checkinRoutes)
+app.use('/api/attendance', attendanceRoutes)
 
 // 404 + global error handler (must be last)
 app.use(notFoundHandler)
