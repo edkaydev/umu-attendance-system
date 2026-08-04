@@ -26,3 +26,14 @@ export const ALERT_THRESHOLDS = {
   warning: 80, // fires when pct <= 80
   critical: 75, // fires when pct < 75
 } as const
+
+/**
+ * Which alert levels should fire for a given percentage.
+ * Pure function so the threshold rules can be unit tested (FR-08.1/08.2).
+ */
+export function alertLevelsForPct(pct: number): { warning: boolean; critical: boolean } {
+  return {
+    warning: pct <= ALERT_THRESHOLDS.warning,
+    critical: pct < ALERT_THRESHOLDS.critical,
+  }
+}

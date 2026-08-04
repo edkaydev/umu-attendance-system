@@ -1,6 +1,6 @@
 import { AlertType } from '@prisma/client'
 import { prisma } from '../config/db'
-import { attendancePercentage, ALERT_THRESHOLDS } from '../utils/attendanceCalc'
+import { attendancePercentage, ALERT_THRESHOLDS, alertLevelsForPct } from '../utils/attendanceCalc'
 import { notifyAlertRecipients } from './email.service'
 
 /**
@@ -64,8 +64,7 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
     const attended = counts.get(studentId) ?? 0
     const pct = attendancePercentage(attended, totalSessions)
 
-    const needsWarning = pct <= ALERT_THRESHOLDS.warning
-    const needsCritical = pct < ALERT_THRESHOLDS.critical
+    const { warning: needsWarning, critical: needsCritical } = alertLevelsForPct(pct)
     const sessionsMissed = totalSessions - attended
 
     for (const [alertType, needs] of [

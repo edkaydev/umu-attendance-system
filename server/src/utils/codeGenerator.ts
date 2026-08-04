@@ -4,7 +4,7 @@ import crypto from 'crypto'
  * Safe character pool — excludes O/0, I/1, B/8, S/5 to avoid confusion
  * when reading codes aloud or off a projector (FR-05.3).
  */
-const CODE_POOL = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const CODE_POOL = 'ACDEFGHJKLMNPQRTUVWXYZ234679'
 const CODE_LENGTH = 6
 
 /** Generate a single 6-character session code. */
