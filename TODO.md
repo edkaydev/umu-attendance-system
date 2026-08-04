@@ -34,25 +34,25 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 3 — Academic Structure, Users & Profiles (25–43)
 
-- [ ] 25. Implement academic structure services: campus CRUD
-- [ ] 26. Implement academic structure services: faculty CRUD
-- [ ] 27. Implement academic structure services: programme CRUD
-- [ ] 28. Implement academic structure services: course unit CRUD
-- [ ] 29. Implement curriculum mapping service (course unit → programme+year+semester)
-- [ ] 30. Implement academic routes + controllers (System Admin only)
-- [ ] 31. Implement CSV import: academic structure (faculties, programmes, units, curriculum)
-- [ ] 32. Implement CSV import: staff accounts (name, email, role)
-- [ ] 33. Implement user management service: list/filter users by role
-- [ ] 34. Implement user management: deactivate/activate/change role
-- [ ] 35. Implement user management routes + controllers (System Admin)
-- [ ] 36. Implement profile completion for students: validate campus→faculty→programme path
-- [ ] 37. Implement auto-enrolment: create enrollments from curriculum on profile save
-- [ ] 38. Implement profile completion for lecturers: select faculty only
-- [ ] 39. Implement profile edit + enrolment recalculation (FR-02.5/02.6)
-- [ ] 40. Implement profile routes + controller
-- [ ] 41. Implement lecturer assignment service: assign/remove lecturer to unit
-- [ ] 42. Implement lecturer assignment routes (Faculty Admin)
-- [ ] 43. Implement session code generator: 6-char safe pool, no O/0/I/1/B/8/S/5
+- [x] 25. Implement academic structure services: campus CRUD
+- [x] 26. Implement academic structure services: faculty CRUD
+- [x] 27. Implement academic structure services: programme CRUD
+- [x] 28. Implement academic structure services: course unit CRUD
+- [x] 29. Implement curriculum mapping service (course unit → programme+year+semester)
+- [x] 30. Implement academic routes + controllers (System Admin only)
+- [x] 31. Implement CSV import: academic structure (faculties, programmes, units, curriculum)
+- [x] 32. Implement CSV import: staff accounts (name, email, role)
+- [x] 33. Implement user management service: list/filter users by role
+- [x] 34. Implement user management: deactivate/activate/change role
+- [x] 35. Implement user management routes + controllers (System Admin)
+- [x] 36. Implement profile completion for students: validate campus→faculty→programme path
+- [x] 37. Implement auto-enrolment: create enrollments from curriculum on profile save
+- [x] 38. Implement profile completion for lecturers: select faculty only
+- [x] 39. Implement profile edit + enrolment recalculation (FR-02.5/02.6)
+- [x] 40. Implement profile routes + controller
+- [x] 41. Implement lecturer assignment service: assign/remove lecturer to unit
+- [x] 42. Implement lecturer assignment routes (Faculty Admin)
+- [x] 43. Implement session code generator: 6-char safe pool, no O/0/I/1/B/8/S/5
 
 ## Phase 4 — Sessions, Check-In & Attendance (44–60)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **24** / 100
+Completed: **43** / 100
