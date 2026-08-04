@@ -12,6 +12,7 @@ import sessionRoutes from './routes/session.routes'
 import checkinRoutes from './routes/checkin.routes'
 import attendanceRoutes from './routes/attendance.routes'
 import alertRoutes from './routes/alert.routes'
+import dashboardRoutes from './routes/dashboard.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
 
 const app = express()
@@ -42,6 +43,7 @@ app.use('/api/sessions', sessionRoutes)
 app.use('/api/checkin', checkinRoutes)
 app.use('/api/attendance', attendanceRoutes)
 app.use('/api/alerts', alertRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 
 // 404 + global error handler (must be last)
 app.use(notFoundHandler)
