@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../config/db'
 
 export type AuditAction =
@@ -27,7 +28,7 @@ export async function writeAuditLog(
       action,
       targetType,
       targetId,
-      meta: meta ?? undefined,
+      meta: (meta ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   })
 }
