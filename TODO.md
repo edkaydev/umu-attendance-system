@@ -56,23 +56,23 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 4 — Sessions, Check-In & Attendance (44–60)
 
-- [ ] 44. Implement session service: open session (validate assignment, one active per unit)
-- [ ] 45. Implement session service: list own sessions (scoped to assigned units)
-- [ ] 46. Implement session detail + live check-in count
-- [ ] 47. Implement close session: auto-mark absences for non-checked-in enrolled students
-- [ ] 48. Implement reopen session (same day only, FR-05.9)
-- [ ] 49. Implement session routes + controller
-- [ ] 50. Implement check-in service: validate code, expiry, enrolment, one per session
-- [ ] 51. Implement POST /checkin route + controller
-- [ ] 52. Implement attendance service: my attendance per unit (current semester)
-- [ ] 53. Implement attendance service: session attendance list
-- [ ] 54. Implement attendance service: unit summary
-- [ ] 55. Implement manual attendance edit: status + required reason (FR-07.4/07.5)
-- [ ] 56. Implement audit log write on attendance edit (attendance_edits + audit_logs)
-- [ ] 57. Implement attendance routes + controller
-- [ ] 58. Implement attendance percentage calculation service (formula FR-07.3)
-- [ ] 59. Implement alert evaluation service: detect 80% warning / 75% critical crossings
-- [ ] 60. Implement alert deduplication: once per crossing, re-fire on recovery+re-drop (FR-08.5/08.6)
+- [x] 44. Implement session service: open session (validate assignment, one active per unit)
+- [x] 45. Implement session service: list own sessions (scoped to assigned units)
+- [x] 46. Implement session detail + live check-in count
+- [x] 47. Implement close session: auto-mark absences for non-checked-in enrolled students
+- [x] 48. Implement reopen session (same day only, FR-05.9)
+- [x] 49. Implement session routes + controller
+- [x] 50. Implement check-in service: validate code, expiry, enrolment, one per session
+- [x] 51. Implement POST /checkin route + controller
+- [x] 52. Implement attendance service: my attendance per unit (current semester)
+- [x] 53. Implement attendance service: session attendance list
+- [x] 54. Implement attendance service: unit summary
+- [x] 55. Implement manual attendance edit: status + required reason (FR-07.4/07.5)
+- [x] 56. Implement audit log write on attendance edit (attendance_edits + audit_logs)
+- [x] 57. Implement attendance routes + controller
+- [x] 58. Implement attendance percentage calculation service (formula FR-07.3)
+- [x] 59. Implement alert evaluation service: detect 80% warning / 75% critical crossings
+- [x] 60. Implement alert deduplication: once per crossing, re-fire on recovery+re-drop (FR-08.5/08.6)
 
 ## Phase 5 — Email, Dashboards, Reports & Audit (61–79)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **43** / 100
+Completed: **60** / 100
