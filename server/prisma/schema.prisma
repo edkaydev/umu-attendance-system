@@ -1,0 +1,299 @@
+// UMU Attendance System — Prisma Schema (MySQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ACADEMIC STRUCTURE
+// ─────────────────────────────────────────────
+
+model Campus {
+  id        String    @id @default(uuid())
+  name      String    @db.VarChar(100)
+  code      String    @unique @db.VarChar(20)
+  isActive  Boolean   @default(true)
+  faculties Faculty[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("campuses")
+}
+
+model Faculty {
+  id          String       @id @default(uuid())
+  campusId    String
+  campus      Campus       @relation(fields: [campusId], references: [id])
+  name        String       @db.VarChar(100)
+  code        String       @db.VarChar(20)
+  isActive    Boolean      @default(true)
+  programmes  Programme[]
+  courseUnits CourseUnit[]
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([campusId, code])
+  @@map("faculties")
+}
+
+model Programme {
+  id              String           @id @default(uuid())
+  facultyId       String
+  faculty         Faculty          @relation(fields: [facultyId], references: [id])
+  name            String           @db.VarChar(150)
+  code            String           @db.VarChar(20)
+  isActive        Boolean          @default(true)
+  curriculumUnits CurriculumUnit[]
+  students        User[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([facultyId, code])
+  @@map("programmes")
+}
+
+model CourseUnit {
+  id                  String               @id @default(uuid())
+  facultyId           String
+  faculty             Faculty              @relation(fields: [facultyId], references: [id])
+  code                String               @db.VarChar(20)
+  name                String               @db.VarChar(150)
+  isActive            Boolean              @default(true)
+  curriculumUnits     CurriculumUnit[]
+  enrollments         Enrollment[]
+  lecturerAssignments LecturerAssignment[]
+  sessions            Session[]
+  attendanceAlerts    AttendanceAlert[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([facultyId, code])
+  @@map("course_units")
+}
+
+// Maps a course unit to a Programme + Year + Semester
+// Allows the same course unit to be shared across programmes
+model CurriculumUnit {
+  id           String     @id @default(uuid())
+  courseUnitId String
+  courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
+  programmeId  String
+  programme    Programme  @relation(fields: [programmeId], references: [id])
+  year         Int        @db.TinyInt
+  semester     Int        @db.TinyInt
+  academicYear String     @db.VarChar(10)
+  createdAt    DateTime   @default(now())
+
+  @@unique([courseUnitId, programmeId, year, semester, academicYear])
+  @@map("curriculum_units")
+}
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(uuid())
+  googleId        String   @unique @db.VarChar(100)
+  email           String   @unique @db.VarChar(150)
+  fullName        String   @db.VarChar(100)
+  role            Role
+  // Faculty link (all roles except system_admin set this)
+  facultyId       String?
+  faculty         Faculty? @relation(fields: [facultyId], references: [id])
+  // Student-only fields
+  programmeId     String?
+  programme       Programme? @relation(fields: [programmeId], references: [id])
+  year            Int?       @db.TinyInt
+  semester        Int?       @db.TinyInt
+  academicYear    String?    @db.VarChar(10)
+  regNumber       String?    @db.VarChar(30)
+  // Profile state
+  profileComplete Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  // Relations
+  enrollments          Enrollment[]
+  lecturerAssignments  LecturerAssignment[] @relation("LecturerAssignments")
+  assignmentsMade      LecturerAssignment[] @relation("AssignedByAdmin")
+  sessionsOpened       Session[]
+  attendanceRecords    AttendanceRecord[]
+  attendanceEdits      AttendanceEdit[]
+  attendanceAlerts     AttendanceAlert[]
+  refreshTokens        RefreshToken[]
+  auditLogs            AuditLog[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum Role {
+  system_admin
+  faculty_admin
+  lecturer
+  student
+}
+
+// ─────────────────────────────────────────────
+// ENROLMENT & ASSIGNMENT
+// ─────────────────────────────────────────────
+
+// Student ↔ CourseUnit link (auto-created on profile setup)
+model Enrollment {
+  id           String     @id @default(uuid())
+  studentId    String
+  student      User       @relation(fields: [studentId], references: [id])
+  courseUnitId String
+  courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
+  academicYear String     @db.VarChar(10)
+  semester     Int        @db.TinyInt
+  enrolledAt   DateTime   @default(now())
+
+  @@unique([studentId, courseUnitId, academicYear, semester])
+  @@map("enrollments")
+}
+
+// Lecturer ↔ CourseUnit link (set by Faculty Admin)
+model LecturerAssignment {
+  id           String     @id @default(uuid())
+  lecturerId   String
+  lecturer     User       @relation("LecturerAssignments", fields: [lecturerId], references: [id])
+  courseUnitId String
+  courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
+  academicYear String     @db.VarChar(10)
+  semester     Int        @db.TinyInt
+  assignedById String
+  assignedBy   User       @relation("AssignedByAdmin", fields: [assignedById], references: [id])
+  assignedAt   DateTime   @default(now())
+
+  @@unique([lecturerId, courseUnitId, academicYear, semester])
+  @@map("lecturer_assignments")
+}
+
+// ─────────────────────────────────────────────
+// SESSIONS
+// ─────────────────────────────────────────────
+
+model Session {
+  id               String            @id @default(uuid())
+  courseUnitId     String
+  courseUnit       CourseUnit        @relation(fields: [courseUnitId], references: [id])
+  lecturerId       String
+  lecturer         User              @relation(fields: [lecturerId], references: [id])
+  academicYear     String            @db.VarChar(10)
+  semester         Int               @db.TinyInt
+  code             String            @db.VarChar(8)
+  codeExpiresAt    DateTime
+  status           SessionStatus     @default(open)
+  venue            String?           @db.VarChar(100)
+  openedAt         DateTime          @default(now())
+  closedAt         DateTime?
+  attendanceRecords AttendanceRecord[]
+
+  @@index([code])
+  @@index([courseUnitId, status])
+  @@map("sessions")
+}
+
+enum SessionStatus {
+  open
+  closed
+}
+
+// ─────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────
+
+model AttendanceRecord {
+  id          String           @id @default(uuid())
+  sessionId   String
+  session     Session          @relation(fields: [sessionId], references: [id])
+  studentId   String
+  student     User             @relation(fields: [studentId], references: [id])
+  status      AttendanceStatus
+  checkedInAt DateTime?
+  createdAt   DateTime         @default(now())
+  edits       AttendanceEdit[]
+
+  @@unique([sessionId, studentId])
+  @@map("attendance_records")
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  excused
+}
+
+// Audit trail for every manual attendance change
+model AttendanceEdit {
+  id                 String           @id @default(uuid())
+  attendanceRecordId String
+  attendanceRecord   AttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+  changedById        String
+  changedBy          User             @relation(fields: [changedById], references: [id])
+  oldStatus          AttendanceStatus
+  newStatus          AttendanceStatus
+  reason             String           @db.Text
+  changedAt          DateTime         @default(now())
+
+  @@map("attendance_edits")
+}
+
+// Tracks 80% warning and 75% critical alerts sent to prevent duplicates
+model AttendanceAlert {
+  id            String     @id @default(uuid())
+  studentId     String
+  student       User       @relation(fields: [studentId], references: [id])
+  courseUnitId  String
+  courseUnit    CourseUnit @relation(fields: [courseUnitId], references: [id])
+  alertType     AlertType
+  attendancePct Decimal    @db.Decimal(5, 2)
+  sentAt        DateTime   @default(now())
+  resolved      Boolean    @default(false)
+
+  @@map("attendance_alerts")
+}
+
+enum AlertType {
+  warning   // fired at 80%
+  critical  // fired at 75%
+}
+
+// ─────────────────────────────────────────────
+// AUTH & AUDIT
+// ─────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tokenHash String   @db.VarChar(255)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String   @db.VarChar(50)
+  targetType String   @db.VarChar(50)
+  targetId   String   @db.VarChar(36)
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
