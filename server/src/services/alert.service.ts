@@ -1,6 +1,7 @@
 import { AlertType } from '@prisma/client'
 import { prisma } from '../config/db'
 import { attendancePercentage, ALERT_THRESHOLDS } from '../utils/attendanceCalc'
+import { notifyAlertRecipients } from './email.service'
 
 /**
  * FR-08 alert evaluation. Runs after a session closes.
@@ -51,7 +52,12 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
     activeByType.set(a.alertType, set)
   }
 
-  const created: Array<{ studentId: string; alertType: AlertType; attendancePct: number }> = []
+  const created: Array<{
+    studentId: string
+    alertType: AlertType
+    attendancePct: number
+    sessionsMissed: number
+  }> = []
   const resolvedIds: string[] = []
 
   for (const { studentId } of enrollments) {
@@ -60,6 +66,7 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
 
     const needsWarning = pct <= ALERT_THRESHOLDS.warning
     const needsCritical = pct < ALERT_THRESHOLDS.critical
+    const sessionsMissed = totalSessions - attended
 
     for (const [alertType, needs] of [
       [AlertType.warning, needsWarning],
@@ -75,7 +82,7 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
             attendancePct: Number(pct.toFixed(2)),
           },
         })
-        created.push({ studentId, alertType, attendancePct: Number(pct.toFixed(2)) })
+        created.push({ studentId, alertType, attendancePct: Number(pct.toFixed(2)), sessionsMissed })
       } else if (!needs && active) {
         // Recovery: student climbed back above the threshold
         const alert = activeAlerts.find(
@@ -91,6 +98,17 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
       where: { id: { in: resolvedIds } },
       data: { resolved: true },
     })
+  }
+
+  // FR-08.3 / FR-08.7: email the student, lecturers, and Faculty Admin
+  for (const alert of created) {
+    await notifyAlertRecipients(
+      alert.studentId,
+      courseUnitId,
+      alert.alertType,
+      alert.attendancePct,
+      alert.sessionsMissed
+    )
   }
 
   return { created, resolved: resolvedIds.length }

@@ -24,6 +24,7 @@ import {
   importStaff as importStaffCsv,
   StructureImportType,
 } from '../services/import.service'
+import { writeAuditLog } from '../utils/audit'
 
 export const campusSchema = z.object({
   name: z.string().min(1).max(100),
@@ -229,6 +230,10 @@ export async function importStructure(
       return
     }
     const result = await importStructureCsv(req.file.buffer, type as StructureImportType)
+    await writeAuditLog(req.user!.id, 'IMPORT', 'import', type, {
+      imported: result.imported,
+      failed: result.failed,
+    })
     ok(res, { result })
   } catch (e) {
     next(e)
@@ -246,6 +251,10 @@ export async function importStaff(
       return
     }
     const result = await importStaffCsv(req.file.buffer)
+    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'staff', {
+      imported: result.imported,
+      failed: result.failed,
+    })
     ok(res, { result })
   } catch (e) {
     next(e)
