@@ -98,25 +98,25 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 6 — Frontend (80–97)
 
-- [ ] 80. Implement client routing: auth guard, role-based redirect (07-nav table)
-- [ ] 81. Implement API client layer (fetch wrapper with credentials)
-- [ ] 82. Implement auth context/provider: login, logout, me, refresh on 401
-- [ ] 83. Build Login screen with Google OAuth button (07 Screen 1)
-- [ ] 84. Build Access Denied screen
-- [ ] 85. Build Complete Profile screen (student + lecturer variants, 07 Screen 2/10)
-- [ ] 86. Build layout: sidebar (desktop) + bottom nav (mobile) + top header
-- [ ] 87. Build Student dashboard: check-in code entry + attendance list + weekly chart (07 Screen 3)
-- [ ] 88. Build Lecturer dashboard: open session, today's sessions, at-risk (07 Screen 4)
-- [ ] 89. Build Open Session form screen (07 Screen 5)
-- [ ] 90. Build Live Session screen: big code, countdown, live list (07 Screen 6)
-- [ ] 91. Build Session Detail screen: attendance list, edit modal, PDF (07 Screen 7)
-- [ ] 92. Build Faculty Admin dashboard: stats, at-risk, reports, lecturers (07 Screen 8)
-- [ ] 93. Build Faculty Admin reports pages: lecturer/programme/unit/student selectors
-- [ ] 94. Build System Admin dashboard: stats, setup links, imports (07 Screen 9)
-- [ ] 95. Build academic structure management UI (campus/faculty/programme/unit CRUD)
-- [ ] 96. Build user management UI (list, deactivate, role change)
-- [ ] 97. Build CSV import UI (structure + staff)
-- [ ] 98. Build shared UI components: Button, Input, Card, Badge, ProgressBar, Toast, Modal
+- [x] 80. Implement client routing: auth guard, role-based redirect (07-nav table)
+- [x] 81. Implement API client layer (fetch wrapper with credentials)
+- [x] 82. Implement auth context/provider: login, logout, me, refresh on 401
+- [x] 83. Build Login screen with Google OAuth button (07 Screen 1)
+- [x] 84. Build Access Denied screen
+- [x] 85. Build Complete Profile screen (student + lecturer variants, 07 Screen 2/10)
+- [x] 86. Build layout: sidebar (desktop) + bottom nav (mobile) + top header
+- [x] 87. Build Student dashboard: check-in code entry + attendance list + weekly chart (07 Screen 3)
+- [x] 88. Build Lecturer dashboard: open session, today's sessions, at-risk (07 Screen 4)
+- [x] 89. Build Open Session form screen (07 Screen 5)
+- [x] 90. Build Live Session screen: big code, countdown, live list (07 Screen 6)
+- [x] 91. Build Session Detail screen: attendance list, edit modal, PDF (07 Screen 7)
+- [x] 92. Build Faculty Admin dashboard: stats, at-risk, reports, lecturers (07 Screen 8)
+- [x] 93. Build Faculty Admin reports pages: lecturer/programme/unit/student selectors
+- [x] 94. Build System Admin dashboard: stats, setup links, imports (07 Screen 9)
+- [x] 95. Build academic structure management UI (campus/faculty/programme/unit CRUD)
+- [x] 96. Build user management UI (list, deactivate, role change)
+- [x] 97. Build CSV import UI (structure + staff)
+- [x] 98. Build shared UI components: Button, Input, Card, Badge, ProgressBar, Toast, Modal
 
 ## Phase 7 — PWA & DevOps (99–100)
 
@@ -127,4 +127,4 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Progress
 
-Completed: **79** / 100
+Completed: **98** / 100

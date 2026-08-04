@@ -1,0 +1,406 @@
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react'
+import { academicApi } from '../api/endpoints'
+import { useToast } from '../context/ToastContext'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
+import { Modal } from '../components/ui/Modal'
+import { ApiClientError } from '../api/client'
+import type { Campus, Faculty, Programme, CourseUnit, CurriculumUnitEntry } from '../types'
+
+type Tab = 'campuses' | 'faculties' | 'programmes' | 'course-units' | 'curriculum'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'campuses', label: 'Campuses' },
+  { id: 'faculties', label: 'Faculties' },
+  { id: 'programmes', label: 'Programmes' },
+  { id: 'course-units', label: 'Course Units' },
+  { id: 'curriculum', label: 'Curriculum' },
+]
+
+function FormModal({
+  open,
+  title,
+  onClose,
+  onSave,
+  saving,
+  children,
+}: {
+  open: boolean
+  title: string
+  onClose: () => void
+  onSave: () => void
+  saving: boolean
+  children: ReactNode
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title={title}>
+      <form
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault()
+          onSave()
+        }}
+      >
+        {children}
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={saving}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function academicYearOptions(): { value: string; label: string }[] {
+  const now = new Date()
+  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
+  return [startYear - 1, startYear, startYear + 1].map((y) => ({
+    value: `${y}/${y + 1}`,
+    label: `${y}/${y + 1}`,
+  }))
+}
+
+export default function AcademicSetup() {
+  const toast = useToast()
+  const [tab, setTab] = useState<Tab>('campuses')
+
+  const [campuses, setCampuses] = useState<Campus[]>([])
+  const [faculties, setFaculties] = useState<Faculty[]>([])
+  const [programmes, setProgrammes] = useState<Programme[]>([])
+  const [courseUnits, setCourseUnits] = useState<CourseUnit[]>([])
+  const [curriculum, setCurriculum] = useState<CurriculumUnitEntry[]>([])
+
+  const [modal, setModal] = useState<string | null>(null) // entity kind being edited
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const [name, setName] = useState('')
+  const [code, setCode] = useState('')
+  const [campusId, setCampusId] = useState('')
+  const [facultyId, setFacultyId] = useState('')
+  const [programmeId, setProgrammeId] = useState('')
+  const [courseUnitId, setCourseUnitId] = useState('')
+  const [year, setYear] = useState('1')
+  const [semester, setSemester] = useState('1')
+  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
+
+  const loadAll = useCallback(async () => {
+    try {
+      const [c, f, p, u, cur] = await Promise.all([
+        academicApi.campuses(),
+        academicApi.faculties(),
+        academicApi.programmes(),
+        academicApi.courseUnits(),
+        academicApi.curriculum(),
+      ])
+      setCampuses(c)
+      setFaculties(f)
+      setProgrammes(p)
+      setCourseUnits(u)
+      setCurriculum(cur)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load academic structure')
+    }
+  }, [toast])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
+
+  function openCreate(kind: string) {
+    setModal(kind)
+    setEditingId(null)
+    setName('')
+    setCode('')
+    setCampusId('')
+    setFacultyId('')
+    setProgrammeId('')
+    setCourseUnitId('')
+    setYear('1')
+    setSemester('1')
+    setAcademicYear(academicYearOptions()[1].value)
+  }
+
+  function openEdit(kind: string, item: { id: string } & Partial<Campus & Faculty & Programme & CourseUnit>) {
+    setModal(kind)
+    setEditingId(item.id)
+    setName(item.name ?? '')
+    setCode(item.code ?? '')
+    setCampusId(item.campusId ?? '')
+    setFacultyId(item.facultyId ?? '')
+    setAcademicYear(academicYearOptions()[1].value)
+  }
+
+  async function handleSave() {
+    if (!modal) return
+    setSaving(true)
+    try {
+      if (modal === 'campuses') {
+        const data = { name: name.trim(), code: code.trim() }
+        if (editingId) await academicApi.updateCampus(editingId, data)
+        else await academicApi.createCampus(data)
+      } else if (modal === 'faculties') {
+        const data = { campusId, name: name.trim(), code: code.trim() }
+        if (editingId) await academicApi.updateFaculty(editingId, data)
+        else await academicApi.createFaculty(data)
+      } else if (modal === 'programmes') {
+        const data = { facultyId, name: name.trim(), code: code.trim() }
+        if (editingId) await academicApi.updateProgramme(editingId, data)
+        else await academicApi.createProgramme(data)
+      } else if (modal === 'course-units') {
+        const data = { facultyId, name: name.trim(), code: code.trim() }
+        if (editingId) await academicApi.updateCourseUnit(editingId, data)
+        else await academicApi.createCourseUnit(data)
+      } else if (modal === 'curriculum') {
+        await academicApi.createCurriculum({
+          courseUnitId,
+          programmeId,
+          year: Number(year),
+          semester: Number(semester),
+          academicYear,
+        })
+      }
+      toast.success('Saved')
+      setModal(null)
+      void loadAll()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeCurriculum(id: string) {
+    try {
+      await academicApi.removeCurriculum(id)
+      toast.success('Curriculum mapping removed')
+      void loadAll()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to remove')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-h2 font-bold text-text-primary">Academic Setup</h1>
+          <p className="text-body-sm text-text-secondary">Manage the academic structure of the university.</p>
+        </div>
+        <Button onClick={() => openCreate(tab === 'curriculum' ? 'curriculum' : tab)}>
+          Add {tab === 'course-units' ? 'Course Unit' : tab === 'curriculum' ? 'Mapping' : tab.slice(0, -1)}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`min-h-[40px] rounded px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.id ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <Card>
+        {tab === 'campuses' && (
+          <EntityTable
+            headers={['Campus', 'Code']}
+            rows={campuses.map((c) => [c.name, c.code])}
+            onEdit={(i) => openEdit('campuses', campuses[i])}
+          />
+        )}
+
+        {tab === 'faculties' && (
+          <EntityTable
+            headers={['Faculty', 'Code', 'Campus']}
+            rows={faculties.map((f) => [f.name, f.code, campuses.find((c) => c.id === f.campusId)?.name ?? '—'])}
+            onEdit={(i) => openEdit('faculties', faculties[i])}
+          />
+        )}
+
+        {tab === 'programmes' && (
+          <EntityTable
+            headers={['Programme', 'Code', 'Faculty']}
+            rows={programmes.map((p) => [p.name, p.code, faculties.find((f) => f.id === p.facultyId)?.name ?? '—'])}
+            onEdit={(i) => openEdit('programmes', programmes[i])}
+          />
+        )}
+
+        {tab === 'course-units' && (
+          <EntityTable
+            headers={['Course Unit', 'Code', 'Faculty']}
+            rows={courseUnits.map((u) => [u.name, u.code, faculties.find((f) => f.id === u.facultyId)?.name ?? '—'])}
+            onEdit={(i) => openEdit('course-units', courseUnits[i])}
+          />
+        )}
+
+        {tab === 'curriculum' && (
+          <>
+            {curriculum.length === 0 ? (
+              <p className="py-12 text-center text-body-sm text-text-secondary">
+                No curriculum mappings. Add one to link a course unit to a programme.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
+                      <th className="py-2 pr-4">Course Unit</th>
+                      <th className="py-2 pr-4">Programme</th>
+                      <th className="py-2 pr-4">Year</th>
+                      <th className="py-2 pr-4">Semester</th>
+                      <th className="py-2 pr-4">Academic Year</th>
+                      <th className="py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {curriculum.map((c) => (
+                      <tr key={c.id}>
+                        <td className="py-3 pr-4">
+                          <span className="font-medium text-text-primary">{c.courseUnit.name}</span>{' '}
+                          <span className="text-text-secondary">({c.courseUnit.code})</span>
+                        </td>
+                        <td className="py-3 pr-4 text-text-secondary">{c.programme.name}</td>
+                        <td className="py-3 pr-4 text-text-secondary">Year {c.year}</td>
+                        <td className="py-3 pr-4 text-text-secondary">Sem {c.semester}</td>
+                        <td className="py-3 pr-4 text-text-secondary">{c.academicYear}</td>
+                        <td className="py-3 text-right">
+                          <button
+                            onClick={() => removeCurriculum(c.id)}
+                            className="text-sm font-medium text-danger hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+
+      <FormModal
+        open={Boolean(modal)}
+        title={
+          modal === 'curriculum'
+            ? 'Add curriculum mapping'
+            : `${editingId ? 'Edit' : 'Add'} ${(modal ?? '').slice(0, -1)}`
+        }
+        onClose={() => setModal(null)}
+        onSave={handleSave}
+        saving={saving}
+      >
+        {modal === 'campuses' && (
+          <>
+            <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nkozi Campus" />
+            <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. NKZ" />
+          </>
+        )}
+        {modal === 'faculties' && (
+          <>
+            <Select label="Campus" value={campusId} onChange={(e) => setCampusId(e.target.value)} options={campuses.map((c) => ({ value: c.id, label: c.name }))} />
+            <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Faculty of Science" />
+            <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. FOS" />
+          </>
+        )}
+        {modal === 'programmes' && (
+          <>
+            <Select label="Faculty" value={facultyId} onChange={(e) => setFacultyId(e.target.value)} options={faculties.map((f) => ({ value: f.id, label: f.name }))} />
+            <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Bachelor of Science in Computer Science" />
+            <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. BSCS" />
+          </>
+        )}
+        {modal === 'course-units' && (
+          <>
+            <Select label="Faculty" value={facultyId} onChange={(e) => setFacultyId(e.target.value)} options={faculties.map((f) => ({ value: f.id, label: f.name }))} />
+            <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Data Structures and Algorithms" />
+            <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. CS2105" />
+          </>
+        )}
+        {modal === 'curriculum' && (
+          <>
+            <Select label="Course Unit" value={courseUnitId} onChange={(e) => setCourseUnitId(e.target.value)} options={courseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))} />
+            <Select label="Programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)} options={programmes.map((p) => ({ value: p.id, label: p.name }))} />
+            <div className="grid grid-cols-3 gap-3">
+              <Select
+                label="Year"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                options={[1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))}
+              />
+              <Select
+                label="Semester"
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                options={[
+                  { value: '1', label: 'Sem 1' },
+                  { value: '2', label: 'Sem 2' },
+                ]}
+              />
+              <Select label="Acad. Year" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} options={academicYearOptions()} />
+            </div>
+          </>
+        )}
+      </FormModal>
+    </div>
+  )
+}
+
+function EntityTable({
+  headers,
+  rows,
+  onEdit,
+}: {
+  headers: string[]
+  rows: string[][]
+  onEdit: (index: number) => void
+}) {
+  if (rows.length === 0) {
+    return <p className="py-12 text-center text-body-sm text-text-secondary">Nothing here yet. Add your first entry.</p>
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[480px] text-left text-sm">
+        <thead>
+          <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
+            {headers.map((h) => (
+              <th key={h} className="py-2 pr-4">
+                {h}
+              </th>
+            ))}
+            <th className="py-2" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((cell, j) => (
+                <td key={j} className={`py-3 pr-4 ${j === 0 ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
+                  {cell}
+                </td>
+              ))}
+              <td className="py-3 text-right">
+                <button onClick={() => onEdit(i)} className="text-sm font-medium text-umu-red hover:underline">
+                  Edit
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}

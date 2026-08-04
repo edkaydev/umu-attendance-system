@@ -1,11 +1,254 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
+import { RequireAuth, RequireRole, DASHBOARD_BY_ROLE } from './components/RouteGuards'
+import { AppLayout } from './components/Layout'
+
+import Login from './pages/Login'
+import AccessDenied from './pages/AccessDenied'
+import ProfileSetup from './pages/ProfileSetup'
+import StudentDashboard from './pages/StudentDashboard'
+import StudentAttendance from './pages/StudentAttendance'
+import LecturerDashboard from './pages/LecturerDashboard'
+import SessionsList from './pages/SessionsList'
+import OpenSession from './pages/OpenSession'
+import LiveSession from './pages/LiveSession'
+import SessionDetail from './pages/SessionDetail'
+import FacultyAdminDashboard from './pages/FacultyAdminDashboard'
+import ReportsPage from './pages/ReportsPage'
+import AuditLogPage from './pages/AuditLogPage'
+import SystemAdminDashboard from './pages/SystemAdminDashboard'
+import AcademicSetup from './pages/AcademicSetup'
+import UserManagement from './pages/UserManagement'
+import ImportData from './pages/ImportData'
+import SystemLogPage from './pages/SystemLogPage'
+import NotFound from './pages/NotFound'
+
+function HomeRedirect() {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.profileComplete) return <Navigate to="/profile/setup" replace />
+  return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace state={{ from: location.pathname }} />
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<h1 className="text-h1">UMU Attendance</h1>} />
-      </Routes>
+      <AuthProvider>
+        <ToastProvider>
+          <Routes>
+            <Route path="/" element={<HomeRedirect />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/access-denied" element={<AccessDenied />} />
+            <Route
+              path="/profile/setup"
+              element={
+                <RequireAuth>
+                  <ProfileSetup />
+                </RequireAuth>
+              }
+            />
+
+            {/* Student */}
+            <Route
+              path="/student"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['student']}>
+                    <AppLayout>
+                      <StudentDashboard />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/student/attendance"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['student']}>
+                    <AppLayout>
+                      <StudentAttendance />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+
+            {/* Lecturer */}
+            <Route
+              path="/lecturer"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <LecturerDashboard />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/lecturer/sessions"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <SessionsList />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/lecturer/sessions/new"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <OpenSession />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/lecturer/sessions/:sessionId"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <SessionDetail />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/lecturer/sessions/:sessionId/live"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <LiveSession />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+
+            {/* Faculty Admin */}
+            <Route
+              path="/faculty-admin"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['faculty_admin']}>
+                    <AppLayout>
+                      <FacultyAdminDashboard />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/faculty-admin/reports"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['faculty_admin']}>
+                    <AppLayout>
+                      <ReportsPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/faculty-admin/audit"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['faculty_admin', 'system_admin']}>
+                    <AppLayout>
+                      <AuditLogPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+
+            {/* System Admin */}
+            <Route
+              path="/system-admin"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <SystemAdminDashboard />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/academic"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <AcademicSetup />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/users"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <UserManagement />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/imports"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <ImportData />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/logs"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <SystemLogPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }
