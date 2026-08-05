@@ -50,6 +50,8 @@ export async function createAssignment(
     throw new ApiError('Semester must be 1 or 2', 400)
   }
 
+  await assertNoCohortClash(input.lecturerId, input.courseUnitId, input.academicYear, input.semester)
+
   return prisma.lecturerAssignment.upsert({
     where: {
       lecturerId_courseUnitId_academicYear_semester: {
@@ -90,4 +92,50 @@ export async function removeAssignment(id: string, facultyId: string) {
   }
   await prisma.lecturerAssignment.delete({ where: { id } })
   return existing
+}
+
+/**
+ * A lecturer may teach at most one unit per (programme + year) cohort in a
+ * given academic year + semester. They may still teach across years,
+ * programmes, and semesters.
+ */
+async function assertNoCohortClash(
+  lecturerId: string,
+  courseUnitId: string,
+  academicYear: string,
+  semester: number
+) {
+  const newUnitCohorts = await prisma.curriculumUnit.findMany({
+    where: { courseUnitId, academicYear, semester },
+    select: { programmeId: true, year: true },
+  })
+  if (newUnitCohorts.length === 0) return
+
+  const existing = await prisma.lecturerAssignment.findMany({
+    where: { lecturerId, academicYear, semester, courseUnitId: { not: courseUnitId } },
+    select: { courseUnitId: true },
+  })
+  if (existing.length === 0) return
+
+  const existingCohorts = await prisma.curriculumUnit.findMany({
+    where: {
+      courseUnitId: { in: existing.map((e) => e.courseUnitId) },
+      academicYear,
+      semester,
+    },
+    select: { programmeId: true, year: true },
+  })
+
+  const newCohortSet = new Set(newUnitCohorts.map((c) => `${c.programmeId}|${c.year}`))
+  const clash = existingCohorts.find((c) => newCohortSet.has(`${c.programmeId}|${c.year}`))
+  if (clash) {
+    const programme = await prisma.programme.findUnique({
+      where: { id: clash.programmeId },
+      select: { name: true },
+    })
+    throw new ApiError(
+      `This lecturer already teaches a unit taken by ${programme?.name ?? 'the same'} Year ${clash.year} cohort in ${academicYear} Semester ${semester}. Pick a different year, programme, or semester.`,
+      400
+    )
+  }
 }
