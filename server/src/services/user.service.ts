@@ -99,3 +99,34 @@ export async function changeUserRole(id: string, role: Role) {
 
   return prisma.user.update({ where: { id }, data })
 }
+
+/**
+ * Assign (or remove) a faculty from a faculty_admin or lecturer account.
+ * Only System Admin can call this.
+ */
+export async function assignFaculty(userId: string, facultyId: string | null) {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new ApiError('User not found', 404)
+
+  if (user.role !== 'faculty_admin' && user.role !== 'lecturer') {
+    throw new ApiError('Faculty can only be assigned to Faculty Admin or Lecturer accounts', 400)
+  }
+
+  if (facultyId !== null) {
+    const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
+    if (!faculty) throw new ApiError('Faculty not found', 404)
+    if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+  }
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { facultyId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      faculty: { select: { id: true, name: true, code: true } },
+    },
+  })
+}

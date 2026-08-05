@@ -300,9 +300,11 @@ export const userApi = {
     const qs = new URLSearchParams(params).toString()
     return http.get<{ users: ManagedUser[]; total: number }>(`/api/users${qs ? `?${qs}` : ''}`)
   },
-  deactivate: (id: string) => http.patch<{ user: ManagedUser }>(`/api/users/${id}/deactivate`),
-  activate: (id: string) => http.patch<{ user: ManagedUser }>(`/api/users/${id}/activate`),
-  changeRole: (id: string, role: Role) => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
+  deactivate:   (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/deactivate`),
+  activate:     (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/activate`),
+  changeRole:   (id: string, role: Role)  => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
+  assignFaculty:(id: string, facultyId: string | null) =>
+    http.patch<{ user: ManagedUser }>(`/api/users/${id}/faculty`, { facultyId }),
 }
 
 // ─── Imports (System Admin) ───

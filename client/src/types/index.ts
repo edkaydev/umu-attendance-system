@@ -141,6 +141,7 @@ export interface ManagedUser {
   email: string
   role: Role
   facultyId: string | null
+  faculty: { id: string; name: string } | null
   programmeId: string | null
   regNumber: string | null
   isActive: boolean

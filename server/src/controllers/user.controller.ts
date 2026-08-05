@@ -8,6 +8,7 @@ import {
   getUser,
   setUserActive,
   changeUserRole,
+  assignFaculty,
 } from '../services/user.service'
 
 const roleSchema = z.object({
@@ -58,6 +59,23 @@ export async function updateUserRole(req: Request, res: Response, next: NextFunc
   try {
     const { role } = roleSchema.parse(req.body)
     ok(res, { user: await changeUserRole(req.params.id, role) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+const facultySchema = z.object({
+  facultyId: z.string().uuid().nullable(),
+})
+
+export async function assignFacultyController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { facultyId } = facultySchema.parse(req.body)
+    ok(res, { user: await assignFaculty(req.params.id, facultyId) })
   } catch (e) {
     next(e)
   }
