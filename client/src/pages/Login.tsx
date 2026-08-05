@@ -30,7 +30,7 @@ export default function Login() {
   return (
     <GuestOnly>
       <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
-        <img src="/umu-logo.png" alt="UMU logo" className="mb-4 h-20 w-20 rounded-full object-cover shadow" />
+        <img src="/umu-logo.png" alt="UMU logo" className="mb-4 h-20 w-auto" />
         <h1 className="text-h1 font-bold text-text-primary">Uganda Martyrs University</h1>
         <p className="mt-1 text-h3 text-text-secondary">Attendance System</p>
 

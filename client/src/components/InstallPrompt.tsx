@@ -56,7 +56,7 @@ export function InstallPrompt() {
   return (
     <div className="fixed bottom-20 left-4 right-4 z-[55] flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white px-5 py-4 shadow-lg md:bottom-6 md:left-auto md:right-6 md:w-[380px]">
       <div className="flex items-center gap-3">
-        <img src="/umu-logo.png" alt="UMU logo" className="h-10 w-10 rounded-full object-cover" />
+        <img src="/umu-logo.png" alt="UMU logo" className="h-10 w-auto" />
         <div>
           <p className="text-sm font-semibold text-text-primary">Install UMU Attendance</p>
           <p className="text-xs text-text-secondary">Get instant access from your home screen.</p>

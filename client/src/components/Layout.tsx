@@ -45,7 +45,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Desktop sidebar */}
       <aside className="hidden w-[240px] shrink-0 border-r border-border bg-white shadow-[2px_0_8px_rgba(0,0,0,0.04)] md:block">
         <div className="flex h-16 items-center gap-2 border-b border-border px-5">
-          <img src="/umu-logo.png" alt="UMU logo" className="h-8 w-8 rounded-full object-cover" />
+          <img src="/umu-logo.png" alt="UMU logo" className="h-8 w-auto" />
           <span className="text-base font-bold text-text-primary">UMU Attendance</span>
         </div>
         <nav className="space-y-1 p-3">
