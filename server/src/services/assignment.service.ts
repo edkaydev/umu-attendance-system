@@ -50,14 +50,23 @@ export async function createAssignment(
     throw new ApiError('Semester must be 1 or 2', 400)
   }
 
-  return prisma.lecturerAssignment.create({
-    data: {
+  return prisma.lecturerAssignment.upsert({
+    where: {
+      lecturerId_courseUnitId_academicYear_semester: {
+        lecturerId: input.lecturerId,
+        courseUnitId: input.courseUnitId,
+        academicYear: input.academicYear,
+        semester: input.semester,
+      },
+    },
+    create: {
       lecturerId: input.lecturerId,
       courseUnitId: input.courseUnitId,
       academicYear: input.academicYear,
       semester: input.semester,
       assignedById: facultyAdminId,
     },
+    update: {},
     include: {
       lecturer: { select: { id: true, fullName: true, email: true } },
       courseUnit: { select: { id: true, code: true, name: true } },

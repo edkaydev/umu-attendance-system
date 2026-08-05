@@ -171,17 +171,38 @@ function ManageUnitsModal({
   const [courseUnitId, setCourseUnitId] = useState('')
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
   const [semester, setSemester] = useState('1')
+  const [confirmAdd, setConfirmAdd] = useState(false)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
 
   const student = isStudent(user)
   const current = student ? user.enrollments : user.lecturerAssignments
 
+  // Only units the user already has in the SAME year + semester are hidden,
+  // so the same unit can still be added for a different period.
   const available = useMemo(() => {
-    const taken = new Set(current.map((c) => c.courseUnitId))
+    const taken = new Set(
+      current
+        .filter((c) => c.academicYear === academicYear && c.semester === Number(semester))
+        .map((c) => c.courseUnitId)
+    )
     return courseUnits.filter((cu) => !taken.has(cu.id))
-  }, [courseUnits, current])
+  }, [courseUnits, current, academicYear, semester])
+
+  function armConfirm(arm: () => void, disarm: () => void) {
+    arm()
+    setTimeout(disarm, 3000)
+  }
 
   async function handleAdd() {
     if (!courseUnitId) return toast.error('Select a course unit')
+    if (!confirmAdd) {
+      armConfirm(
+        () => setConfirmAdd(true),
+        () => setConfirmAdd(false)
+      )
+      return
+    }
+    setConfirmAdd(false)
     setBusy(true)
     try {
       if (student) {
@@ -210,6 +231,14 @@ function ManageUnitsModal({
   }
 
   async function handleRemove(recordId: string, unitName: string) {
+    if (confirmRemoveId !== recordId) {
+      armConfirm(
+        () => setConfirmRemoveId(recordId),
+        () => setConfirmRemoveId(null)
+      )
+      return
+    }
+    setConfirmRemoveId(null)
     setBusy(true)
     try {
       if (student) await enrollmentApi.remove(recordId)
@@ -252,12 +281,12 @@ function ManageUnitsModal({
                     </p>
                   </div>
                   <Button
-                    variant="danger"
+                    variant={confirmRemoveId === c.id ? 'danger' : 'secondary'}
                     className="min-h-[28px] shrink-0 px-2.5 py-1 text-body-sm"
                     disabled={busy}
                     onClick={() => handleRemove(c.id, c.courseUnit.name)}
                   >
-                    Remove
+                    {confirmRemoveId === c.id ? 'Confirm?' : 'Remove'}
                   </Button>
                 </li>
               ))}
@@ -273,11 +302,17 @@ function ManageUnitsModal({
           <div className="space-y-3">
             <Select
               label="Course Unit"
-              placeholder={available.length === 0 ? 'No more units available' : 'Select a unit'}
+              placeholder={available.length === 0 ? 'No more units for this period' : 'Select a unit'}
               value={courseUnitId}
               onChange={(e) => setCourseUnitId(e.target.value)}
               options={available.map((cu) => ({ value: cu.id, label: `${cu.code} — ${cu.name}` }))}
             />
+            {available.length === 0 && (
+              <p className="text-body-sm text-text-disabled">
+                All faculty units are already assigned for {academicYear} &middot; Semester{' '}
+                {semester}. Try another period.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Select
                 label="Academic Year"
@@ -296,10 +331,11 @@ function ManageUnitsModal({
               fullWidth
               loading={busy}
               disabled={!courseUnitId}
+              variant={confirmAdd ? 'danger' : 'primary'}
               onClick={handleAdd}
               className="!min-h-[40px]"
             >
-              Add Unit
+              {confirmAdd ? 'Confirm Add?' : 'Add Unit'}
             </Button>
           </div>
         </div>
