@@ -109,8 +109,8 @@ export default function StudentDashboard() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 maxLength={6}
-                placeholder="ABC123"
-                className="code-font w-full rounded border-[1.5px] border-border bg-surface-1 px-4 py-3 text-lg font-semibold uppercase tracking-[0.35em] text-text-primary focus:border-umu-red focus:outline-none"
+                placeholder="A B C 1 2 3"
+                className="code-font w-full rounded border-[1.5px] border-border bg-surface-1 px-4 py-3 text-xl font-bold uppercase tracking-[0.15em] text-text-primary focus:border-umu-red focus:outline-none focus:shadow-focus-red"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleCheckIn()
                 }}

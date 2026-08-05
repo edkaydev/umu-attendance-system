@@ -1,5 +1,5 @@
 import { prisma } from '../config/db'
-import { ApiError } from '../utils/apiResponse'
+
 import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
 
 function dayRange(daysAgo: number): { start: Date; end: Date } {
@@ -183,7 +183,19 @@ export async function getFacultyAdminDashboard(adminId: string) {
     where: { id: adminId },
     select: { facultyId: true },
   })
-  if (!admin?.facultyId) throw new ApiError('Faculty is not set for this admin', 400)
+
+  // Faculty not yet assigned — return a safe empty state so the frontend
+  // can show a "contact System Admin" prompt instead of a crash.
+  if (!admin?.facultyId) {
+    return {
+      facultyNotAssigned: true as const,
+      overview: { courseUnits: 0, students: 0, lecturers: 0, sessionsToday: 0, activeAlerts: 0 },
+      activeAlerts: [],
+      lecturerSummary: [],
+      programmeSummary: [],
+    }
+  }
+
   const facultyId = admin.facultyId
 
   const { start: todayStart } = dayRange(0)

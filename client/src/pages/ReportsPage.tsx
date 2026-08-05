@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  reportApi,
-  dashboardApi,
-  assignmentApi,
-  attendanceApi,
-} from '../api/endpoints'
+import { reportApi, dashboardApi, assignmentApi, attendanceApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -13,23 +8,19 @@ import { Badge } from '../components/ui/Badge'
 import { ApiClientError } from '../api/client'
 import type { UnitStatus } from '../types'
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type ReportType = 'programme' | 'course-unit' | 'lecturer' | 'student'
 
-const REPORT_TABS: { type: ReportType; label: string }[] = [
-  { type: 'programme', label: 'Programme' },
-  { type: 'course-unit', label: 'Course Unit' },
-  { type: 'lecturer', label: 'Lecturer' },
-  { type: 'student', label: 'Student' },
+const REPORT_TABS: { type: ReportType; label: string; desc: string }[] = [
+  { type: 'programme',   label: 'Programme',   desc: 'Average attendance and units below threshold' },
+  { type: 'course-unit', label: 'Course Unit',  desc: 'All enrolled students and their attendance %' },
+  { type: 'lecturer',    label: 'Lecturer',     desc: 'Sessions held and average attendance per unit' },
+  { type: 'student',     label: 'Student',      desc: 'Full per-unit breakdown with eligibility status' },
 ]
 
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear].map((y) => ({ value: `${y}/${y + 1}`, label: `${y}/${y + 1}` }))
-}
-
 interface StudentRow {
-  student: { id: string; regNumber: string | null; fullName: string }
+  courseUnit: { id: string; code: string; name: string }
   sessionsHeld: number
   attended: number
   percentage: number
@@ -42,33 +33,286 @@ interface UnitStudent {
   status: UnitStatus
 }
 
-const REPORT_METHOD: Record<ReportType, string> = {
-  programme: 'programme',
-  'course-unit': 'courseUnit',
-  lecturer: 'lecturer',
-  student: 'student',
+function academicYearOptions(): { value: string; label: string }[] {
+  const now = new Date()
+  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
+  return [startYear - 1, startYear].map((y) => ({
+    value: `${y}/${y + 1}`,
+    label: `${y}/${y + 1}`,
+  }))
 }
+
+// ─── InfoPill ────────────────────────────────────────────────────────────────
+function InfoPill({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-border bg-surface-1 px-4 py-2">
+      <span className="text-h4 font-bold text-text-primary">{value}</span>
+      <span className="ml-1.5 text-body-sm text-text-secondary">{label}</span>
+    </div>
+  )
+}
+
+// ─── Table shell ─────────────────────────────────────────────────────────────
+function ReportTable({
+  headers,
+  children,
+}: {
+  headers: string[]
+  children: React.ReactNode
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-border bg-surface-1">
+            {headers.map((h) => (
+              <th
+                key={h}
+                className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary first:pl-5"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">{children}</tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─── Report renderers ────────────────────────────────────────────────────────
+
+function ProgrammeReport({ data }: { data: unknown }) {
+  const r = data as {
+    programme: { code: string; name: string }
+    period: { academicYear: string; semester: number }
+    enrolledStudents: number
+    avgAttendance: number | null
+    unitsBelowThreshold: number
+    units: {
+      courseUnit: { id: string; code: string; name: string }
+      year: number
+      sessionsHeld: number
+      avgAttendance: number | null
+      belowThreshold: boolean
+    }[]
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-body text-text-secondary">
+        {r.programme.name} ({r.programme.code}) &middot; {r.period.academicYear} &middot; Semester {r.period.semester}
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <InfoPill label="Enrolled students" value={r.enrolledStudents} />
+        <InfoPill label="Faculty average"   value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
+        <InfoPill label="Units below 75%"   value={r.unitsBelowThreshold} />
+      </div>
+      <ReportTable headers={['Unit', 'Year', 'Sessions', 'Avg Attendance', 'Status']}>
+        {r.units.map((u) => (
+          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+            <td className="px-4 py-3 pl-5">
+              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
+              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
+            </td>
+            <td className="px-4 py-3 text-body text-text-secondary">Year {u.year}</td>
+            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
+            <td className="px-4 py-3">
+              <span
+                className={`text-body font-semibold ${
+                  u.avgAttendance === null
+                    ? 'text-text-disabled'
+                    : u.avgAttendance < 75
+                    ? 'text-danger'
+                    : u.avgAttendance <= 80
+                    ? 'text-warning'
+                    : 'text-success'
+                }`}
+              >
+                {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
+              </span>
+            </td>
+            <td className="px-4 py-3">
+              {u.belowThreshold ? <Badge status="critical" /> : <Badge status="good" />}
+            </td>
+          </tr>
+        ))}
+      </ReportTable>
+    </div>
+  )
+}
+
+function LecturerReport({ data }: { data: unknown }) {
+  const r = data as {
+    lecturer: { fullName: string; email: string }
+    period: { academicYear: string; semester: number }
+    totalSessions: number
+    units: {
+      courseUnit: { id: string; code: string; name: string }
+      sessionsHeld: number
+      avgAttendance: number | null
+    }[]
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-body text-text-secondary">
+        {r.lecturer.fullName} &middot; {r.lecturer.email}
+      </p>
+      <InfoPill label="Total sessions this semester" value={r.totalSessions} />
+      <ReportTable headers={['Course Unit', 'Sessions Held', 'Average Attendance']}>
+        {r.units.map((u) => (
+          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+            <td className="px-4 py-3 pl-5">
+              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
+              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
+            </td>
+            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
+            <td className="px-4 py-3">
+              <span
+                className={`text-body font-semibold ${
+                  u.avgAttendance === null
+                    ? 'text-text-disabled'
+                    : u.avgAttendance < 75
+                    ? 'text-danger'
+                    : u.avgAttendance <= 80
+                    ? 'text-warning'
+                    : 'text-success'
+                }`}
+              >
+                {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </ReportTable>
+    </div>
+  )
+}
+
+function CourseUnitReport({ data }: { data: unknown }) {
+  const r = data as {
+    courseUnit: { code: string; name: string }
+    sessionsHeld: number
+    enrolledStudents: number
+    avgAttendance: number | null
+    students: {
+      student: { id: string; regNumber: string | null; fullName: string }
+      sessionsHeld: number
+      attended: number
+      percentage: number
+      status: UnitStatus
+    }[]
+  }
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        <InfoPill label="Sessions held"      value={r.sessionsHeld} />
+        <InfoPill label="Enrolled students"  value={r.enrolledStudents} />
+        <InfoPill label="Class average"      value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
+      </div>
+      <ReportTable headers={['Student', 'Reg Number', 'Sessions', 'Attended', '%', 'Status']}>
+        {r.students.map((s) => (
+          <tr key={s.student.id} className="hover:bg-surface-1">
+            <td className="px-4 py-3 pl-5 text-body font-medium text-text-primary">
+              {s.student.fullName}
+            </td>
+            <td className="px-4 py-3 text-body text-text-secondary">
+              {s.student.regNumber ?? '—'}
+            </td>
+            <td className="px-4 py-3 text-body text-text-secondary">{s.sessionsHeld}</td>
+            <td className="px-4 py-3 text-body text-text-secondary">{s.attended}</td>
+            <td className="px-4 py-3">
+              <span
+                className={`text-body font-semibold ${
+                  s.percentage < 75
+                    ? 'text-danger'
+                    : s.percentage <= 80
+                    ? 'text-warning'
+                    : 'text-success'
+                }`}
+              >
+                {s.percentage}%
+              </span>
+            </td>
+            <td className="px-4 py-3">
+              <Badge status={s.status} />
+            </td>
+          </tr>
+        ))}
+      </ReportTable>
+    </div>
+  )
+}
+
+function StudentReport({ data }: { data: unknown }) {
+  const r = data as {
+    student: { fullName: string; regNumber: string | null }
+    period: { academicYear: string; semester: number }
+    units: StudentRow[]
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-body text-text-secondary">
+        {r.student.fullName}
+        {r.student.regNumber ? ` · ${r.student.regNumber}` : ''}
+        {' · '}{r.period.academicYear} · Semester {r.period.semester}
+      </p>
+      <ReportTable headers={['Course Unit', 'Sessions', 'Attended', '%', 'Status']}>
+        {r.units.map((u) => (
+          // key on courseUnit.id — not student.id (that was the bug)
+          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+            <td className="px-4 py-3 pl-5">
+              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
+              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
+            </td>
+            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
+            <td className="px-4 py-3 text-body text-text-secondary">{u.attended}</td>
+            <td className="px-4 py-3">
+              <span
+                className={`text-body font-semibold ${
+                  u.percentage < 75
+                    ? 'text-danger'
+                    : u.percentage <= 80
+                    ? 'text-warning'
+                    : 'text-success'
+                }`}
+              >
+                {u.percentage}%
+              </span>
+            </td>
+            <td className="px-4 py-3">
+              <Badge status={u.status} />
+            </td>
+          </tr>
+        ))}
+      </ReportTable>
+    </div>
+  )
+}
+
+// ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
   const toast = useToast()
 
-  const [tab, setTab] = useState<ReportType>('programme')
+  const [tab, setTab]                 = useState<ReportType>('programme')
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[0].value)
-  const [semester, setSemester] = useState('1')
+  const [semester, setSemester]       = useState('1')
 
-  const [programmes, setProgrammes] = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['programmeSummary']>([])
-  const [lecturers, setLecturers] = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['lecturerSummary']>([])
-  const [courseUnits, setCourseUnits] = useState<{ id: string; code: string; name: string }[]>([])
+  const [programmes,   setProgrammes]   = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['programmeSummary']>([])
+  const [lecturers,    setLecturers]    = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['lecturerSummary']>([])
+  const [courseUnits,  setCourseUnits]  = useState<{ id: string; code: string; name: string }[]>([])
   const [unitStudents, setUnitStudents] = useState<UnitStudent[]>([])
 
-  const [programmeId, setProgrammeId] = useState('')
+  const [programmeId,  setProgrammeId]  = useState('')
   const [courseUnitId, setCourseUnitId] = useState('')
-  const [lecturerId, setLecturerId] = useState('')
-  const [studentId, setStudentId] = useState('')
+  const [lecturerId,   setLecturerId]   = useState('')
+  const [studentId,    setStudentId]    = useState('')
 
-  const [result, setResult] = useState<unknown | null>(null)
+  const [result,  setResult]  = useState<unknown | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Load selectable items on mount
   useEffect(() => {
     dashboardApi
       .facultyAdmin()
@@ -76,7 +320,10 @@ export default function ReportsPage() {
         setProgrammes(d.programmeSummary)
         setLecturers(d.lecturerSummary)
       })
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load options'))
+      .catch((e) =>
+        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load report options')
+      )
+
     assignmentApi
       .list()
       .then((assignments) => {
@@ -87,6 +334,7 @@ export default function ReportsPage() {
       .catch(() => {})
   }, [toast])
 
+  // When course unit changes, load students for the student report selector
   useEffect(() => {
     if (!courseUnitId) {
       setUnitStudents([])
@@ -102,33 +350,33 @@ export default function ReportsPage() {
       .catch(() => setUnitStudents([]))
   }, [courseUnitId, academicYear, semester])
 
-  const period = useMemo(() => ({ academicYear, semester: Number(semester) }), [academicYear, semester])
+  const period = useMemo(
+    () => ({ academicYear, semester: Number(semester) }),
+    [academicYear, semester]
+  )
+
+  // Derive the selected entity ID for PDF link
+  const selectedId =
+    tab === 'programme'   ? programmeId  :
+    tab === 'course-unit' ? courseUnitId :
+    tab === 'lecturer'    ? lecturerId   :
+    studentId
 
   async function generate() {
-    let id: string | null = null
-    switch (tab) {
-      case 'programme':
-        id = programmeId
-        break
-      case 'course-unit':
-        id = courseUnitId
-        break
-      case 'lecturer':
-        id = lecturerId
-        break
-      case 'student':
-        id = studentId
-        break
-    }
-    if (!id) {
+    if (!selectedId) {
       toast.error('Select an item first')
       return
     }
     setLoading(true)
     setResult(null)
     try {
-      const fn = (reportApi as unknown as Record<string, (id: string, p: { academicYear: string; semester: number }) => Promise<unknown>>)[REPORT_METHOD[tab]]
-      setResult(await fn(id, period))
+      const methods = {
+        programme:    reportApi.programme.bind(reportApi),
+        'course-unit': reportApi.courseUnit.bind(reportApi),
+        lecturer:     reportApi.lecturer.bind(reportApi),
+        student:      reportApi.student.bind(reportApi),
+      }
+      setResult(await methods[tab](selectedId, period))
       toast.success('Report generated')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
@@ -138,22 +386,26 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+
+      {/* ── Header ── */}
       <div>
-        <h1 className="text-h2 font-bold text-text-primary">Reports</h1>
-        <p className="text-body-sm text-text-secondary">Generate attendance reports for your faculty.</p>
+        <h1 className="text-h1 font-bold text-text-primary">Reports</h1>
+        <p className="mt-1 text-body text-text-secondary">
+          Generate and download attendance reports for your faculty.
+        </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* ── Report type tabs ── */}
+      <div className="flex flex-wrap gap-2 border-b border-border pb-4">
         {REPORT_TABS.map((t) => (
           <button
             key={t.type}
-            onClick={() => {
-              setTab(t.type)
-              setResult(null)
-            }}
-            className={`min-h-[40px] rounded px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.type ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
+            onClick={() => { setTab(t.type); setResult(null) }}
+            className={`min-h-[40px] rounded-sm px-4 py-2 text-body font-medium transition-colors ${
+              tab === t.type
+                ? 'bg-umu-red text-white'
+                : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary'
             }`}
           >
             {t.label}
@@ -161,8 +413,14 @@ export default function ReportsPage() {
         ))}
       </div>
 
+      {/* ── Filters card ── */}
       <Card>
-        <div className="grid gap-3 md:grid-cols-2">
+        <p className="mb-4 text-body-sm text-text-secondary">
+          {REPORT_TABS.find((t) => t.type === tab)?.desc}
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Entity selector */}
           {tab === 'programme' && (
             <Select
               label="Programme"
@@ -201,16 +459,24 @@ export default function ReportsPage() {
               />
               <Select
                 label="Student"
-                placeholder={unitStudents.length ? 'Select student' : 'No enrolled students found'}
+                placeholder={
+                  courseUnitId
+                    ? unitStudents.length
+                      ? 'Select student'
+                      : 'No students enrolled'
+                    : 'Select a course unit first'
+                }
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
                 options={unitStudents.map((s) => ({
                   value: s.student.id,
-                  label: `${s.student.fullName} (${s.student.regNumber ?? '—'})`,
+                  label: `${s.student.fullName}${s.student.regNumber ? ` (${s.student.regNumber})` : ''}`,
                 }))}
               />
             </>
           )}
+
+          {/* Period selectors */}
           <Select
             label="Academic Year"
             value={academicYear}
@@ -228,221 +494,49 @@ export default function ReportsPage() {
           />
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button loading={loading} onClick={generate}>
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+          <Button loading={loading} onClick={generate} disabled={!selectedId}>
             Generate Report
           </Button>
-          {(tab === 'programme' && programmeId) ||
-          (tab === 'course-unit' && courseUnitId) ||
-          (tab === 'lecturer' && lecturerId) ||
-          (tab === 'student' && studentId) ? (
+          {selectedId && (
             <a
-              href={reportApi.pdfUrl(tab, (tab === 'programme' ? programmeId : tab === 'course-unit' ? courseUnitId : tab === 'lecturer' ? lecturerId : studentId), period)}
-              className="inline-flex min-h-[44px] items-center rounded border-[1.5px] border-umu-red px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]"
+              href={reportApi.pdfUrl(tab, selectedId, period)}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded border border-umu-red px-6 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4]"
             >
+              {/* Download icon */}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
               Download PDF
             </a>
-          ) : null}
+          )}
         </div>
       </Card>
 
+      {/* ── Report preview ── */}
       {result !== null && (
-        <Card title="Report Preview">
-          <ReportView type={tab} data={result} />
+        <Card title="Report Preview" noPadding>
+          <div className="p-5 pb-0">
+            {tab === 'programme'   && <ProgrammeReport   data={result} />}
+            {tab === 'lecturer'    && <LecturerReport    data={result} />}
+            {tab === 'course-unit' && <CourseUnitReport  data={result} />}
+            {tab === 'student'     && <StudentReport     data={result} />}
+          </div>
+          {/* PDF download at bottom of preview too */}
+          {selectedId && (
+            <div className="border-t border-border px-5 py-3 text-right">
+              <a
+                href={reportApi.pdfUrl(tab, selectedId, period)}
+                className="text-body font-medium text-umu-red hover:underline"
+              >
+                Download this report as PDF →
+              </a>
+            </div>
+          )}
         </Card>
       )}
-    </div>
-  )
-}
-
-function ReportView({ type, data }: { type: ReportType; data: unknown }) {
-  if (type === 'programme') {
-    const r = data as {
-      programme: { code: string; name: string }
-      period: { academicYear: string; semester: number }
-      enrolledStudents: number
-      avgAttendance: number | null
-      unitsBelowThreshold: number
-      units: {
-        courseUnit: { id: string; code: string; name: string }
-        year: number
-        sessionsHeld: number
-        avgAttendance: number | null
-        belowThreshold: boolean
-      }[]
-    }
-    return (
-      <div className="space-y-4">
-        <p className="text-body-sm text-text-secondary">
-          {r.programme.name} ({r.programme.code}) · {r.period.academicYear} · Semester {r.period.semester}
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <InfoPill label="Enrolled" value={r.enrolledStudents} />
-          <InfoPill label="Average" value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
-          <InfoPill label="Units below 75%" value={r.unitsBelowThreshold} />
-        </div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase text-text-secondary">
-              <th className="py-2 pr-4">Unit</th>
-              <th className="py-2 pr-4">Year</th>
-              <th className="py-2 pr-4">Sessions</th>
-              <th className="py-2 pr-4">Avg</th>
-              <th className="py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {r.units.map((u) => (
-              <tr key={u.courseUnit.id}>
-                <td className="py-2 pr-4">
-                  <span className="font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
-                  <span className="text-text-secondary">({u.courseUnit.code})</span>
-                </td>
-                <td className="py-2 pr-4 text-text-secondary">Year {u.year}</td>
-                <td className="py-2 pr-4 text-text-secondary">{u.sessionsHeld}</td>
-                <td className="py-2 pr-4 text-text-secondary">{u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}</td>
-                <td className="py-2">{u.belowThreshold ? <Badge status="critical" /> : <Badge status="good" />}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  if (type === 'lecturer') {
-    const r = data as {
-      lecturer: { fullName: string; email: string }
-      period: { academicYear: string; semester: number }
-      totalSessions: number
-      units: {
-        courseUnit: { id: string; code: string; name: string }
-        sessionsHeld: number
-        avgAttendance: number | null
-      }[]
-    }
-    return (
-      <div className="space-y-4">
-        <p className="text-body-sm text-text-secondary">
-          {r.lecturer.fullName} · {r.lecturer.email}
-        </p>
-        <InfoPill label="Total sessions" value={r.totalSessions} />
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase text-text-secondary">
-              <th className="py-2 pr-4">Unit</th>
-              <th className="py-2 pr-4">Sessions Held</th>
-              <th className="py-2">Average Attendance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {r.units.map((u) => (
-              <tr key={u.courseUnit.id}>
-                <td className="py-2 pr-4">
-                  <span className="font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
-                  <span className="text-text-secondary">({u.courseUnit.code})</span>
-                </td>
-                <td className="py-2 pr-4 text-text-secondary">{u.sessionsHeld}</td>
-                <td className="py-2 text-text-secondary">{u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  if (type === 'course-unit') {
-    const r = data as {
-      courseUnit: { code: string; name: string }
-      sessionsHeld: number
-      enrolledStudents: number
-      avgAttendance: number | null
-      students: StudentRow[]
-    }
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-3">
-          <InfoPill label="Sessions held" value={r.sessionsHeld} />
-          <InfoPill label="Enrolled" value={r.enrolledStudents} />
-          <InfoPill label="Average" value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
-        </div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase text-text-secondary">
-              <th className="py-2 pr-4">Student</th>
-              <th className="py-2 pr-4">Reg Number</th>
-              <th className="py-2 pr-4">Sessions</th>
-              <th className="py-2 pr-4">Attended</th>
-              <th className="py-2 pr-4">%</th>
-              <th className="py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {r.students.map((s) => (
-              <tr key={s.student.id}>
-                <td className="py-2 pr-4 font-medium text-text-primary">{s.student.fullName}</td>
-                <td className="py-2 pr-4 text-text-secondary">{s.student.regNumber ?? '—'}</td>
-                <td className="py-2 pr-4 text-text-secondary">{s.sessionsHeld}</td>
-                <td className="py-2 pr-4 text-text-secondary">{s.attended}</td>
-                <td className="py-2 pr-4 text-text-secondary">{s.percentage}%</td>
-                <td className="py-2">
-                  <Badge status={s.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  const r = data as {
-    student: { fullName: string; regNumber: string | null }
-    period: { academicYear: string; semester: number }
-    units: StudentRow[]
-  }
-  return (
-    <div className="space-y-4">
-      <p className="text-body-sm text-text-secondary">
-        {r.student.fullName} · {r.student.regNumber ?? '—'} · {r.period.academicYear} · Semester {r.period.semester}
-      </p>
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-border text-xs uppercase text-text-secondary">
-            <th className="py-2 pr-4">Unit</th>
-            <th className="py-2 pr-4">Sessions</th>
-            <th className="py-2 pr-4">Attended</th>
-            <th className="py-2 pr-4">%</th>
-            <th className="py-2">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {r.units.map((u) => (
-            <tr key={u.student.id}>
-              <td className="py-2 pr-4">
-                <span className="font-medium text-text-primary">{u.student.fullName}</span>{' '}
-                <span className="text-text-secondary">({u.student.regNumber ?? ''})</span>
-              </td>
-              <td className="py-2 pr-4 text-text-secondary">{u.sessionsHeld}</td>
-              <td className="py-2 pr-4 text-text-secondary">{u.attended}</td>
-              <td className="py-2 pr-4 text-text-secondary">{u.percentage}%</td>
-              <td className="py-2">
-                <Badge status={u.status} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function InfoPill({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded border border-border bg-surface-1 px-4 py-2">
-      <span className="text-sm font-semibold text-text-primary">{value}</span>{' '}
-      <span className="text-xs text-text-secondary">{label}</span>
     </div>
   )
 }

@@ -124,14 +124,19 @@ export default function LiveSession() {
             </>
           ) : (
             <>
-              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-text-secondary">
+              <p className="mb-4 text-label font-semibold uppercase tracking-widest text-text-secondary">
                 Session Code
               </p>
-              <p className="code-font text-[64px] font-bold leading-none tracking-[0.2em] text-umu-red">
-                {data.session.code}
-              </p>
-              <p className={`mt-3 text-body-sm ${secondsLeft <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
-                {secondsLeft > 0 ? `Code expires in ${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s` : 'Code expired — reopen to get a new code'}
+              {/* Design spec: 72px desktop / 56px mobile, 0.15em tracking, UMU red on #FFFDF0, yellow border */}
+              <div className="mx-auto inline-block rounded-lg border-2 border-umu-yellow bg-[#FFFDF0] px-10 py-6">
+                <p className="code-font text-[56px] font-bold leading-none tracking-[0.15em] text-umu-red md:text-[72px]">
+                  {data.session.code}
+                </p>
+              </div>
+              <p className={`mt-4 text-body-sm font-medium ${secondsLeft <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
+                {secondsLeft > 0
+                  ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
+                  : 'Code expired — reopen to get a new code'}
               </p>
             </>
           )}

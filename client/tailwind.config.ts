@@ -48,27 +48,34 @@ export default {
         mono: ['Google Sans Mono', 'Roboto Mono', 'Fira Code', 'monospace'],
       },
       fontSize: {
-        display: ['48px', '1.1'],
-        h1: ['32px', '1.2'],
-        h2: ['24px', '1.3'],
-        h3: ['20px', '1.4'],
-        'body-lg': ['16px', '1.6'],
-        'body-sm': ['12px', '1.5'],
-        label: ['12px', '1.4'],
-      },
-      fontWeight: {
-        'display-bold': '700',
+        display: ['48px', { lineHeight: '1.1', fontWeight: '700' }],
+        h1:      ['32px', { lineHeight: '1.2', fontWeight: '700' }],
+        h2:      ['24px', { lineHeight: '1.3', fontWeight: '600' }],
+        h3:      ['20px', { lineHeight: '1.4', fontWeight: '600' }],
+        h4:      ['16px', { lineHeight: '1.4', fontWeight: '600' }],
+        body:    ['14px', { lineHeight: '1.6', fontWeight: '400' }],
+        'body-lg': ['16px', { lineHeight: '1.6', fontWeight: '400' }],
+        'body-sm': ['12px', { lineHeight: '1.5', fontWeight: '400' }],
+        label:   ['12px', { lineHeight: '1.4', fontWeight: '500' }],
+        code:    ['14px', { lineHeight: '1.5', fontWeight: '500' }],
       },
       borderRadius: {
         DEFAULT: '10px',
+        sm: '6px',
         md: '14px',
         lg: '20px',
+        full: '9999px',
       },
+      // Google I/O philosophy: surfaces use BORDERS not shadows.
+      // Shadows are only for truly floating elements (modals, dropdowns, toasts).
       boxShadow: {
-        sm: '0 1px 3px rgba(0,0,0,0.06)',
+        // Kept minimal — only used for floating overlays
+        sm:  '0 1px 3px rgba(0,0,0,0.06)',
         DEFAULT: '0 4px 12px rgba(0,0,0,0.08)',
-        md: '0 8px 24px rgba(0,0,0,0.10)',
-        lg: '0 16px 40px rgba(0,0,0,0.12)',
+        md:  '0 8px 24px rgba(0,0,0,0.10)',
+        lg:  '0 16px 40px rgba(0,0,0,0.12)',
+        // Focus ring for inputs
+        'focus-red': '0 0 0 3px rgba(204,0,0,0.12)',
       },
       spacing: {
         1: '4px',
