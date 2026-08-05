@@ -26,17 +26,18 @@ model Campus {
 }
 
 model Faculty {
-  id          String       @id @default(uuid())
-  campusId    String
-  campus      Campus       @relation(fields: [campusId], references: [id])
-  name        String       @db.VarChar(100)
-  code        String       @db.VarChar(20)
-  isActive    Boolean      @default(true)
-  programmes  Programme[]
-  courseUnits CourseUnit[]
-  users       User[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                  String              @id @default(uuid())
+  campusId            String
+  campus              Campus              @relation(fields: [campusId], references: [id])
+  name                String              @db.VarChar(100)
+  code                String              @db.VarChar(20)
+  isActive            Boolean             @default(true)
+  programmes          Programme[]
+  courseUnits         CourseUnit[]
+  sharedCourseUnits   CourseUnitFaculty[]
+  users               User[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@unique([campusId, code])
   @@map("faculties")
@@ -70,11 +71,25 @@ model CourseUnit {
   lecturerAssignments LecturerAssignment[]
   sessions            Session[]
   attendanceAlerts    AttendanceAlert[]
+  sharedFaculties     CourseUnitFaculty[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
   @@unique([facultyId, code])
   @@map("course_units")
+}
+
+/// Additional faculties that share a course unit (beyond the owning faculty).
+model CourseUnitFaculty {
+  id           String     @id @default(uuid())
+  courseUnitId String
+  courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
+  facultyId    String
+  faculty      Faculty    @relation(fields: [facultyId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([courseUnitId, facultyId])
+  @@map("course_unit_faculties")
 }
 
 // Maps a course unit to a Programme + Year + Semester

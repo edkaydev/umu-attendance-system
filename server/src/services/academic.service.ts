@@ -98,21 +98,60 @@ export async function updateProgramme(
 // COURSE UNIT (task 28)
 // ─────────────────────────────────────────────
 
-export function listCourseUnits(facultyId?: string, includeInactive = false) {
-  return prisma.courseUnit.findMany({
-    where: {
-      ...(facultyId ? { facultyId } : {}),
-      ...(includeInactive ? {} : { isActive: true }),
+/** Returns course units owned by OR shared with a faculty. */
+export async function listCourseUnits(facultyId?: string, includeInactive = false) {
+  if (!facultyId) {
+    return prisma.courseUnit.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      include: {
+        faculty: { select: { id: true, name: true } },
+        sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
+      },
+      orderBy: { name: 'asc' },
+    })
+  }
+
+  // Units owned by this faculty
+  const owned = await prisma.courseUnit.findMany({
+    where: { facultyId, ...(includeInactive ? {} : { isActive: true }) },
+    include: {
+      faculty: { select: { id: true, name: true } },
+      sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
     },
-    include: { faculty: { select: { id: true, name: true } } },
     orderBy: { name: 'asc' },
   })
+
+  // Units shared with this faculty via join table (owned by other faculties)
+  const sharedLinks = await prisma.courseUnitFaculty.findMany({
+    where: { facultyId },
+    include: {
+      courseUnit: {
+        include: {
+          faculty: { select: { id: true, name: true } },
+          sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
+        },
+      },
+    },
+  })
+
+  const ownedIds = new Set(owned.map((u) => u.id))
+  const shared = sharedLinks
+    .map((l) => l.courseUnit)
+    .filter((u) => !ownedIds.has(u.id) && (includeInactive || u.isActive))
+
+  return [...owned, ...shared].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function createCourseUnit(data: { facultyId: string; code: string; name: string }) {
   const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
   if (!faculty) throw new ApiError('Faculty not found', 404)
-  return prisma.courseUnit.create({ data })
+  return prisma.courseUnit.create({
+    data,
+    include: {
+      faculty: { select: { id: true, name: true } },
+      sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
+    },
+  })
 }
 
 export async function updateCourseUnit(
@@ -125,7 +164,40 @@ export async function updateCourseUnit(
     const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
     if (!faculty) throw new ApiError('Faculty not found', 404)
   }
-  return prisma.courseUnit.update({ where: { id }, data })
+  return prisma.courseUnit.update({
+    where: { id },
+    data,
+    include: {
+      faculty: { select: { id: true, name: true } },
+      sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
+    },
+  })
+}
+
+/** Share a course unit with an additional faculty. */
+export async function addCourseUnitFaculty(courseUnitId: string, facultyId: string) {
+  const [courseUnit, faculty] = await Promise.all([
+    prisma.courseUnit.findUnique({ where: { id: courseUnitId } }),
+    prisma.faculty.findUnique({ where: { id: facultyId } }),
+  ])
+  if (!courseUnit) throw new ApiError('Course unit not found', 404)
+  if (!faculty) throw new ApiError('Faculty not found', 404)
+  if (courseUnit.facultyId === facultyId) {
+    throw new ApiError('This is already the owning faculty', 400)
+  }
+  return prisma.courseUnitFaculty.create({ data: { courseUnitId, facultyId } })
+}
+
+/** Remove a shared-faculty link from a course unit. */
+export async function removeCourseUnitFaculty(courseUnitId: string, facultyId: string) {
+  const link = await prisma.courseUnitFaculty.findUnique({
+    where: { courseUnitId_facultyId: { courseUnitId, facultyId } },
+  })
+  if (!link) throw new ApiError('Faculty share not found', 404)
+  await prisma.courseUnitFaculty.delete({
+    where: { courseUnitId_facultyId: { courseUnitId, facultyId } },
+  })
+  return link
 }
 
 // ─────────────────────────────────────────────
@@ -142,14 +214,27 @@ export interface CurriculumInput {
 
 export async function createCurriculumMapping(data: CurriculumInput) {
   const [courseUnit, programme] = await Promise.all([
-    prisma.courseUnit.findUnique({ where: { id: data.courseUnitId } }),
+    prisma.courseUnit.findUnique({
+      where: { id: data.courseUnitId },
+      include: { sharedFaculties: { select: { facultyId: true } } },
+    }),
     prisma.programme.findUnique({ where: { id: data.programmeId } }),
   ])
   if (!courseUnit) throw new ApiError('Course unit not found', 404)
   if (!programme) throw new ApiError('Programme not found', 404)
-  if (courseUnit.facultyId !== programme.facultyId) {
-    throw new ApiError('Course unit and programme must belong to the same faculty', 400)
+
+  // Allow mapping if the course unit is owned by OR shared with the programme's faculty
+  const allowedFaculties = new Set([
+    courseUnit.facultyId,
+    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+  ])
+  if (!allowedFaculties.has(programme.facultyId)) {
+    throw new ApiError(
+      'Course unit is not available to this programme\'s faculty. Share the course unit first.',
+      400
+    )
   }
+
   return prisma.curriculumUnit.create({ data })
 }
 

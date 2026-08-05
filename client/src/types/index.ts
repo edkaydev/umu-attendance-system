@@ -34,6 +34,8 @@ export interface CourseUnit {
   code: string
   name: string
   facultyId?: string
+  faculty?: { id: string; name: string }
+  sharedFaculties?: { id: string; courseUnitId: string; facultyId: string; faculty: { id: string; name: string }; createdAt: string }[]
   isActive?: boolean
 }
 

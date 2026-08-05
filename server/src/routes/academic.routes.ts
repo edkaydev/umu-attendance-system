@@ -16,6 +16,8 @@ import {
   getCourseUnits,
   postCourseUnit,
   putCourseUnit,
+  postCourseUnitFaculty,
+  deleteCourseUnitFaculty,
   getCurriculum,
   postCurriculum,
   deleteCurriculum,
@@ -63,6 +65,9 @@ router.put('/programmes/:id', authenticate, adminOnly, validate(updateProgrammeS
 router.get('/course-units', authenticate, adminOnly, getCourseUnits)
 router.post('/course-units', authenticate, adminOnly, validate(courseUnitSchema), postCourseUnit)
 router.put('/course-units/:id', authenticate, adminOnly, validate(updateCourseUnitSchema), putCourseUnit)
+// Share / unshare a course unit with additional faculties
+router.post('/course-units/:id/faculties', authenticate, adminOnly, postCourseUnitFaculty)
+router.delete('/course-units/:id/faculties/:facultyId', authenticate, adminOnly, deleteCourseUnitFaculty)
 
 // Curriculum mapping
 router.get('/curriculum', authenticate, adminOnly, getCurriculum)

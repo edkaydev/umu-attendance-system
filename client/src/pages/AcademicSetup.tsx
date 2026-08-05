@@ -85,6 +85,8 @@ export default function AcademicSetup() {
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [courseUnitId, setCourseUnitId] = useState('')
+  const [sharedFacultyIds, setSharedFacultyIds] = useState<string[]>([])
+  const [originalSharedFacultyIds, setOriginalSharedFacultyIds] = useState<string[]>([])
   const [year, setYear] = useState('1')
   const [semester, setSemester] = useState('1')
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
@@ -121,6 +123,8 @@ export default function AcademicSetup() {
     setFacultyId('')
     setProgrammeId('')
     setCourseUnitId('')
+    setSharedFacultyIds([])
+    setOriginalSharedFacultyIds([])
     setYear('1')
     setSemester('1')
     setAcademicYear(academicYearOptions()[1].value)
@@ -133,6 +137,9 @@ export default function AcademicSetup() {
     setCode(item.code ?? '')
     setCampusId(item.campusId ?? '')
     setFacultyId(item.facultyId ?? '')
+    const shared = (item.sharedFaculties ?? []).map((sf) => sf.facultyId)
+    setSharedFacultyIds(shared)
+    setOriginalSharedFacultyIds(shared)
     setAcademicYear(academicYearOptions()[1].value)
   }
 
@@ -154,8 +161,20 @@ export default function AcademicSetup() {
         else await academicApi.createProgramme(data)
       } else if (modal === 'course-units') {
         const data = { facultyId, name: name.trim(), code: code.trim() }
-        if (editingId) await academicApi.updateCourseUnit(editingId, data)
-        else await academicApi.createCourseUnit(data)
+        let savedUnit: CourseUnit
+        if (editingId) {
+          savedUnit = await academicApi.updateCourseUnit(editingId, data)
+        } else {
+          savedUnit = await academicApi.createCourseUnit(data)
+        }
+        // Sync shared faculties: add new ones, remove removed ones
+        const unitId = savedUnit.id
+        const toAdd = sharedFacultyIds.filter((id) => !originalSharedFacultyIds.includes(id))
+        const toRemove = originalSharedFacultyIds.filter((id) => !sharedFacultyIds.includes(id))
+        await Promise.all([
+          ...toAdd.map((fid) => academicApi.shareCourseUnit(unitId, fid)),
+          ...toRemove.map((fid) => academicApi.unshareCourseUnit(unitId, fid)),
+        ])
       } else if (modal === 'curriculum') {
         await academicApi.createCurriculum({
           courseUnitId,
@@ -237,11 +256,49 @@ export default function AcademicSetup() {
         )}
 
         {tab === 'course-units' && (
-          <EntityTable
-            headers={['Course Unit', 'Code', 'Faculty']}
-            rows={courseUnits.map((u) => [u.name, u.code, faculties.find((f) => f.id === u.facultyId)?.name ?? '—'])}
-            onEdit={(i) => openEdit('course-units', courseUnits[i])}
-          />
+          <div>
+            {courseUnits.length === 0 ? (
+              <p className="py-12 text-center text-body-sm text-text-secondary">Nothing here yet. Add your first entry.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
+                      <th className="py-2 pr-4">Course Unit</th>
+                      <th className="py-2 pr-4">Code</th>
+                      <th className="py-2 pr-4">Owning Faculty</th>
+                      <th className="py-2 pr-4">Also Shared With</th>
+                      <th className="py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {courseUnits.map((u, i) => {
+                      const shared = u.sharedFaculties ?? []
+                      return (
+                        <tr key={u.id}>
+                          <td className="py-3 pr-4 font-medium text-text-primary">{u.name}</td>
+                          <td className="py-3 pr-4 text-text-secondary">{u.code}</td>
+                          <td className="py-3 pr-4 text-text-secondary">
+                            {u.faculty?.name ?? faculties.find((f) => f.id === u.facultyId)?.name ?? '—'}
+                          </td>
+                          <td className="py-3 pr-4 text-text-secondary">
+                            {shared.length === 0
+                              ? <span className="text-text-disabled">—</span>
+                              : shared.map((sf) => sf.faculty.name).join(', ')}
+                          </td>
+                          <td className="py-3 text-right">
+                            <button onClick={() => openEdit('course-units', courseUnits[i])} className="text-sm font-medium text-umu-red hover:underline">
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
 
         {tab === 'curriculum' && (
@@ -325,9 +382,33 @@ export default function AcademicSetup() {
         )}
         {modal === 'course-units' && (
           <>
-            <Select label="Faculty" value={facultyId} onChange={(e) => setFacultyId(e.target.value)} options={faculties.map((f) => ({ value: f.id, label: f.name }))} />
+            <Select label="Owning Faculty" value={facultyId} onChange={(e) => setFacultyId(e.target.value)} options={faculties.map((f) => ({ value: f.id, label: f.name }))} />
             <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Data Structures and Algorithms" />
             <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. CS2105" />
+            {faculties.filter((f) => f.id !== facultyId).length > 0 && (
+              <div className="mb-4">
+                <p className="mb-1.5 block text-xs font-medium text-text-secondary">Also share with (optional)</p>
+                <div className="space-y-2">
+                  {faculties
+                    .filter((f) => f.id !== facultyId)
+                    .map((f) => (
+                      <label key={f.id} className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
+                        <input
+                          type="checkbox"
+                          checked={sharedFacultyIds.includes(f.id)}
+                          onChange={(e) =>
+                            setSharedFacultyIds((prev) =>
+                              e.target.checked ? [...prev, f.id] : prev.filter((id) => id !== f.id)
+                            )
+                          }
+                          className="h-4 w-4 rounded border-border accent-umu-red"
+                        />
+                        {f.name}
+                      </label>
+                    ))}
+                </div>
+              </div>
+            )}
           </>
         )}
         {modal === 'curriculum' && (

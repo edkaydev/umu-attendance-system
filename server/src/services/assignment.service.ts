@@ -37,10 +37,18 @@ export async function createAssignment(
     throw new ApiError('Lecturer not found', 404)
   }
 
-  const courseUnit = await prisma.courseUnit.findUnique({ where: { id: input.courseUnitId } })
+  const courseUnit = await prisma.courseUnit.findUnique({
+    where: { id: input.courseUnitId },
+    include: { sharedFaculties: { select: { facultyId: true } } },
+  })
   if (!courseUnit) throw new ApiError('Course unit not found', 404)
-  if (courseUnit.facultyId !== facultyId) {
-    throw new ApiError('Course unit is outside your faculty', 403)
+
+  const allowedFaculties = new Set([
+    courseUnit.facultyId,
+    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+  ])
+  if (!allowedFaculties.has(facultyId)) {
+    throw new ApiError('Course unit is not available to your faculty', 403)
   }
 
   if (!/^\d{4}\/\d{4}$/.test(input.academicYear)) {
@@ -84,12 +92,25 @@ export async function removeAssignment(id: string, facultyId: string) {
 
   const existing = await prisma.lecturerAssignment.findUnique({
     where: { id },
-    include: { courseUnit: { select: { facultyId: true } } },
+    include: {
+      courseUnit: {
+        select: {
+          facultyId: true,
+          sharedFaculties: { select: { facultyId: true } },
+        },
+      },
+    },
   })
   if (!existing) throw new ApiError('Assignment not found', 404)
-  if (existing.courseUnit.facultyId !== facultyId) {
+
+  const allowedFaculties = new Set([
+    existing.courseUnit.facultyId,
+    ...existing.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+  ])
+  if (!allowedFaculties.has(facultyId)) {
     throw new ApiError('Assignment is outside your faculty', 403)
   }
+
   await prisma.lecturerAssignment.delete({ where: { id } })
   return existing
 }

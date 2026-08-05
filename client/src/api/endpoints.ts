@@ -287,6 +287,13 @@ export const academicApi = {
     const res = await http.put<{ courseUnit: CourseUnit }>(`/api/academic/course-units/${id}`, data)
     return res.courseUnit
   },
+  shareCourseUnit: async (id: string, facultyId: string) => {
+    const res = await http.post<{ link: unknown }>(`/api/academic/course-units/${id}/faculties`, { facultyId })
+    return res.link
+  },
+  unshareCourseUnit: async (id: string, facultyId: string) => {
+    await http.del<{ message: string }>(`/api/academic/course-units/${id}/faculties/${facultyId}`)
+  },
   curriculum: async () => {
     const res = await http.get<{ curriculum: CurriculumUnitEntry[] }>('/api/academic/curriculum')
     return res.curriculum

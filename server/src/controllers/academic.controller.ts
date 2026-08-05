@@ -14,6 +14,8 @@ import {
   listCourseUnits,
   createCourseUnit,
   updateCourseUnit,
+  addCourseUnitFaculty,
+  removeCourseUnitFaculty,
   createCurriculumMapping,
   removeCurriculumMapping,
   listCurriculum,
@@ -168,6 +170,27 @@ export async function postCourseUnit(req: Request, res: Response, next: NextFunc
 export async function putCourseUnit(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     ok(res, { courseUnit: await updateCourseUnit(req.params.id, req.body) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+/** POST /api/academic/course-units/:id/faculties — share with an additional faculty */
+export async function postCourseUnitFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { facultyId } = z.object({ facultyId: z.string().uuid() }).parse(req.body)
+    const link = await addCourseUnitFaculty(req.params.id, facultyId)
+    created(res, { link })
+  } catch (e) {
+    next(e)
+  }
+}
+
+/** DELETE /api/academic/course-units/:id/faculties/:facultyId — remove a shared faculty */
+export async function deleteCourseUnitFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await removeCourseUnitFaculty(req.params.id, req.params.facultyId)
+    noContent(res)
   } catch (e) {
     next(e)
   }
