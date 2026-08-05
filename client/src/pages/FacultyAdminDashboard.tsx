@@ -280,12 +280,6 @@ export default function FacultyAdminDashboard() {
         >
           Reports →
         </Link>
-        <Link
-          to="/faculty-admin/audit"
-          className="text-body font-medium text-text-secondary hover:text-text-primary hover:underline"
-        >
-          Audit Log →
-        </Link>
       </div>
     </div>
   )

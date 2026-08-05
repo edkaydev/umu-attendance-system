@@ -171,18 +171,6 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/faculty-admin/audit"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['faculty_admin', 'system_admin']}>
-                    <AppLayout>
-                      <AuditLogPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
 
             {/* System Admin */}
             <Route
