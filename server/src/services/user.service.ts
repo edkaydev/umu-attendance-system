@@ -1,6 +1,7 @@
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { validateStudentPath, recalculateEnrollments } from './profile.service'
 
 export interface ListUsersParams {
   role?: Role
@@ -8,6 +9,24 @@ export interface ListUsersParams {
   page?: number
   limit?: number
 }
+
+const managedUserSelect = {
+  id: true,
+  email: true,
+  fullName: true,
+  role: true,
+  profileComplete: true,
+  isActive: true,
+  regNumber: true,
+  facultyId: true,
+  faculty: { select: { id: true, name: true } },
+  programmeId: true,
+  programme: { select: { id: true, name: true } },
+  year: true,
+  semester: true,
+  academicYear: true,
+  createdAt: true,
+} as const
 
 export async function listUsers({ role, search, page = 1, limit = 20 }: ListUsersParams) {
   const skip = (page - 1) * limit
@@ -28,20 +47,7 @@ export async function listUsers({ role, search, page = 1, limit = 20 }: ListUser
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        profileComplete: true,
-        isActive: true,
-        regNumber: true,
-        faculty: { select: { id: true, name: true } },
-        programme: { select: { id: true, name: true } },
-        year: true,
-        semester: true,
-        createdAt: true,
-      },
+      select: managedUserSelect,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -129,4 +135,94 @@ export async function assignFaculty(userId: string, facultyId: string | null) {
       faculty: { select: { id: true, name: true, code: true } },
     },
   })
+}
+
+export interface AdminUserUpdateInput {
+  fullName: string
+  email: string
+  facultyId?: string | null
+  campusId?: string
+  programmeId?: string
+  year?: number
+  semester?: number
+  academicYear?: string
+  regNumber?: string
+}
+
+/**
+ * System Admin edits a user's account + role-specific academic details.
+ * Bypasses the profile-editing freeze — this is an admin action.
+ */
+export async function updateUser(id: string, input: AdminUserUpdateInput) {
+  const user = await prisma.user.findUnique({ where: { id } })
+  if (!user) throw new ApiError('User not found', 404)
+
+  if (input.email !== user.email) {
+    const clash = await prisma.user.findUnique({ where: { email: input.email } })
+    if (clash) throw new ApiError('Another user already uses this email', 409)
+  }
+
+  const data: {
+    fullName: string
+    email: string
+    facultyId?: string | null
+    programmeId?: string | null
+    year?: number | null
+    semester?: number | null
+    academicYear?: string | null
+    regNumber?: string | null
+    profileComplete?: boolean
+  } = {
+    fullName: input.fullName,
+    email: input.email,
+  }
+
+  if (user.role === 'student') {
+    if (
+      !input.campusId || !input.facultyId || !input.programmeId ||
+      !input.year || !input.semester || !input.academicYear || !input.regNumber
+    ) {
+      throw new ApiError('Student academic details are required', 400)
+    }
+    await validateStudentPath({
+      campusId: input.campusId,
+      facultyId: input.facultyId,
+      programmeId: input.programmeId,
+      year: input.year,
+      semester: input.semester,
+      academicYear: input.academicYear,
+      regNumber: input.regNumber,
+    })
+    data.facultyId = input.facultyId
+    data.programmeId = input.programmeId
+    data.year = input.year
+    data.semester = input.semester
+    data.academicYear = input.academicYear
+    data.regNumber = input.regNumber
+    data.profileComplete = true
+  } else if (user.role === 'lecturer' || user.role === 'faculty_admin') {
+    const facultyId = input.facultyId ?? null
+    if (facultyId !== null) {
+      const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
+      if (!faculty) throw new ApiError('Faculty not found', 404)
+      if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+    }
+    data.facultyId = facultyId
+  }
+
+  const updated = await prisma.user.update({ where: { id }, data })
+
+  if (user.role === 'student') {
+    await recalculateEnrollments(id, {
+      campusId: input.campusId!,
+      facultyId: input.facultyId!,
+      programmeId: input.programmeId!,
+      year: input.year!,
+      semester: input.semester!,
+      academicYear: input.academicYear!,
+      regNumber: input.regNumber!,
+    })
+  }
+
+  return prisma.user.findUnique({ where: { id: updated.id }, select: managedUserSelect })
 }

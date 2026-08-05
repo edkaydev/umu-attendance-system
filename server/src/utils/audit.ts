@@ -9,6 +9,7 @@ export type AuditAction =
   | 'ATTENDANCE_EDIT'
   | 'PDF_DOWNLOAD'
   | 'PROFILE_COMPLETE'
+  | 'USER_UPDATE'
   | 'IMPORT'
 
 /**

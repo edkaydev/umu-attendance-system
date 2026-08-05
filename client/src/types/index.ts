@@ -143,6 +143,10 @@ export interface ManagedUser {
   facultyId: string | null
   faculty: { id: string; name: string } | null
   programmeId: string | null
+  programme: { id: string; name: string } | null
+  year: number | null
+  semester: number | null
+  academicYear: string | null
   regNumber: string | null
   isActive: boolean
   profileComplete: boolean

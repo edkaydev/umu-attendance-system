@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardApi, settingsApi } from '../api/endpoints'
+import {
+  dashboardApi,
+  settingsApi,
+  ProfileEditingScope,
+  ProfileEditingSettings,
+} from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
@@ -84,8 +89,8 @@ export default function SystemAdminDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<DashData | null>(null)
-  const [profileEditing, setProfileEditing] = useState<boolean | null>(null)
-  const [toggling, setToggling] = useState(false)
+  const [profileEditing, setProfileEditing] = useState<ProfileEditingSettings | null>(null)
+  const [toggling, setToggling] = useState<ProfileEditingScope | null>(null)
 
   useEffect(() => {
     dashboardApi
@@ -97,20 +102,20 @@ export default function SystemAdminDashboard() {
     settingsApi
       .profileEditing()
       .then(setProfileEditing)
-      .catch(() => setProfileEditing(true))
+      .catch(() => setProfileEditing(null))
   }, [toast])
 
-  async function toggleProfileEditing() {
-    if (profileEditing === null) return
-    setToggling(true)
+  async function toggleProfileEditing(scope: ProfileEditingScope) {
+    if (!profileEditing) return
+    setToggling(scope)
     try {
-      const res = await settingsApi.setProfileEditing(!profileEditing)
+      const res = await settingsApi.setProfileEditing({ [scope]: !profileEditing[scope] })
       setProfileEditing(res.enabled)
       toast.success(res.message)
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to update setting')
     } finally {
-      setToggling(false)
+      setToggling(null)
     }
   }
 
@@ -151,30 +156,55 @@ export default function SystemAdminDashboard() {
       <section>
         <h2 className="mb-3 text-h4 font-semibold text-text-primary">System Settings</h2>
         <Card noPadding>
-          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-            <div className="min-w-0">
-              <p className="text-body font-semibold text-text-primary">Profile editing</p>
-              <p className="mt-0.5 text-body-sm text-text-secondary">
-                {profileEditing
-                  ? 'Users can edit their own profiles. Toggle off to freeze all profile edits (e.g. during registration).'
-                  : 'Profile editing is frozen. Students and lecturers cannot change their academic details.'}
-              </p>
-            </div>
-            <button
-              onClick={toggleProfileEditing}
-              disabled={profileEditing === null || toggling}
-              aria-pressed={profileEditing === true}
-              className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 ${
-                profileEditing === false ? 'bg-text-disabled' : 'bg-success'
-              } disabled:opacity-60`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-150 ${
-                  profileEditing === false ? 'translate-x-0.5' : 'translate-x-[26px]'
-                }`}
-              />
-            </button>
-          </div>
+          {(
+            [
+              {
+                scope: 'students' as ProfileEditingScope,
+                label: 'Students',
+                desc: 'Students can choose/change their campus, programme and academic path.',
+              },
+              {
+                scope: 'lecturers' as ProfileEditingScope,
+                label: 'Lecturers',
+                desc: 'Lecturers can choose/change their faculty.',
+              },
+              {
+                scope: 'admins' as ProfileEditingScope,
+                label: 'Faculty Admins',
+                desc: 'Faculty Admins can assign and edit units for students and lecturers in their faculty.',
+              },
+            ]
+          ).map(({ scope, label, desc }) => {
+            const enabled = profileEditing?.[scope] ?? false
+            return (
+              <div
+                key={scope}
+                className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-4 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-body font-semibold text-text-primary">{label} — edit access</p>
+                  <p className="mt-0.5 text-body-sm text-text-secondary">{desc}</p>
+                  <p className="mt-0.5 text-body-sm text-text-disabled">
+                    {enabled ? 'Currently enabled' : 'Currently frozen'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toggleProfileEditing(scope)}
+                  disabled={profileEditing === null || toggling !== null}
+                  aria-pressed={enabled}
+                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 ${
+                    enabled ? 'bg-success' : 'bg-text-disabled'
+                  } disabled:opacity-60`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-150 ${
+                      enabled ? 'translate-x-[26px]' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            )
+          })}
         </Card>
       </section>
 

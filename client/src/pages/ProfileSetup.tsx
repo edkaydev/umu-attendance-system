@@ -43,13 +43,14 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [regNumber, setRegNumber] = useState('')
 
   useEffect(() => {
-    if (edit) {
+    if (edit && user) {
+      const scope = user.role === 'student' ? 'students' : 'lecturers'
       settingsApi
         .profileEditing()
-        .then((enabled) => setEditingDisabled(!enabled))
+        .then((s) => setEditingDisabled(!s[scope]))
         .catch(() => setEditingDisabled(false))
     }
-  }, [edit])
+  }, [edit, user])
 
   useEffect(() => {
     profileApi

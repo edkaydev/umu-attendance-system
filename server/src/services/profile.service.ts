@@ -1,7 +1,6 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isProfileEditingEnabled } from './settings.service'
-
 export interface StudentPathInput {
   campusId: string
   facultyId: string
@@ -12,7 +11,7 @@ export interface StudentPathInput {
   academicYear: string
 }
 
-async function validateStudentPath(input: StudentPathInput): Promise<void> {
+export async function validateStudentPath(input: StudentPathInput): Promise<void> {
   const programme = await prisma.programme.findUnique({
     where: { id: input.programmeId },
     include: { faculty: true },
@@ -79,7 +78,7 @@ export async function completeStudentProfile(userId: string, input: StudentPathI
 
 /** Student edits their academic path — enrolments recalculated (FR-02.5/02.6). */
 export async function updateStudentProfile(userId: string, input: StudentPathInput) {
-  await assertProfileEditingAllowed()
+  await assertProfileEditingAllowed('students')
   await validateStudentPath(input)
   await prisma.user.update({
     where: { id: userId },
@@ -111,7 +110,7 @@ export async function completeLecturerProfile(userId: string, facultyId: string)
 
 /** Lecturer changes their faculty. */
 export async function updateLecturerProfile(userId: string, facultyId: string) {
-  await assertProfileEditingAllowed()
+  await assertProfileEditingAllowed('lecturers')
   const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
   if (!faculty) throw new ApiError('Faculty not found', 404)
 
@@ -122,9 +121,11 @@ export async function updateLecturerProfile(userId: string, facultyId: string) {
   return { facultyId }
 }
 
-/** Profile edits are blocked while the System Admin has frozen them. */
-async function assertProfileEditingAllowed(): Promise<void> {
-  if (!(await isProfileEditingEnabled())) {
+/** Profile edits are blocked while the System Admin has frozen the scope. */
+async function assertProfileEditingAllowed(
+  scope: Parameters<typeof isProfileEditingEnabled>[0]
+): Promise<void> {
+  if (!(await isProfileEditingEnabled(scope))) {
     throw new ApiError('Profile editing is currently disabled by the System Admin', 403)
   }
 }

@@ -297,6 +297,18 @@ export const assignmentApi = {
 }
 
 // ─── User management (System Admin) ───
+export interface AdminUserUpdateInput {
+  fullName: string
+  email: string
+  facultyId?: string | null
+  campusId?: string
+  programmeId?: string
+  year?: number
+  semester?: number
+  academicYear?: string
+  regNumber?: string
+}
+
 export const userApi = {
   list: async (params?: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString()
@@ -307,6 +319,8 @@ export const userApi = {
   changeRole:   (id: string, role: Role)  => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
   assignFaculty:(id: string, facultyId: string | null) =>
     http.patch<{ user: ManagedUser }>(`/api/users/${id}/faculty`, { facultyId }),
+  update:       (id: string, data: AdminUserUpdateInput) =>
+    http.patch<{ user: ManagedUser }>(`/api/users/${id}`, data),
 }
 
 // ─── Imports (System Admin) ───
@@ -355,11 +369,21 @@ export const auditLogApi = {
 }
 
 // ─── System settings ───
+export interface ProfileEditingSettings {
+  students: boolean
+  lecturers: boolean
+  admins: boolean
+}
+export type ProfileEditingScope = keyof ProfileEditingSettings
+
 export const settingsApi = {
   profileEditing: async () => {
-    const res = await http.get<{ enabled: boolean }>('/api/settings/profile-editing')
+    const res = await http.get<{ enabled: ProfileEditingSettings }>('/api/settings/profile-editing')
     return res.enabled
   },
-  setProfileEditing: (enabled: boolean) =>
-    http.patch<{ enabled: boolean; message: string }>('/api/settings/profile-editing', { enabled }),
+  setProfileEditing: (settings: Partial<ProfileEditingSettings>) =>
+    http.patch<{ enabled: ProfileEditingSettings; message: string }>(
+      '/api/settings/profile-editing',
+      settings
+    ),
 }

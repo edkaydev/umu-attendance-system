@@ -3,17 +3,38 @@ import { z } from 'zod'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
+import { writeAuditLog } from '../utils/audit'
 import {
   listUsers,
   getUser,
   setUserActive,
   changeUserRole,
   assignFaculty,
+  updateUser,
 } from '../services/user.service'
 
 const roleSchema = z.object({
   role: z.nativeEnum(Role),
 })
+
+const commonProfileFields = {
+  fullName: z.string().trim().min(1, 'Full name is required').max(100),
+  email: z.string().email('Invalid email').max(150),
+}
+
+const studentAcademicFields = {
+  campusId: z.string().uuid(),
+  facultyId: z.string().uuid(),
+  programmeId: z.string().uuid(),
+  year: z.number().int().min(1).max(6),
+  semester: z.number().int().min(1).max(2),
+  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
+  regNumber: z.string().trim().min(1, 'Reg number is required').max(30),
+}
+
+const staffFacultyField = {
+  facultyId: z.string().uuid().nullable(),
+}
 
 export async function getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -76,6 +97,35 @@ export async function assignFacultyController(
   try {
     const { facultyId } = facultySchema.parse(req.body)
     ok(res, { user: await assignFaculty(req.params.id, facultyId) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function updateUserController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const target = await getUser(req.params.id)
+    const extra =
+      target.role === 'student'
+        ? studentAcademicFields
+        : target.role === 'system_admin'
+          ? {}
+          : staffFacultyField
+
+    const data = z.object({ ...commonProfileFields, ...extra }).parse(req.body)
+    const user = await updateUser(req.params.id, data)
+
+    await writeAuditLog(req.user!.id, 'USER_UPDATE', 'user', req.params.id, {
+      fullName: user?.fullName,
+      email: user?.email,
+      role: target.role,
+    })
+
+    ok(res, { user })
   } catch (e) {
     next(e)
   }

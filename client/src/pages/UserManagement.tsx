@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react'
-import { userApi, academicApi } from '../api/endpoints'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  userApi,
+  academicApi,
+  profileApi,
+  ProfileOptions,
+  AdminUserUpdateInput,
+} from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -18,6 +24,227 @@ const ROLE_LABEL: Record<Role, string> = {
   system_admin:  'System Admin',
 }
 
+function academicYearOptions(): { value: string; label: string }[] {
+  const now = new Date()
+  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
+  return [startYear - 1, startYear, startYear + 1].map((y) => ({
+    value: `${y}/${y + 1}`,
+    label: `${y}/${y + 1}`,
+  }))
+}
+
+const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
+const SEMESTER_OPTIONS = [
+  { value: '1', label: 'Semester 1' },
+  { value: '2', label: 'Semester 2' },
+]
+
+function EditUserModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: ManagedUser
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const toast = useToast()
+
+  const [options, setOptions] = useState<ProfileOptions | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const [fullName, setFullName] = useState(user.fullName)
+  const [email, setEmail] = useState(user.email)
+  const [campusId, setCampusId] = useState('')
+  const [facultyId, setFacultyId] = useState('')
+  const [programmeId, setProgrammeId] = useState('')
+  const [year, setYear] = useState('')
+  const [semester, setSemester] = useState('')
+  const [academicYear, setAcademicYear] = useState('')
+  const [regNumber, setRegNumber] = useState('')
+
+  const isStudent = user.role === 'student'
+  const isStaff = user.role === 'lecturer' || user.role === 'faculty_admin'
+
+  useEffect(() => {
+    setFullName(user.fullName)
+    setEmail(user.email)
+    setRegNumber(user.regNumber ?? '')
+    setYear(user.year ? String(user.year) : '')
+    setSemester(user.semester ? String(user.semester) : '')
+    setAcademicYear(user.academicYear ?? academicYearOptions()[1].value)
+    setFacultyId(user.facultyId ?? '')
+    setProgrammeId(user.programmeId ?? '')
+    setCampusId('')
+    profileApi
+      .options()
+      .then((opts) => {
+        setOptions(opts)
+        if (user.facultyId) {
+          for (const c of opts.campuses) {
+            if (c.faculties.some((f) => f.id === user.facultyId)) {
+              setCampusId(c.id)
+              break
+            }
+          }
+        }
+      })
+      .catch(() => setOptions(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  const campusFaculties = useMemo(() => {
+    if (!options) return []
+    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
+  }, [options, campusId])
+
+  const programmes = useMemo(() => {
+    if (!options) return []
+    for (const c of options.campuses) {
+      for (const f of c.faculties) {
+        if (f.id === facultyId) return f.programmes
+      }
+    }
+    return []
+  }, [options, facultyId])
+
+  const staffFaculties = useMemo(() => {
+    return options?.campuses.flatMap((c) => c.faculties) ?? []
+  }, [options])
+
+  async function handleSave() {
+    const payload: AdminUserUpdateInput = {
+      fullName: fullName.trim(),
+      email: email.trim(),
+    }
+    if (!payload.fullName) return toast.error('Full name is required')
+    if (!payload.email) return toast.error('Email is required')
+
+    if (isStudent) {
+      if (!campusId || !facultyId || !programmeId || !year || !semester || !regNumber.trim()) {
+        return toast.error('Please complete all academic fields')
+      }
+      payload.campusId = campusId
+      payload.facultyId = facultyId
+      payload.programmeId = programmeId
+      payload.year = Number(year)
+      payload.semester = Number(semester)
+      payload.academicYear = academicYear
+      payload.regNumber = regNumber.trim()
+    } else if (isStaff) {
+      payload.facultyId = facultyId || null
+    }
+
+    setSaving(true)
+    try {
+      await userApi.update(user.id, payload)
+      toast.success(`${user.fullName} updated`)
+      onSaved()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update user')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Edit User — ${user.fullName}`}>
+      <div className="space-y-4">
+        <Input label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+
+        {isStudent && (
+          <>
+            <Select
+              label="Campus"
+              placeholder="Select campus"
+              value={campusId}
+              onChange={(e) => {
+                setCampusId(e.target.value)
+                setFacultyId('')
+                setProgrammeId('')
+              }}
+              options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+            />
+            <Select
+              label="Faculty"
+              placeholder="Select faculty"
+              value={facultyId}
+              onChange={(e) => {
+                setFacultyId(e.target.value)
+                setProgrammeId('')
+              }}
+              options={campusFaculties.map((f) => ({ value: f.id, label: f.name }))}
+            />
+            <Select
+              label="Programme"
+              placeholder="Select programme"
+              value={programmeId}
+              onChange={(e) => setProgrammeId(e.target.value)}
+              options={programmes.map((p) => ({ value: p.id, label: p.name }))}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Year"
+                placeholder="Select"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                options={YEAR_OPTIONS}
+              />
+              <Select
+                label="Semester"
+                placeholder="Select"
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                options={SEMESTER_OPTIONS}
+              />
+            </div>
+            <Select
+              label="Academic Year"
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              options={academicYearOptions()}
+            />
+            <Input
+              label="Reg Number"
+              placeholder="e.g. BSCS/2024/0123"
+              value={regNumber}
+              onChange={(e) => setRegNumber(e.target.value)}
+            />
+          </>
+        )}
+
+        {isStaff && (
+          <>
+            <Select
+              label="Faculty"
+              placeholder="Select faculty"
+              value={facultyId}
+              onChange={(e) => setFacultyId(e.target.value)}
+              options={[
+                { value: '', label: 'No faculty (unassigned)' },
+                ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
+              ]}
+            />
+            <p className="text-body-sm text-text-secondary">
+              They will only be able to manage data within this faculty.
+            </p>
+          </>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={handleSave}>
+            Save Changes
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function UserManagement() {
   const toast = useToast()
 
@@ -31,6 +258,9 @@ export default function UserManagement() {
   const [assignTarget, setAssignTarget] = useState<ManagedUser | null>(null)
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('')
   const [assigning, setAssigning] = useState(false)
+
+  // Edit-user modal state
+  const [editTarget, setEditTarget] = useState<ManagedUser | null>(null)
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
@@ -227,6 +457,13 @@ export default function UserManagement() {
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          className="min-h-[32px] px-3 py-1 text-body-sm"
+                          onClick={() => setEditTarget(u)}
+                        >
+                          Edit
+                        </Button>
                         {/* Assign Faculty — only for faculty_admin and lecturer */}
                         {(u.role === 'faculty_admin' || u.role === 'lecturer') && (
                           <Button
@@ -303,6 +540,18 @@ export default function UserManagement() {
           </div>
         </div>
       </Modal>
+
+      {/* ── Edit user modal ── */}
+      {editTarget && (
+        <EditUserModal
+          user={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null)
+            reload()
+          }}
+        />
+      )}
     </div>
   )
 }
