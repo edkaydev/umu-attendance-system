@@ -10,9 +10,6 @@ node_modules/
 client/dist/
 server/dist/
 
-# Prisma
-server/prisma/migrations/
-
 # Logs
 *.log
 npm-debug.log*
