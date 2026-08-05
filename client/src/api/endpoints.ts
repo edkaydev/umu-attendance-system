@@ -23,6 +23,8 @@ export const authApi = {
     return res.user
   },
   logout: () => http.post<{ message: string }>('/api/auth/logout'),
+  devLogin: (role: Role) =>
+    http.post<{ user: User; redirect: string }>('/api/auth/dev-login', { role }),
 }
 
 // ─── Profile ───

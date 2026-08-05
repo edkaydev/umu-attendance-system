@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import passport from 'passport'
+import crypto from 'crypto'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import {
@@ -10,6 +11,7 @@ import {
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
+import { prisma } from '../config/db'
 
 const OAUTH_SCOPES = ['profile', 'email']
 
@@ -70,6 +72,51 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
   try {
     const user = await getCurrentUser(req.user!.id)
     ok(res, { user })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const DEV_ROLES = Object.values(Role)
+
+/**
+ * POST /api/auth/dev-login — development-only instant login.
+ * Disabled in production. Finds or creates a user for the requested role.
+ */
+export async function devLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(404).json({ error: 'Route not found' })
+      return
+    }
+
+    const requestedRole = (req.body?.role ?? 'system_admin') as Role
+    const role = DEV_ROLES.includes(requestedRole) ? requestedRole : Role.system_admin
+    const email = (req.body?.email as string | undefined) ?? `dev.${role}@umu.ac.ug`
+
+    let user = await prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          googleId: `dev-${role}-${crypto.randomUUID()}`,
+          email,
+          fullName: `Dev ${role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`,
+          role,
+          profileComplete: false,
+          isActive: true,
+        },
+      })
+    }
+
+    if (role !== user.role) {
+      user = await prisma.user.update({ where: { id: user.id }, data: { role } })
+    }
+
+    const redirect = await finalizeLogin(
+      { id: user.id, email: user.email, role: user.role, profileComplete: user.profileComplete },
+      res
+    )
+    ok(res, { user: await getCurrentUser(user.id), redirect })
   } catch (error) {
     next(error)
   }

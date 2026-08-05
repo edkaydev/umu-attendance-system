@@ -1,12 +1,36 @@
+import { useState } from 'react'
 import { GuestOnly } from '../components/RouteGuards'
+import { authApi } from '../api/endpoints'
+import type { Role } from '../types'
+
+const DEV_ROLES: { role: Role; label: string }[] = [
+  { role: 'student', label: 'Student' },
+  { role: 'lecturer', label: 'Lecturer' },
+  { role: 'faculty_admin', label: 'Faculty Admin' },
+  { role: 'system_admin', label: 'System Admin' },
+]
 
 export default function Login() {
+  const [devError, setDevError] = useState<string | null>(null)
+  const [loggingIn, setLoggingIn] = useState<Role | null>(null)
+
+  async function devLogin(role: Role) {
+    setDevError(null)
+    setLoggingIn(role)
+    try {
+      const res = await authApi.devLogin(role)
+      window.location.assign(res.redirect)
+    } catch {
+      setDevError('Dev login failed. Is the server running in development mode?')
+    } finally {
+      setLoggingIn(null)
+    }
+  }
+
   return (
     <GuestOnly>
       <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
-        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-umu-red font-display-bold text-4xl text-white shadow">
-          U
-        </div>
+        <img src="/umu-logo.png" alt="UMU logo" className="mb-4 h-20 w-20 rounded-full object-cover shadow" />
         <h1 className="text-h1 font-bold text-text-primary">Uganda Martyrs University</h1>
         <p className="mt-1 text-h3 text-text-secondary">Attendance System</p>
 
@@ -34,6 +58,27 @@ export default function Login() {
           </svg>
           Sign in with Google
         </a>
+
+        {import.meta.env.DEV && (
+          <div className="mt-10 w-full max-w-sm rounded-lg border border-border bg-surface-1 p-5">
+            <p className="mb-3 text-center text-body-sm font-semibold text-text-secondary">
+              Dev login (no Google)
+            </p>
+            <div className="flex flex-col gap-2">
+              {DEV_ROLES.map(({ role, label }) => (
+                <button
+                  key={role}
+                  onClick={() => devLogin(role)}
+                  disabled={loggingIn !== null}
+                  className="min-h-[40px] rounded bg-umu-red px-4 text-body-sm font-semibold text-white hover:bg-umu-red-dark disabled:opacity-60"
+                >
+                  {loggingIn === role ? 'Signing in…' : `Login as ${label}`}
+                </button>
+              ))}
+            </div>
+            {devError && <p className="mt-3 text-center text-body-sm text-red-600">{devError}</p>}
+          </div>
+        )}
 
         <p className="mt-10 text-body-sm text-text-disabled">Nkozi Campus · 2025/2026</p>
       </div>
