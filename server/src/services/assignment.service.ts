@@ -1,5 +1,6 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { isProfileEditingEnabled } from './settings.service'
 
 export interface AssignmentInput {
   lecturerId: string
@@ -27,6 +28,10 @@ export async function createAssignment(
   facultyAdminId: string,
   facultyId: string
 ) {
+  if (!(await isProfileEditingEnabled('admins'))) {
+    throw new ApiError('Unit editing is currently disabled by the System Admin', 403)
+  }
+
   const lecturer = await prisma.user.findUnique({ where: { id: input.lecturerId } })
   if (!lecturer || lecturer.role !== 'lecturer') {
     throw new ApiError('Lecturer not found', 404)
@@ -62,6 +67,10 @@ export async function createAssignment(
 
 /** Remove a lecturer from a course unit (FR-04.3). */
 export async function removeAssignment(id: string, facultyId: string) {
+  if (!(await isProfileEditingEnabled('admins'))) {
+    throw new ApiError('Unit editing is currently disabled by the System Admin', 403)
+  }
+
   const existing = await prisma.lecturerAssignment.findUnique({
     where: { id },
     include: { courseUnit: { select: { facultyId: true } } },

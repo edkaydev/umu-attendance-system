@@ -126,6 +126,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   faculty_admin: [
     { to: '/faculty-admin',         label: 'Dashboard', Icon: IconHome },
+    { to: '/faculty-admin/units',   label: 'Units',     Icon: IconClipboard },
     { to: '/faculty-admin/reports', label: 'Reports',   Icon: IconBarChart },
   ],
   system_admin: [

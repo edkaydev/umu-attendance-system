@@ -296,6 +296,51 @@ export const assignmentApi = {
   remove: (id: string) => http.del<{ message: string }>(`/api/assignments/${id}`),
 }
 
+// ─── Faculty unit management (Faculty Admin) ───
+export interface FacultyUnitOverview {
+  courseUnits: { id: string; code: string; name: string }[]
+  students: {
+    id: string
+    fullName: string
+    email: string
+    regNumber: string | null
+    programme: { id: string; name: string; code: string } | null
+    enrollments: {
+      id: string
+      courseUnitId: string
+      academicYear: string
+      semester: number
+      courseUnit: { id: string; code: string; name: string }
+    }[]
+  }[]
+  lecturers: {
+    id: string
+    fullName: string
+    email: string
+    lecturerAssignments: {
+      id: string
+      courseUnitId: string
+      academicYear: string
+      semester: number
+      courseUnit: { id: string; code: string; name: string }
+    }[]
+  }[]
+}
+
+export const enrollmentApi = {
+  overview: async () => {
+    const res = await http.get<FacultyUnitOverview>('/api/enrollments/overview')
+    return res
+  },
+  create: (data: {
+    studentId: string
+    courseUnitId: string
+    academicYear: string
+    semester: number
+  }) => http.post<{ message: string }>('/api/enrollments', data),
+  remove: (id: string) => http.del<{ message: string }>(`/api/enrollments/${id}`),
+}
+
 // ─── User management (System Admin) ───
 export interface AdminUserUpdateInput {
   fullName: string
