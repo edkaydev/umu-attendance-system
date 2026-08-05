@@ -48,8 +48,8 @@ export default function SessionsList() {
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
                   <th className="py-2 pr-4">Course Unit</th>
-                  <th className="py-2 pr-4">Opened</th>
-                  <th className="py-2 pr-4">Venue</th>
+                  <th className="py-2 pr-4">Time</th>
+                  <th className="py-2 pr-4">Mode</th>
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Present</th>
                   <th className="py-2" />
@@ -64,8 +64,12 @@ export default function SessionsList() {
                         {s.courseUnit.code} · {s.academicYear} · Sem {s.semester}
                       </p>
                     </td>
-                    <td className="py-3 pr-4 text-text-secondary">{new Date(s.openedAt).toLocaleString()}</td>
-                    <td className="py-3 pr-4 text-text-secondary">{s.venue ?? '—'}</td>
+                    <td className="py-3 pr-4 text-text-secondary">
+                      {new Date(s.startsAt ?? s.openedAt).toLocaleString()}
+                    </td>
+                    <td className="py-3 pr-4 text-text-secondary">
+                      {s.mode === 'online' ? 'Online' : s.venue ?? 'Physical'}
+                    </td>
                     <td className="py-3 pr-4">
                       <Badge status={s.status} />
                     </td>

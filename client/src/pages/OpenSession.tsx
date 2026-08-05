@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
 import { ApiClientError } from '../api/client'
+import { SessionMode } from '../types'
 
 function academicYearOptions(): { value: string; label: string }[] {
   const now = new Date()
@@ -20,7 +21,9 @@ export default function OpenSession() {
 
   const [units, setUnits] = useState<Awaited<ReturnType<typeof dashboardApi.lecturer>>['units']>([])
   const [courseUnitId, setCourseUnitId] = useState('')
+  const [mode, setMode] = useState<SessionMode>('physical')
   const [venue, setVenue] = useState('')
+  const [startsAt, setStartsAt] = useState('')
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[0].value)
   const [semester, setSemester] = useState('1')
   const [submitting, setSubmitting] = useState(false)
@@ -48,7 +51,9 @@ export default function OpenSession() {
     try {
       const res = await sessionApi.open({
         courseUnitId,
-        venue: venue.trim() || undefined,
+        mode,
+        venue: mode === 'physical' ? (venue.trim() || undefined) : undefined,
+        startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         academicYear,
         semester: Number(semester),
       })
@@ -80,7 +85,48 @@ export default function OpenSession() {
             label: `${a.courseUnit.name} (${a.courseUnit.code})`,
           }))}
         />
-        <Input label="Venue (optional)" placeholder="e.g. Lecture Hall B2" value={venue} onChange={(e) => setVenue(e.target.value)} />
+
+        <div className="mb-4">
+          <p className="mb-1.5 block text-xs font-medium text-text-secondary">Mode</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { value: 'physical', label: 'Physical (In-Person)' },
+                { value: 'online', label: 'Online' },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMode(m.value)}
+                className={`min-h-[44px] rounded border-[1.5px] text-sm font-semibold transition-colors ${
+                  mode === m.value
+                    ? 'border-umu-red bg-[#FFF4F4] text-umu-red'
+                    : 'border-border bg-white text-text-secondary hover:bg-surface-1'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {mode === 'physical' && (
+          <Input
+            label="Venue (optional)"
+            placeholder="e.g. Lecture Hall B2"
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+          />
+        )}
+
+        <Input
+          label="Session Time (optional)"
+          type="datetime-local"
+          value={startsAt}
+          onChange={(e) => setStartsAt(e.target.value)}
+        />
+
         <div className="grid grid-cols-2 gap-3">
           <Select label="Academic Year" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} options={academicYearOptions()} />
           <Select

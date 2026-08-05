@@ -6,6 +6,7 @@ export type AuditAction =
   | 'LOGOUT'
   | 'SESSION_OPEN'
   | 'SESSION_CLOSE'
+  | 'SESSION_EXTEND'
   | 'ATTENDANCE_EDIT'
   | 'PDF_DOWNLOAD'
   | 'PROFILE_COMPLETE'

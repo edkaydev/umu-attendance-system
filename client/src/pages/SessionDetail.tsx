@@ -124,9 +124,14 @@ export default function SessionDetail() {
             {session.courseUnit.code}
             {' · '}
             {session.academicYear} · Semester {session.semester}
-            {session.venue ? ` · ${session.venue}` : ''}
             {' · '}
-            {new Date(session.openedAt).toLocaleString(undefined, {
+            {session.mode === 'online'
+              ? 'Online'
+              : session.venue
+                ? `Physical · ${session.venue}`
+                : 'Physical'}
+            {' · '}
+            {new Date(session.startsAt ?? session.openedAt).toLocaleString(undefined, {
               dateStyle: 'medium',
               timeStyle: 'short',
             })}

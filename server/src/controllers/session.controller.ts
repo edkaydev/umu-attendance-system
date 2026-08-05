@@ -8,12 +8,15 @@ import {
   getLiveSession,
   closeSession,
   reopenSession,
+  extendSessionTime,
 } from '../services/session.service'
 import { evaluateAttendanceAlerts } from '../services/alert.service'
 
 const openSessionSchema = z.object({
   courseUnitId: z.string().uuid(),
   venue: z.string().max(120).optional(),
+  mode: z.enum(['physical', 'online']).optional(),
+  startsAt: z.string().datetime().optional(),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
   semester: z.number().int().min(1).max(2),
 })
@@ -84,6 +87,16 @@ export async function reopenSessionController(req: Request, res: Response, next:
   try {
     const session = await reopenSession(req.params.sessionId, req.user!.id)
     ok(res, { message: 'Session reopened', session })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function extendSessionController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const minutes = z.coerce.number().int().min(1).max(60).parse(req.body?.minutes ?? 5)
+    const session = await extendSessionTime(req.params.sessionId, req.user!.id, minutes)
+    ok(res, { message: 'Session time extended', session })
   } catch (e) {
     next(e)
   }

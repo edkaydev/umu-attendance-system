@@ -9,6 +9,7 @@ import type {
   ManagedUser,
   Role,
   Session,
+  SessionMode,
   SessionAttendanceRecord,
   AttendanceAlert,
   UnitAttendance,
@@ -92,6 +93,8 @@ export const attendanceApi = {
 export interface OpenSessionInput {
   courseUnitId: string
   venue?: string
+  mode?: SessionMode
+  startsAt?: string
   academicYear: string
   semester: number
 }
@@ -99,6 +102,17 @@ export interface OpenSessionInput {
 export interface SessionDetail extends Session {
   counts: Record<string, number>
   attendanceRecords: SessionAttendanceRecord[]
+}
+
+export interface LiveSessionData {
+  session: Session & { codeExpiresAt: string; venue: string | null }
+  presentCount: number
+  enrolledCount: number
+  present: {
+    id: string
+    checkedInAt: string
+    student: { id: string; fullName: string; regNumber: string | null }
+  }[]
 }
 
 export const sessionApi = {
@@ -112,16 +126,32 @@ export const sessionApi = {
     const res = await http.get<{ session: SessionDetail }>(`/api/sessions/${id}`)
     return res.session
   },
-  live: (id: string) =>
-    http.get<{
-      session: Session & { codeExpiresAt: string; venue: string | null }
-      presentCount: number
-      enrolledCount: number
-      present: { id: string; checkedInAt: string; student: { id: string; fullName: string; regNumber: string | null } }[]
-    }>(`/api/sessions/${id}/live`),
+  live: (id: string) => http.get<LiveSessionData>(`/api/sessions/${id}/live`),
   close: (id: string) =>
     http.patch<{ message: string; session: Session; absenteesAutoMarked: number }>(`/api/sessions/${id}/close`),
   reopen: (id: string) => http.patch<{ message: string; session: Session }>(`/api/sessions/${id}/reopen`),
+  extend: (id: string, minutes?: number) =>
+    http.patch<{ message: string; session: Session }>(`/api/sessions/${id}/extend`, { minutes: minutes ?? 5 }),
+}
+
+// ─── Student live session discovery ───
+export interface LiveSessionForStudent {
+  id: string
+  courseUnit: CourseUnit
+  lecturer: { id: string; fullName: string }
+  venue: string | null
+  mode: SessionMode
+  startsAt: string | null
+  openedAt: string
+  codeExpiresAt: string
+  checkedIn: boolean
+}
+
+export const checkinApi = {
+  live: async () => {
+    const res = await http.get<{ sessions: LiveSessionForStudent[] }>('/api/checkin/live')
+    return res.sessions
+  },
 }
 
 // ─── Alerts ───

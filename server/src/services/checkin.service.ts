@@ -74,3 +74,51 @@ export async function checkIn(studentId: string, code: string): Promise<{
     status: AttendanceStatus.present,
   }
 }
+
+/** Open sessions for course units the student is enrolled in (live check-in discovery). */
+export async function listLiveForStudent(studentId: string) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId },
+    select: { courseUnitId: true, academicYear: true, semester: true },
+  })
+
+  const openSessions = await prisma.session.findMany({
+    where: { status: SessionStatus.open },
+    include: {
+      courseUnit: { select: { id: true, code: true, name: true } },
+      lecturer: { select: { id: true, fullName: true } },
+    },
+    orderBy: { openedAt: 'desc' },
+  })
+
+  const mine = openSessions.filter((s) =>
+    enrollments.some(
+      (e) =>
+        e.courseUnitId === s.courseUnitId &&
+        e.academicYear === s.academicYear &&
+        e.semester === s.semester
+    )
+  )
+
+  const checkedInRecords = await prisma.attendanceRecord.findMany({
+    where: {
+      studentId,
+      sessionId: { in: mine.map((s) => s.id) },
+      status: AttendanceStatus.present,
+    },
+    select: { sessionId: true },
+  })
+  const checkedIn = new Set(checkedInRecords.map((r) => r.sessionId))
+
+  return mine.map((s) => ({
+    id: s.id,
+    courseUnit: s.courseUnit,
+    lecturer: s.lecturer,
+    venue: s.venue,
+    mode: s.mode,
+    startsAt: s.startsAt,
+    openedAt: s.openedAt,
+    codeExpiresAt: s.codeExpiresAt,
+    checkedIn: checkedIn.has(s.id),
+  }))
+}

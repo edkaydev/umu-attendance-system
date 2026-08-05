@@ -11,12 +11,14 @@ import {
 } from 'recharts'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { dashboardApi, attendanceApi } from '../api/endpoints'
+import { dashboardApi, attendanceApi, checkinApi } from '../api/endpoints'
+import type { LiveSessionForStudent } from '../api/endpoints'
 import type { UnitAttendance } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -28,11 +30,26 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   )
 }
 
+function ExpiryText({ expiresAt, now }: { expiresAt: string; now: number }) {
+  const seconds = Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000))
+  if (seconds === 0) {
+    return <span className="text-danger">Code expired</span>
+  }
+  return (
+    <span className={seconds <= 30 ? 'text-danger' : 'text-text-secondary'}>
+      Expires in {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+    </span>
+  )
+}
+
 export default function StudentDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<Awaited<ReturnType<typeof dashboardApi.student>> | null>(null)
-  const [code, setCode] = useState('')
+  const [live, setLive] = useState<LiveSessionForStudent[]>([])
+  const [now, setNow] = useState(Date.now())
+  const [selected, setSelected] = useState<LiveSessionForStudent | null>(null)
+  const [modalCode, setModalCode] = useState('')
   const [checkingIn, setCheckingIn] = useState(false)
 
   useEffect(() => {
@@ -42,8 +59,30 @@ export default function StudentDashboard() {
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard'))
   }, [toast])
 
+  // Live session discovery — polls every 5s to stay in sync with the lecturer.
+  useEffect(() => {
+    let cancelled = false
+    async function loadLive() {
+      try {
+        const sessions = await checkinApi.live()
+        if (!cancelled) setLive(sessions)
+      } catch (e) {
+        if (!cancelled) toast.error(e instanceof ApiClientError ? e.message : 'Failed to load live sessions')
+      }
+    }
+    loadLive()
+    const id = setInterval(loadLive, 5000)
+    const tick = setInterval(() => setNow(Date.now()), 1000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      clearInterval(tick)
+    }
+  }, [toast])
+
   async function handleCheckIn() {
-    const trimmed = code.trim()
+    if (!selected) return
+    const trimmed = modalCode.trim()
     if (!trimmed) {
       toast.info('Enter the session code shown by your lecturer')
       return
@@ -52,10 +91,13 @@ export default function StudentDashboard() {
     try {
       const res = await attendanceApi.checkIn(trimmed)
       toast.success(`Checked in to ${res.courseUnit.name} (${res.status})`)
-      setCode('')
+      setModalCode('')
+      setSelected(null)
+      checkinApi.live().then(setLive).catch(() => {})
       dashboardApi.student().then(setData).catch(() => {})
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Check-in failed')
+      checkinApi.live().then(setLive).catch(() => {})
     } finally {
       setCheckingIn(false)
     }
@@ -87,6 +129,50 @@ export default function StudentDashboard() {
         </p>
       </div>
 
+      {/* Live now */}
+      <Card title="Live Now">
+        {live.length === 0 ? (
+          <p className="py-6 text-center text-body-sm text-text-secondary">
+            No live sessions right now. When your lecturer opens a session for one of your units, it appears here.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {live.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">{s.courseUnit.name}</p>
+                  <p className="text-xs text-text-secondary">
+                    {s.courseUnit.code} · {s.mode === 'online' ? 'Online' : `Physical${s.venue ? ` · ${s.venue}` : ''}`}
+                    {s.startsAt ? ` · ${new Date(s.startsAt).toLocaleTimeString()}` : ''} · {s.lecturer.fullName}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs">
+                    <ExpiryText expiresAt={s.codeExpiresAt} now={now} />
+                  </p>
+                  {s.checkedIn ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success">
+                      ✓ Checked in
+                    </span>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      className="min-h-[32px] px-3 py-1 text-body-sm"
+                      onClick={() => {
+                        setSelected(s)
+                        setModalCode('')
+                      }}
+                    >
+                      Check In
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Course Units" value={total} />
         <Stat label="At/Above 80%" value={good} />
@@ -94,34 +180,6 @@ export default function StudentDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Check-in */}
-        <Card title="Check In to a Session">
-          <p className="mb-3 text-body-sm text-text-secondary">
-            Enter the 6-character code your lecturer displayed. Codes expire after 5 minutes.
-          </p>
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <label className="mb-1.5 block text-xs font-medium text-text-secondary" htmlFor="code">
-                Session Code
-              </label>
-              <input
-                id="code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                maxLength={6}
-                placeholder="A B C 1 2 3"
-                className="code-font w-full rounded border-[1.5px] border-border bg-surface-1 px-4 py-3 text-xl font-bold uppercase tracking-[0.15em] text-text-primary focus:border-umu-red focus:outline-none focus:shadow-focus-red"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleCheckIn()
-                }}
-              />
-            </div>
-            <Button loading={checkingIn} onClick={handleCheckIn}>
-              Check In
-            </Button>
-          </div>
-        </Card>
-
         {/* Weekly activity */}
         <Card title="This Week">
           {data.weeklyChart.length === 0 ? (
@@ -148,6 +206,29 @@ export default function StudentDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          )}
+        </Card>
+
+        {/* Recent check-ins */}
+        <Card title="Recent Check-ins">
+          {data.recentCheckIns.length === 0 ? (
+            <p className="py-8 text-center text-body-sm text-text-secondary">No check-ins yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {data.recentCheckIns.map((r, i) => (
+                <li key={i} className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">{r.session.courseUnit.name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {r.checkedInAt
+                        ? new Date(r.checkedInAt).toLocaleString()
+                        : new Date(r.session.openedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge status={r.status} />
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </div>
@@ -182,34 +263,48 @@ export default function StudentDashboard() {
         )}
       </Card>
 
-      {/* Recent check-ins */}
-      <Card title="Recent Check-ins">
-        {data.recentCheckIns.length === 0 ? (
-          <p className="py-8 text-center text-body-sm text-text-secondary">No check-ins yet.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {data.recentCheckIns.map((r, i) => (
-              <li key={i} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">{r.session.courseUnit.name}</p>
-                  <p className="text-xs text-text-secondary">
-                    {r.checkedInAt
-                      ? new Date(r.checkedInAt).toLocaleString()
-                      : new Date(r.session.openedAt).toLocaleString()}
-                  </p>
-                </div>
-                <Badge status={r.status} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
       <div className="text-right">
         <Link to="/student/attendance" className="text-sm font-medium text-umu-red hover:underline">
           View full attendance report →
         </Link>
       </div>
+
+      {/* Check-in modal */}
+      <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? `Check in — ${selected.courseUnit.name}` : ''}>
+        {selected && (
+          <div className="space-y-4">
+            <p className="text-body-sm text-text-secondary">
+              {selected.courseUnit.code} · {selected.mode === 'online' ? 'Online' : `Physical${selected.venue ? ` · ${selected.venue}` : ''}`} ·{' '}
+              <ExpiryText expiresAt={selected.codeExpiresAt} now={now} />
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-text-secondary" htmlFor="live-code">
+                Session Code
+              </label>
+              <input
+                id="live-code"
+                value={modalCode}
+                onChange={(e) => setModalCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                placeholder="A B C 1 2 3"
+                autoFocus
+                className="code-font w-full rounded border-[1.5px] border-border bg-surface-1 px-4 py-3 text-xl font-bold uppercase tracking-[0.15em] text-text-primary focus:border-umu-red focus:outline-none focus:shadow-focus-red"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleCheckIn()
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" disabled={checkingIn} onClick={() => setSelected(null)}>
+                Cancel
+              </Button>
+              <Button loading={checkingIn} onClick={handleCheckIn}>
+                Check In
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

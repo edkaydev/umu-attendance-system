@@ -88,7 +88,9 @@ export default function LecturerDashboard() {
               {openSessions.length} session{openSessions.length > 1 ? 's' : ''} currently open
             </p>
             <p className="text-body-sm text-success">
-              {openSessions.map((s) => s.courseUnit.name).join(', ')}
+              {openSessions
+                .map((s) => `${s.courseUnit.name} (${s.mode === 'online' ? 'Online' : s.venue ?? 'Physical'})`)
+                .join(', ')}
             </p>
           </div>
           <Link to={`/lecturer/sessions/${openSessions[0].id}/live`}>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { enrollmentApi, assignmentApi, FacultyUnitOverview } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
@@ -26,6 +27,14 @@ type ManageUser =
   | FacultyUnitOverview['students'][number]
   | FacultyUnitOverview['lecturers'][number]
 
+type UnitEntry = {
+  id: string
+  courseUnitId: string
+  academicYear: string
+  semester: number
+  courseUnit: { id: string; code: string; name: string }
+}
+
 function isStudent(u: ManageUser): u is FacultyUnitOverview['students'][number] {
   return 'regNumber' in u
 }
@@ -38,13 +47,15 @@ function matchesQuery(u: ManageUser, q: string): boolean {
   return haystack.includes(q.toLowerCase())
 }
 
+/* ─────────────────────────── List page ─────────────────────────── */
+
 export default function FacultyUnits() {
   const toast = useToast()
+  const navigate = useNavigate()
 
   const [data, setData] = useState<FacultyUnitOverview | null>(null)
   const [tab, setTab] = useState<'students' | 'lecturers'>('students')
   const [search, setSearch] = useState('')
-  const [target, setTarget] = useState<ManageUser | null>(null)
 
   async function reload() {
     try {
@@ -67,7 +78,6 @@ export default function FacultyUnits() {
 
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
       <div>
         <h1 className="text-h1 font-bold text-text-primary">Course Units</h1>
         <p className="mt-1 text-body text-text-secondary">
@@ -75,7 +85,6 @@ export default function FacultyUnits() {
         </p>
       </div>
 
-      {/* ── Tabs + search ── */}
       <Card>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex gap-2">
@@ -101,7 +110,6 @@ export default function FacultyUnits() {
         </div>
       </Card>
 
-      {/* ── User list ── */}
       <Card noPadding>
         {!data ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
@@ -111,17 +119,12 @@ export default function FacultyUnits() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left">
+            <table className="w-full min-w-[600px] text-left">
               <thead>
                 <tr className="border-b border-border bg-surface-1">
                   <th className="px-5 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
                     {tab === 'students' ? 'Student' : 'Lecturer'}
                   </th>
-                  {tab === 'students' && (
-                    <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
-                      Programme
-                    </th>
-                  )}
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
                     Units
                   </th>
@@ -142,18 +145,13 @@ export default function FacultyUnits() {
                           <p className="text-body-sm text-text-disabled">{u.regNumber}</p>
                         )}
                       </td>
-                      {isStudent(u) && (
-                        <td className="px-4 py-3 text-body text-text-secondary">
-                          {u.programme ? u.programme.name : '—'}
-                        </td>
-                      )}
                       <td className="px-4 py-3 text-body text-text-secondary">{count}</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end">
                           <Button
                             variant="secondary"
                             className="min-h-[32px] px-3 py-1 text-body-sm"
-                            onClick={() => setTarget(u)}
+                            onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
                           >
                             Manage Units
                           </Button>
@@ -167,32 +165,70 @@ export default function FacultyUnits() {
           </div>
         )}
       </Card>
-
-      {target && (
-        <ManageUnitsModal
-          user={target}
-          courseUnits={data?.courseUnits ?? []}
-          onClose={() => setTarget(null)}
-          onChanged={reload}
-        />
-      )}
     </div>
   )
 }
 
-type PendingAction =
-  | { kind: 'add'; unitId: string; unitName: string }
-  | { kind: 'remove'; recordId: string; unitName: string }
+/* ─────────────────────────── User edit page ─────────────────────────── */
 
-function ManageUnitsModal({
+export function FacultyUserUnits() {
+  const toast = useToast()
+  const { userId } = useParams<{ userId: string }>()
+  const [data, setData] = useState<FacultyUnitOverview | null>(null)
+
+  async function reload() {
+    try {
+      setData(await enrollmentApi.overview())
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load units')
+    }
+  }
+
+  useEffect(() => {
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  const user = useMemo(() => {
+    if (!data || !userId) return null
+    return (
+      data.students.find((s) => s.id === userId) ??
+      data.lecturers.find((l) => l.id === userId) ??
+      null
+    )
+  }, [data, userId])
+
+  if (!data) {
+    return <p className="py-12 text-center text-body text-text-secondary">Loading…</p>
+  }
+
+  if (!user) {
+    return (
+      <div className="py-12 text-center">
+        <p className="mb-4 text-body text-text-secondary">User not found in your faculty.</p>
+        <Link to="/faculty-admin/units">
+          <Button variant="secondary">Back to Units</Button>
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <UserUnitsEditor
+      user={user}
+      courseUnits={data.courseUnits}
+      onChanged={reload}
+    />
+  )
+}
+
+function UserUnitsEditor({
   user,
   courseUnits,
-  onClose,
   onChanged,
 }: {
   user: ManageUser
   courseUnits: FacultyUnitOverview['courseUnits']
-  onClose: () => void
   onChanged: () => void
 }) {
   const toast = useToast()
@@ -204,7 +240,7 @@ function ManageUnitsModal({
   const [pending, setPending] = useState<PendingAction | null>(null)
 
   const student = isStudent(user)
-  const current = student ? user.enrollments : user.lecturerAssignments
+  const current: UnitEntry[] = student ? user.enrollments : user.lecturerAssignments
 
   // Only units the user already has in the SAME year + semester are hidden,
   // so the same unit can still be added for a different period.
@@ -277,114 +313,113 @@ function ManageUnitsModal({
   const pendingUnit = pending?.kind === 'add' ? pending.unitName : ''
 
   return (
-    <>
-      <Modal open onClose={onClose} title={`Units — ${user.fullName}`}>
-        <div className="space-y-4">
-          <p className="text-body text-text-secondary">
-            {student
-              ? `${user.programme?.name ?? 'Student'} · ${user.regNumber ?? ''}`.trim()
-              : 'Lecturer'}
-          </p>
+    <div className="space-y-6">
+      <div>
+        <Link
+          to="/faculty-admin/units"
+          className="text-body-sm font-medium text-umu-red hover:underline"
+        >
+          ← Back to Units
+        </Link>
+        <h1 className="mt-2 text-h1 font-bold text-text-primary">{user.fullName}</h1>
+        <p className="mt-1 text-body text-text-secondary">
+          {user.email}
+          {student && user.regNumber ? ` · ${user.regNumber}` : ''}
+        </p>
+      </div>
 
-          {/* Current units */}
-          <div>
-            <p className="mb-2 text-label font-semibold uppercase tracking-wide text-text-secondary">
-              Current units ({current.length})
-            </p>
-            {current.length === 0 ? (
-              <p className="text-body-sm text-text-disabled">No units assigned yet.</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-md border border-border">
-                {current.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-body font-medium text-text-primary">
-                        {c.courseUnit.name}
-                      </p>
-                      <p className="text-body-sm text-text-secondary">
-                        {c.courseUnit.code} &middot; {c.academicYear} &middot; Semester {c.semester}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="min-h-[28px] shrink-0 px-2.5 py-1 text-body-sm"
-                      disabled={busy}
-                      onClick={() =>
-                        setPending({ kind: 'remove', recordId: c.id, unitName: c.courseUnit.name })
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Current units */}
+        <Card title={`Current units (${current.length})`} className="lg:col-span-3">
+          {current.length === 0 ? (
+            <p className="text-body-sm text-text-disabled">No units assigned yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {current.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="truncate text-body font-medium text-text-primary">
+                      {c.courseUnit.name}
+                    </p>
+                    <p className="text-body-sm text-text-secondary">
+                      {c.courseUnit.code} &middot; {c.academicYear} &middot; Semester {c.semester}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    className="min-h-[32px] shrink-0 px-3 py-1 text-body-sm"
+                    disabled={busy}
+                    onClick={() =>
+                      setPending({ kind: 'remove', recordId: c.id, unitName: c.courseUnit.name })
+                    }
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* Add unit */}
+        <Card title="Add unit" className="lg:col-span-2">
+          <div className="space-y-3">
+            <Input
+              label="Search units"
+              placeholder="Search by code or name"
+              value={unitSearch}
+              onChange={(e) => setUnitSearch(e.target.value)}
+            />
+            <Select
+              label="Course Unit"
+              placeholder={
+                filteredAvailable.length === 0
+                  ? unitSearch
+                    ? 'No units match your search'
+                    : 'No more units for this period'
+                  : 'Select a unit'
+              }
+              value={courseUnitId}
+              onChange={(e) => setCourseUnitId(e.target.value)}
+              options={filteredAvailable.map((cu) => ({
+                value: cu.id,
+                label: `${cu.code} — ${cu.name}`,
+              }))}
+            />
+            {available.length === 0 && !unitSearch && (
+              <p className="text-body-sm text-text-disabled">
+                All faculty units are already assigned for {academicYear} &middot; Semester{' '}
+                {semester}. Try another period.
+              </p>
             )}
-          </div>
-
-          {/* Add unit */}
-          <div className="rounded-md border border-border p-3">
-            <p className="mb-2 text-label font-semibold uppercase tracking-wide text-text-secondary">
-              Add unit
-            </p>
-            <div className="space-y-3">
-              <Input
-                label="Search units"
-                placeholder="Search by code or name"
-                value={unitSearch}
-                onChange={(e) => setUnitSearch(e.target.value)}
-                className="mb-0"
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Academic Year"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                options={academicYearOptions()}
               />
               <Select
-                label="Course Unit"
-                placeholder={
-                  filteredAvailable.length === 0
-                    ? unitSearch
-                      ? 'No units match your search'
-                      : 'No more units for this period'
-                    : 'Select a unit'
-                }
-                value={courseUnitId}
-                onChange={(e) => setCourseUnitId(e.target.value)}
-                options={filteredAvailable.map((cu) => ({
-                  value: cu.id,
-                  label: `${cu.code} — ${cu.name}`,
-                }))}
+                label="Semester"
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                options={SEMESTER_OPTIONS}
               />
-              {available.length === 0 && !unitSearch && (
-                <p className="text-body-sm text-text-disabled">
-                  All faculty units are already assigned for {academicYear} &middot; Semester{' '}
-                  {semester}. Try another period.
-                </p>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <Select
-                  label="Academic Year"
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  options={academicYearOptions()}
-                />
-                <Select
-                  label="Semester"
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                  options={SEMESTER_OPTIONS}
-                />
-              </div>
-              <Button
-                fullWidth
-                disabled={!courseUnitId}
-                className="!min-h-[40px]"
-                onClick={() => {
-                  const cu = available.find((x) => x.id === courseUnitId)
-                  if (cu) setPending({ kind: 'add', unitId: cu.id, unitName: cu.name })
-                }}
-              >
-                Add Unit
-              </Button>
             </div>
+            <Button
+              fullWidth
+              disabled={!courseUnitId}
+              className="!min-h-[40px]"
+              onClick={() => {
+                const cu = available.find((x) => x.id === courseUnitId)
+                if (cu) setPending({ kind: 'add', unitId: cu.id, unitName: cu.name })
+              }}
+            >
+              Add Unit
+            </Button>
           </div>
-        </div>
-      </Modal>
+        </Card>
+      </div>
 
       {/* Confirm popup */}
       <Modal open={Boolean(pending)} onClose={() => setPending(null)}>
@@ -420,6 +455,10 @@ function ManageUnitsModal({
           </div>
         </div>
       </Modal>
-    </>
+    </div>
   )
 }
+
+type PendingAction =
+  | { kind: 'add'; unitId: string; unitName: string }
+  | { kind: 'remove'; recordId: string; unitName: string }

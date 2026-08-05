@@ -36,6 +36,7 @@ export default function LiveSession() {
   const [data, setData] = useState<LiveData | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [extending, setExtending] = useState(false)
   const firstLoad = useRef(true)
 
   const load = useCallback(async () => {
@@ -59,6 +60,19 @@ export default function LiveSession() {
   }, [load])
 
   const secondsLeft = useCountdown(data?.session.status === 'open' ? data.session.codeExpiresAt : undefined)
+
+  async function handleExtend() {
+    setExtending(true)
+    try {
+      const res = await sessionApi.extend(sessionId, 5)
+      toast.success(`Session extended until ${new Date(res.session.codeExpiresAt).toLocaleTimeString()}`)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to extend session')
+    } finally {
+      setExtending(false)
+    }
+  }
 
   async function handleClose() {
     setClosing(true)
@@ -90,8 +104,11 @@ export default function LiveSession() {
         <div>
           <h1 className="text-h2 font-bold text-text-primary">{data.session.courseUnit.name}</h1>
           <p className="text-body-sm text-text-secondary">
-            {data.session.courseUnit.code} · opened {new Date(data.session.openedAt).toLocaleTimeString()}
-            {data.session.venue ? ` · ${data.session.venue}` : ''}
+            {data.session.courseUnit.code} · {data.session.mode === 'online' ? 'Online' : 'Physical'}
+            {data.session.mode === 'physical' && data.session.venue ? ` · ${data.session.venue}` : ''}
+            {data.session.startsAt
+              ? ` · ${new Date(data.session.startsAt).toLocaleString()}`
+              : ` · opened ${new Date(data.session.openedAt).toLocaleTimeString()}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -112,7 +129,7 @@ export default function LiveSession() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         {/* Code panel */}
         <Card className="text-center">
           {closed ? (
@@ -127,17 +144,27 @@ export default function LiveSession() {
               <p className="mb-4 text-label font-semibold uppercase tracking-widest text-text-secondary">
                 Session Code
               </p>
-              {/* Design spec: 72px desktop / 56px mobile, 0.15em tracking, UMU red on #FFFDF0, yellow border */}
-              <div className="mx-auto inline-block rounded-lg border-2 border-umu-yellow bg-[#FFFDF0] px-10 py-6">
-                <p className="code-font text-[56px] font-bold leading-none tracking-[0.15em] text-umu-red md:text-[72px]">
+              {/* Scales with available width — 72px on wide screens, shrinks to fit mobile */}
+              <div className="code-box mx-auto w-full max-w-xl rounded-lg border-2 border-umu-yellow bg-[#FFFDF0] px-4 py-5">
+                <p className="session-code code-font font-bold leading-none text-umu-red">
                   {data.session.code}
                 </p>
               </div>
               <p className={`mt-4 text-body-sm font-medium ${secondsLeft <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
                 {secondsLeft > 0
                   ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
-                  : 'Code expired — reopen to get a new code'}
+                  : 'Code expired — extend to keep it live or close the session'}
               </p>
+              <Button
+                variant="secondary"
+                fullWidth
+                className="mt-4"
+                loading={extending}
+                disabled={closed}
+                onClick={handleExtend}
+              >
+                Extend time (+5 min)
+              </Button>
             </>
           )}
 

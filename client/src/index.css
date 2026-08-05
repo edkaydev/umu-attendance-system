@@ -19,4 +19,15 @@
   .code-font {
     font-family: 'Google Sans Mono', 'Roboto Mono', 'Fira Code', monospace;
   }
+
+  /* Container-query container so the 6-char session code scales with its
+     available width (72px desktop max, shrinks to fit mobile/tablets). */
+  .code-box {
+    container-type: inline-size;
+  }
+
+  .code-box .session-code {
+    font-size: clamp(2rem, 14cqw, 4.5rem);
+    letter-spacing: 0.15em;
+  }
 }

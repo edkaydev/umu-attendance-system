@@ -8,6 +8,7 @@ import {
   getLiveSessionController,
   closeSessionController,
   reopenSessionController,
+  extendSessionController,
 } from '../controllers/session.controller'
 
 const router = Router()
@@ -21,5 +22,6 @@ router.get('/:sessionId', authenticate, getSessionController)
 router.get('/:sessionId/live', authenticate, lecturerOnly, getLiveSessionController)
 router.patch('/:sessionId/close', authenticate, lecturerOnly, closeSessionController)
 router.patch('/:sessionId/reopen', authenticate, lecturerOnly, reopenSessionController)
+router.patch('/:sessionId/extend', authenticate, lecturerOnly, extendSessionController)
 
 export default router

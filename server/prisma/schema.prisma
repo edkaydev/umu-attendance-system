@@ -192,6 +192,8 @@ model Session {
   codeExpiresAt    DateTime
   status           SessionStatus     @default(open)
   venue            String?           @db.VarChar(100)
+  mode             SessionMode       @default(physical)
+  startsAt         DateTime?
   openedAt         DateTime          @default(now())
   closedAt         DateTime?
   attendanceRecords AttendanceRecord[]
@@ -204,6 +206,11 @@ model Session {
 enum SessionStatus {
   open
   closed
+}
+
+enum SessionMode {
+  physical
+  online
 }
 
 // ─────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { AttendanceStatus, SessionStatus } from '@prisma/client'
+import { AttendanceStatus, SessionMode, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
@@ -9,6 +9,8 @@ const CODE_TTL_MINUTES = 5
 export interface OpenSessionInput {
   courseUnitId: string
   venue?: string
+  mode?: SessionMode
+  startsAt?: string
   academicYear: string
   semester: number
 }
@@ -53,6 +55,15 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     input.semester
   )
 
+  const mode = input.mode ?? SessionMode.physical
+  let startsAt: Date | null = null
+  if (input.startsAt) {
+    startsAt = new Date(input.startsAt)
+    if (Number.isNaN(startsAt.getTime())) {
+      throw new ApiError('Invalid session time', 400)
+    }
+  }
+
   // FR-05.6: only one active session per course unit at a time
   const existing = await prisma.session.findFirst({
     where: {
@@ -85,6 +96,8 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
       codeExpiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60_000),
       status: SessionStatus.open,
       venue: input.venue ?? null,
+      mode,
+      startsAt,
     },
     include: { courseUnit: { select: { id: true, code: true, name: true } } },
   })
@@ -219,6 +232,8 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
       codeExpiresAt: session.codeExpiresAt,
       status: session.status,
       venue: session.venue,
+      mode: session.mode,
+      startsAt: session.startsAt,
       openedAt: session.openedAt,
       courseUnit: session.courseUnit,
     },
@@ -321,4 +336,32 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
   })
 
   return reopened
+}
+
+/** Extend an open session's code expiry by N minutes (same code, keeps the session live). */
+export async function extendSessionTime(sessionId: string, lecturerId: string, minutes = CODE_TTL_MINUTES) {
+  const session = await prisma.session.findUnique({ where: { id: sessionId } })
+  if (!session) throw new ApiError('Session not found', 404)
+  if (session.lecturerId !== lecturerId) {
+    throw new ApiError('You do not own this session', 403)
+  }
+  if (session.status !== SessionStatus.open) {
+    throw new ApiError('Only open sessions can be extended', 400)
+  }
+
+  const base = Math.max(session.codeExpiresAt.getTime(), Date.now())
+  const codeExpiresAt = new Date(base + minutes * 60_000)
+
+  const extended = await prisma.session.update({
+    where: { id: sessionId },
+    data: { codeExpiresAt },
+    include: { courseUnit: { select: { id: true, code: true, name: true } } },
+  })
+
+  await writeAuditLog(lecturerId, 'SESSION_EXTEND', 'session', session.id, {
+    minutes,
+    codeExpiresAt: codeExpiresAt.toISOString(),
+  })
+
+  return extended
 }
