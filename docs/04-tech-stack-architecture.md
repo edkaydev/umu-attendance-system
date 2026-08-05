@@ -2,23 +2,22 @@
 
 ## Stack
 
-| Layer | Technology | Why |
+| Layer | Technology | Version |
 |---|---|---|
-| Frontend | React 18 + Vite + TypeScript | Fast builds, component-based, strong typing |
-| Styling | Tailwind CSS | Utility-first, easy UMU brand theming |
-| PWA | Vite PWA Plugin (Workbox) | Service worker + manifest with minimal config |
-| Charts | Recharts | Lightweight, React-native chart library |
-| Backend | Node.js 20 LTS + Express + TypeScript | Same language front and back, large ecosystem |
-| Database | MySQL 8 | Relational, reliable, runs well on Ubuntu |
-| ORM | Prisma | Type-safe queries, auto migrations, MySQL support |
-| Authentication | Google OAuth 2.0 + Passport.js | No passwords, Google Workspace integration |
-| Session tokens | JWT (HttpOnly cookies) | Secure, stateless, XSS-resistant |
-| PDF generation | Puppeteer (headless Chromium) | Renders styled HTML to PDF with UMU badge |
-| Email alerts | Nodemailer + Google SMTP | Simple, reliable, uses existing UMU Google accounts |
-| Web server | Nginx | Reverse proxy, serves React static files, SSL |
-| Process manager | PM2 (inside Docker) | Auto-restart, log management |
-| Containerisation | Docker + Docker Compose | Repeatable deployment, isolates services |
-| Server OS | Ubuntu Server 22.04 LTS | Stable, free, excellent Docker support |
+| Frontend | React + Vite + TypeScript | React 18.3, Vite 5.4 |
+| Styling | Tailwind CSS | 3.4 |
+| PWA | vite-plugin-pwa (Workbox) | 0.20 |
+| Charts | Recharts | 2.12 |
+| Backend | Node.js + Express + TypeScript | Node 20 LTS |
+| Database | MySQL 8 | 8.x |
+| ORM | Prisma | Latest |
+| Authentication | Google OAuth 2.0 + Passport.js | — |
+| Session tokens | JWT in HttpOnly cookies | — |
+| PDF generation | Puppeteer (headless Chromium) | — |
+| Email alerts | Nodemailer + Google SMTP | — |
+| Web server | Nginx (reverse proxy + static files) | alpine |
+| Containerisation | Docker + Docker Compose | — |
+| Server OS | Ubuntu Server 22.04 LTS | — |
 
 ---
 
@@ -33,8 +32,8 @@
 │  │                                                          │   │
 │  │  ┌──────────┐    ┌─────────────────┐    ┌────────────┐  │   │
 │  │  │  Nginx   │───▶│   Node.js API   │───▶│  MySQL 8   │  │   │
-│  │  │ :80/:443 │    │   Express+PM2   │    │   :3306    │  │   │
-│  │  │          │    │    :4000        │    │            │  │   │
+│  │  │ :80/:443 │    │   Express       │    │   :3306    │  │   │
+│  │  │          │    │    :4000        │    │ (internal) │  │   │
 │  │  └────┬─────┘    └────────┬────────┘    └────────────┘  │   │
 │  │       │                   │                              │   │
 │  │  React PWA           Nodemailer ──▶ Google SMTP          │   │
@@ -45,50 +44,36 @@
          ▲
          │  HTTPS — campus network
          │
- ┌───────┴────────────────────────────┐
- │   Browser / Phone (PWA)            │
- │   Student  → check-in page         │
- │   Lecturer → session management    │
- │   Faculty Admin → reports          │
- │   System Admin → setup + imports   │
- └────────────────────────────────────┘
+ ┌───────┴────────────────────────────────────────┐
+ │   Browser / Phone (PWA)                         │
+ │   Student      → check-in (mobile + desktop)   │
+ │   Lecturer     → session management (mobile +) │
+ │   Faculty Admin→ reports (desktop only)         │
+ │   System Admin → setup (desktop only)           │
+ └────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Clean Architecture — Layers
 
-Every feature follows this strict layering. Business logic never touches Express or Prisma directly.
-
 ```
 HTTP Request
      ↓
-[ Route ]           — defines the endpoint and applies middleware
+[ Route ]           — endpoint + middleware
      ↓
-[ Middleware ]      — auth (JWT verify) + role guard (RBAC)
+[ authenticate ]    — JWT verify + re-fetch user from DB (checks isActive, role)
      ↓
-[ Controller ]      — parses request, calls service, returns response
+[ requireRole ]     — RBAC guard
      ↓
-[ Service ]         — ALL business logic lives here
+[ Controller ]      — parse request, call service, return response (Zod validation)
      ↓
-[ Prisma / DB ]     — data access only, no logic
+[ Service ]         — ALL business logic + data scoping
+     ↓
+[ Prisma / DB ]     — data access only
 ```
 
-Example for opening a session:
-
-```
-POST /api/sessions
-  → auth middleware (is JWT valid?)
-  → role middleware (is role === 'lecturer'?)
-  → SessionController.openSession()
-      → SessionService.openSession(lecturerId, courseUnitId)
-          → validate lecturer is assigned to unit
-          → check no active session exists
-          → generate 6-char code
-          → write to DB via Prisma
-          → return session object
-  → 201 Created { session }
-```
+Controllers never contain business logic. Services never touch `req`/`res`.
 
 ---
 
@@ -97,62 +82,57 @@ POST /api/sessions
 ### Google OAuth Flow
 ```
 1. User clicks "Sign in with Google"
-2. Browser redirects to Google consent screen
-3. Google redirects back to /api/auth/google/callback with auth code
+2. Browser → Google consent screen
+3. Google → /api/auth/google/callback with auth code
 4. Server exchanges code for user profile (email, name)
-5. Server checks email domain:
-   - @stud.umu.ac.ug → student
-   - @umu.ac.ug → check role in DB
-6. Server issues JWT access token (1hr) + refresh token (7d) in HttpOnly cookies
-7. Browser redirects to correct dashboard based on role
+5. Email domain check:
+   - @stud.umu.ac.ug → student role lookup
+   - @umu.ac.ug      → check assigned role in DB
+6. Server issues JWT access token (1h) + refresh token (7d) as HttpOnly cookies
+7. Browser redirects to role dashboard
 ```
 
 ### JWT in HttpOnly Cookies
-- JavaScript cannot read HttpOnly cookies → protected from XSS attacks
-- Every API request automatically sends the cookie → no manual token management
-- Refresh token rotation: silent re-issue before expiry
+- Not readable by JavaScript → XSS-safe
+- Sent automatically with every same-origin request
+- Refresh token rotation: silent re-issue, old token revoked on rotation
+
+### Auth Middleware — Live DB Check
+The JWT payload carries only the user ID (`sub`). On every request, `authenticate`
+re-fetches the full user from the database. This means:
+- Deactivated accounts are blocked immediately (no waiting for token expiry)
+- Role changes take effect on the next request without re-login
 
 ### CORS
-```typescript
-// Only the frontend origin is allowed
-app.use(cors({
-  origin: process.env.CLIENT_URL, // e.g. https://attendance.umu.ac.ug
-  credentials: true,              // allow cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-}))
-```
+Only the configured `CLIENT_URL` origin is allowed with credentials.
 
-### RBAC Middleware
-```typescript
-export const requireRole = (...roles: Role[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden' })
-    }
-    next()
-  }
-}
-```
+### Zod Validation
+All controller inputs are validated with Zod schemas before reaching services.
+Unknown/extra fields are stripped. Type-safe throughout.
 
 ---
 
 ## Key Architecture Decisions
 
-### Why MySQL over PostgreSQL?
-Client's explicit preference. Both are fully supported by Prisma and run identically on Ubuntu Server.
+### Why MySQL?
+Client's requirement. Fully supported by Prisma. Identical behaviour on Ubuntu Server.
 
 ### Why Puppeteer for PDF?
-PDF reports are styled HTML pages. Puppeteer renders them with pixel-perfect accuracy.
-Easy to embed the UMU badge as a base64 image. No paid library needed. Runs headlessly in Docker.
+Reports are styled HTML — Puppeteer renders them accurately with the UMU logo embedded
+as a base64 image. No paid library. Runs headlessly in Docker.
 
 ### Why Docker Compose?
-Instead of manually installing Node.js, MySQL, and Nginx on the server one by one,
-Docker Compose defines everything in one file. A single command starts the entire system.
-Upgrades and rollbacks become trivial.
+One command starts the entire system (MySQL, Node.js, Nginx). Repeatable across
+environments. Rollback by reverting to previous image.
 
-### Why not a monorepo framework (Next.js)?
-Separate `client/` and `server/` gives a clean API that could later serve a mobile app
-or other clients. The API is not coupled to any frontend framework.
+### Why separate client/ + server/?
+Clean API boundary. The API is framework-agnostic and could serve a mobile app later.
+No coupling between frontend and backend frameworks.
+
+### Session Code Safety
+Code alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
+Excluded: `O`, `0` (zero/letter O confusion), `I`, `1` (one/letter I), `B`, `8`, `S`, `5`.
+Generates 6 characters → ~1 billion combinations with safe characters.
 
 ---
 
@@ -160,14 +140,66 @@ or other clients. The API is not coupled to any frontend framework.
 
 ```yaml
 services:
-  db:       # MySQL 8 container
-  app:      # Node.js Express API (PM2 inside)
-  nginx:    # Reverse proxy + static file server
+  db:     # MySQL 8 — internal port 3306 only
+  app:    # Node.js Express API — internal port 4000 only
+  nginx:  # Reverse proxy + static file server — public ports 80, 443
 ```
 
 Volumes:
 - `db_data` — persists MySQL data across container restarts
-- `./client/dist` — React production build, served by Nginx
+- `./client/dist` — React production build, served directly by Nginx
+
+---
+
+## Folder Structure (Actual)
+
+```
+umu-attendance-system/
+├── docs/                          ← Documentation (this folder)
+├── client/                        ← React + Vite PWA frontend
+│   ├── public/
+│   │   ├── umu-logo.png           ← App icon source
+│   │   ├── icon-192x192.png       ← PWA icon
+│   │   ├── icon-512x512.png       ← PWA icon (maskable)
+│   │   └── apple-touch-icon.png   ← iOS home screen icon
+│   └── src/
+│       ├── pages/                 ← One file per route
+│       ├── components/
+│       │   ├── Layout.tsx         ← Sidebar + mobile nav + desktop-only gate
+│       │   ├── InstallPrompt.tsx  ← PWA install banner
+│       │   ├── RouteGuards.tsx    ← RequireAuth, RequireRole
+│       │   └── ui/                ← Button, Card, Badge, Modal, Select, Input…
+│       ├── hooks/
+│       │   └── usePeriod.ts       ← Reads global period from System Admin setting
+│       ├── api/
+│       │   ├── client.ts          ← Fetch wrapper with cookie credentials
+│       │   └── endpoints.ts       ← All API call functions + TypeScript types
+│       ├── context/
+│       │   ├── AuthContext.tsx
+│       │   └── ToastContext.tsx
+│       └── types/
+│           └── index.ts
+├── server/                        ← Node.js Express API
+│   ├── prisma/
+│   │   └── schema.prisma          ← Database schema
+│   └── src/
+│       ├── config/                ← DB, passport, env
+│       ├── middleware/
+│       │   ├── auth.ts            ← JWT verify + live DB check
+│       │   └── role.ts            ← requireRole RBAC guard
+│       ├── routes/                ← One router per domain
+│       ├── controllers/           ← Thin: parse → service → respond
+│       ├── services/              ← All business logic
+│       └── utils/
+│           ├── apiResponse.ts     ← ok(), ApiError
+│           └── attendanceCalc.ts  ← Percentage + status helpers
+├── devops/
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── nginx/
+│   └── scripts/                   ← deploy.sh, backup-db.sh
+└── README.md
+```
 
 ---
 
@@ -199,43 +231,4 @@ SMTP_PASS=google-app-password
 
 # PDF
 UMU_BADGE_PATH=/app/assets/umu-badge.png
-```
-
----
-
-## Folder Structure
-
-```
-umu-attendance-system/
-├── docs/                          ← Planning documents
-├── client/                        ← React + Vite frontend
-│   ├── public/
-│   │   ├── manifest.json
-│   │   ├── umu-badge.png
-│   │   └── icons/
-│   └── src/
-│       ├── pages/
-│       ├── components/
-│       ├── hooks/
-│       ├── api/
-│       ├── context/
-│       ├── types/
-│       └── utils/
-├── server/                        ← Node.js Express API
-│   ├── prisma/
-│   │   └── schema.prisma
-│   └── src/
-│       ├── config/
-│       ├── middleware/
-│       ├── routes/
-│       ├── controllers/
-│       ├── services/
-│       └── utils/
-├── devops/
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   ├── nginx/
-│   └── scripts/
-├── .gitignore
-└── README.md
 ```

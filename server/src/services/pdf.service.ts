@@ -110,5 +110,9 @@ export async function reportToPdf(header: PdfHeader, tables: PdfTable[]): Promis
 /** Status pill cell (good / warning / not-eligible). */
 export function statusPill(status: string): string {
   const cls = status === 'good' ? 'good' : status === 'warning' ? 'warning' : 'not-eligible'
-  return `<span class="pill ${cls}">${status}</span>`
+  const label =
+    status === 'good' ? 'Good' :
+    status === 'warning' ? 'Warning' :
+    'Not Eligible'
+  return `<span class="pill ${cls}">${label}</span>`
 }

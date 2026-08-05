@@ -16,6 +16,7 @@ import OpenSession from './pages/OpenSession'
 import LiveSession from './pages/LiveSession'
 import SessionDetail from './pages/SessionDetail'
 import FacultyAdminDashboard from './pages/FacultyAdminDashboard'
+import FacultyAdminSessions from './pages/FacultyAdminSessions'
 import FacultyUnits, { FacultyUserUnits } from './pages/FacultyUnits'
 import ReportsPage from './pages/ReportsPage'
 import SystemAdminDashboard from './pages/SystemAdminDashboard'
@@ -214,6 +215,30 @@ export default function App() {
                   <RequireRole roles={['faculty_admin']}>
                     <AppLayout>
                       <FacultyUserUnits />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/faculty-admin/sessions"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['faculty_admin']}>
+                    <AppLayout>
+                      <FacultyAdminSessions />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/faculty-admin/sessions/:sessionId"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['faculty_admin']}>
+                    <AppLayout>
+                      <SessionDetail />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

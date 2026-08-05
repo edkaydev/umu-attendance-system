@@ -82,22 +82,45 @@ export default function LecturerDashboard() {
 
       {/* ── Active session banner ── */}
       {openSessions.length > 0 && (
-        <div className="flex items-center justify-between gap-4 rounded-md border border-success-border bg-success-light px-5 py-4">
-          <div>
+        <div className="rounded-md border border-success-border bg-success-light px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-body font-semibold text-success">
-              {openSessions.length} session{openSessions.length > 1 ? 's' : ''} currently open
-            </p>
-            <p className="text-body-sm text-success">
-              {openSessions
-                .map((s) => `${s.courseUnit.name} (${s.mode === 'online' ? 'Online' : s.venue ?? 'Physical'})`)
-                .join(', ')}
+              {openSessions.length === 1
+                ? '1 session currently open'
+                : `${openSessions.length} sessions currently open`}
             </p>
           </div>
-          <Link to={`/lecturer/sessions/${openSessions[0].id}/live`}>
-            <Button variant="secondary" className="border-success text-success hover:bg-success-light">
-              Go Live
-            </Button>
-          </Link>
+          {openSessions.length === 1 ? (
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-body-sm text-success">
+                {openSessions[0].courseUnit.name}
+                {' · '}
+                {openSessions[0].mode === 'online' ? 'Online' : (openSessions[0].venue ?? 'Physical')}
+              </p>
+              <Link to={`/lecturer/sessions/${openSessions[0].id}/live`}>
+                <Button variant="secondary" className="border-success text-success hover:bg-success-light">
+                  Go Live
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {openSessions.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3">
+                  <p className="text-body-sm text-success">
+                    {s.courseUnit.name}
+                    {' · '}
+                    {s.mode === 'online' ? 'Online' : (s.venue ?? 'Physical')}
+                  </p>
+                  <Link to={`/lecturer/sessions/${s.id}/live`}>
+                    <Button variant="secondary" className="min-h-[32px] border-success px-3 py-1 text-body-sm text-success hover:bg-success-light">
+                      Go Live
+                    </Button>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

@@ -3,31 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { profileApi, StudentProfileInput, ProfileOptions, settingsApi } from '../api/endpoints'
+import { usePeriod } from '../hooks/usePeriod'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
 import { ApiClientError } from '../api/client'
 
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear, startYear + 1].map((y) => ({
-    value: `${y}/${y + 1}`,
-    label: `${y}/${y + 1}`,
-  }))
-}
-
 const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
-const SEMESTER_OPTIONS = [
-  { value: '1', label: 'Semester 1' },
-  { value: '2', label: 'Semester 2' },
-]
 
 export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const { user, refresh } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
+  const { period: globalPeriod } = usePeriod()
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,8 +27,6 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
-  const [semester, setSemester] = useState('')
-  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
   const [regNumber, setRegNumber] = useState('')
 
   useEffect(() => {
@@ -61,8 +48,6 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           setFacultyId(user.facultyId ?? '')
           setProgrammeId(user.programmeId ?? '')
           setYear(user.year ? String(user.year) : '')
-          setSemester(user.semester ? String(user.semester) : '')
-          if (user.academicYear) setAcademicYear(user.academicYear)
           setRegNumber(user.regNumber ?? '')
           if (user.facultyId) {
             for (const c of opts.campuses) {
@@ -81,6 +66,11 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
 
   const isStudent = user?.role === 'student'
 
+  const faculties = useMemo(() => {
+    if (!options) return []
+    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
+  }, [options, campusId])
+
   const programmes = useMemo(() => {
     if (!options || !facultyId) return []
     for (const c of options.campuses) {
@@ -90,12 +80,6 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
     }
     return []
   }, [options, facultyId])
-
-  const faculties = useMemo(() => {
-    if (!options) return []
-    const campus = options.campuses.find((c) => c.id === campusId)
-    return campus?.faculties ?? []
-  }, [options, campusId])
 
   if (loading) {
     return (
@@ -111,8 +95,12 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       return
     }
     if (isStudent) {
-      if (!campusId || !facultyId || !programmeId || !year || !semester || !regNumber.trim()) {
+      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
         toast.error('Please complete all fields')
+        return
+      }
+      if (!globalPeriod) {
+        toast.error('System period not loaded yet, please wait')
         return
       }
       const data: StudentProfileInput = {
@@ -120,9 +108,9 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         facultyId,
         programmeId,
         year: Number(year),
-        semester: Number(semester),
+        semester: globalPeriod.semester,
         regNumber: regNumber.trim(),
-        academicYear,
+        academicYear: globalPeriod.academicYear,
       }
       setSaving(true)
       try {
@@ -159,37 +147,43 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       <div className="w-full max-w-lg">
         <h1 className="text-h1 font-bold text-text-primary">Welcome, {user?.fullName}!</h1>
         <p className="mt-1 mb-6 text-body-lg text-text-secondary">
-          {edit ? 'Update your academic details — your enrolled units will be recalculated.' : 'Complete your profile to continue.'}
+          {edit
+            ? 'Update your academic details — your enrolled units will be recalculated.'
+            : 'Complete your profile to continue.'}
         </p>
 
         <Card>
           {editingDisabled && (
             <div className="mb-4 rounded border border-warning-border bg-warning-light px-4 py-3 text-body-sm text-warning">
-              Profile editing is currently disabled by the System Admin. Your academic details are
-              frozen until it is re-enabled.
+              Profile editing is currently disabled by the System Admin.
             </div>
           )}
+
+          {/* Read-only current period banner */}
+          {isStudent && globalPeriod && (
+            <div className="mb-4 rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
+              Academic period:{' '}
+              <span className="font-semibold text-text-primary">
+                {globalPeriod.academicYear} · Semester {globalPeriod.semester}
+              </span>
+              <span className="ml-1 text-text-disabled">(set by System Admin)</span>
+            </div>
+          )}
+
           {isStudent ? (
             <>
               <Select
                 label="Campus"
                 placeholder="Select campus"
                 value={campusId}
-                onChange={(e) => {
-                  setCampusId(e.target.value)
-                  setFacultyId('')
-                  setProgrammeId('')
-                }}
+                onChange={(e) => { setCampusId(e.target.value); setFacultyId(''); setProgrammeId('') }}
                 options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
               />
               <Select
                 label="Faculty"
                 placeholder="Select faculty"
                 value={facultyId}
-                onChange={(e) => {
-                  setFacultyId(e.target.value)
-                  setProgrammeId('')
-                }}
+                onChange={(e) => { setFacultyId(e.target.value); setProgrammeId('') }}
                 options={faculties.map((f) => ({ value: f.id, label: f.name }))}
               />
               <Select
@@ -199,11 +193,13 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
                 onChange={(e) => setProgrammeId(e.target.value)}
                 options={programmes.map((p) => ({ value: p.id, label: p.name }))}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <Select label="Year" placeholder="Select" value={year} onChange={(e) => setYear(e.target.value)} options={YEAR_OPTIONS} />
-                <Select label="Semester" placeholder="Select" value={semester} onChange={(e) => setSemester(e.target.value)} options={SEMESTER_OPTIONS} />
-              </div>
-              <Select label="Academic Year" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} options={academicYearOptions()} />
+              <Select
+                label="Year of Study"
+                placeholder="Select year"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                options={YEAR_OPTIONS}
+              />
               <Input
                 label="Reg Number"
                 placeholder="e.g. BSCS/2024/0123"

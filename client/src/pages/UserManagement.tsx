@@ -6,6 +6,7 @@ import {
   ProfileOptions,
   AdminUserUpdateInput,
 } from '../api/endpoints'
+import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -24,20 +25,7 @@ const ROLE_LABEL: Record<Role, string> = {
   system_admin:  'System Admin',
 }
 
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear, startYear + 1].map((y) => ({
-    value: `${y}/${y + 1}`,
-    label: `${y}/${y + 1}`,
-  }))
-}
-
 const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
-const SEMESTER_OPTIONS = [
-  { value: '1', label: 'Semester 1' },
-  { value: '2', label: 'Semester 2' },
-]
 
 function EditUserModal({
   user,
@@ -49,6 +37,7 @@ function EditUserModal({
   onSaved: () => void
 }) {
   const toast = useToast()
+  const { period: globalPeriod } = usePeriod()
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [saving, setSaving] = useState(false)
@@ -59,8 +48,6 @@ function EditUserModal({
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
-  const [semester, setSemester] = useState('')
-  const [academicYear, setAcademicYear] = useState('')
   const [regNumber, setRegNumber] = useState('')
 
   const isStudent = user.role === 'student'
@@ -71,8 +58,6 @@ function EditUserModal({
     setEmail(user.email)
     setRegNumber(user.regNumber ?? '')
     setYear(user.year ? String(user.year) : '')
-    setSemester(user.semester ? String(user.semester) : '')
-    setAcademicYear(user.academicYear ?? academicYearOptions()[1].value)
     setFacultyId(user.facultyId ?? '')
     setProgrammeId(user.programmeId ?? '')
     setCampusId('')
@@ -121,15 +106,18 @@ function EditUserModal({
     if (!payload.email) return toast.error('Email is required')
 
     if (isStudent) {
-      if (!campusId || !facultyId || !programmeId || !year || !semester || !regNumber.trim()) {
+      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
         return toast.error('Please complete all academic fields')
+      }
+      if (!globalPeriod) {
+        return toast.error('System period not loaded yet, please wait')
       }
       payload.campusId = campusId
       payload.facultyId = facultyId
       payload.programmeId = programmeId
       payload.year = Number(year)
-      payload.semester = Number(semester)
-      payload.academicYear = academicYear
+      payload.semester = globalPeriod.semester
+      payload.academicYear = globalPeriod.academicYear
       payload.regNumber = regNumber.trim()
     } else if (isStaff) {
       payload.facultyId = facultyId || null
@@ -155,6 +143,15 @@ function EditUserModal({
 
         {isStudent && (
           <>
+            {globalPeriod && (
+              <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
+                Academic period:{' '}
+                <span className="font-semibold text-text-primary">
+                  {globalPeriod.academicYear} · Semester {globalPeriod.semester}
+                </span>
+                <span className="ml-1 text-text-disabled">(from global setting)</span>
+              </div>
+            )}
             <Select
               label="Campus"
               placeholder="Select campus"
@@ -183,27 +180,12 @@ function EditUserModal({
               onChange={(e) => setProgrammeId(e.target.value)}
               options={programmes.map((p) => ({ value: p.id, label: p.name }))}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Year"
-                placeholder="Select"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                options={YEAR_OPTIONS}
-              />
-              <Select
-                label="Semester"
-                placeholder="Select"
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                options={SEMESTER_OPTIONS}
-              />
-            </div>
             <Select
-              label="Academic Year"
-              value={academicYear}
-              onChange={(e) => setAcademicYear(e.target.value)}
-              options={academicYearOptions()}
+              label="Year of Study"
+              placeholder="Select"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              options={YEAR_OPTIONS}
             />
             <Input
               label="Reg Number"

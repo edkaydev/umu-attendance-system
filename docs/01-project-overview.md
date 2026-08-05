@@ -2,31 +2,29 @@
 
 ## Background
 
-Uganda Martyrs University (UMU), Nkozi Campus, currently tracks student attendance using
-paper sign-in sheets. Students sign against their names, the class representative collects
-the sheets, and the lecturer confirms them. There is no digital record, no real-time
-visibility, and no automated enforcement of the university's 75% minimum attendance policy.
-
-This project replaces that process with a purpose-built web-based attendance management
-system.
+Uganda Martyrs University (UMU), Nkozi Campus, tracked student attendance using paper
+sign-in sheets. This project replaces that process with a purpose-built web-based attendance
+management system.
 
 ---
 
 ## Goal
 
-Build a **Progressive Web App (PWA)** that digitises attendance tracking at UMU Nkozi
-Campus. The system must be simple enough for students to use in a classroom in under
-30 seconds and powerful enough for Faculty Admin to generate meaningful academic reports.
+A **Progressive Web App (PWA)** that digitises attendance tracking at UMU Nkozi Campus.
+Simple enough for students to check in within 30 seconds. Powerful enough for Faculty Admin
+to generate meaningful academic reports.
 
 ---
 
-## How It Works — Simple Flow
+## How It Works
 
 ```
 System Admin sets up:
-Campus → Faculty → Programme → Year → Semester → Course Units
+  Campus → Faculty → Programme → Course Units → Curriculum mapping
 
-Lecturer logs in → opens a session → system generates a 6-character code
+System Admin sets the current academic year and semester (global setting).
+
+Lecturer logs in → opens a session for an assigned unit → 6-character code generated
 
 Students log in → enter the code → marked Present
 
@@ -42,25 +40,28 @@ Faculty Admin monitors → generates reports → downloads PDF
 | In Scope | Out of Scope |
 |---|---|
 | Nkozi Campus only | Other campuses (Phase 2) |
-| Web PWA (bookmarkable on phone + PC) | Native mobile apps |
+| Web PWA (installable on phone + PC) | Native mobile apps |
 | Google OAuth login only | Password-based login |
 | Student self-registration via profile completion | Manual student CSV import |
 | Code-based student check-in | Biometric / QR code check-in |
-| Course-unit level attendance tracking | Programme-level aggregation reports |
-| PDF reports for Faculty Admin | Moodle integration |
+| Course-unit level attendance tracking | — |
+| PDF reports for Faculty Admin + Lecturer | Moodle integration |
 | Email alerts for threshold breaches | SMS alerts |
 | Docker-based deployment on Ubuntu Server | Cloud deployment |
 
 ---
 
-## Key Outcomes
+## Key Outcomes (Built)
 
-1. A lecturer can open an attendance session in under 1 minute.
-2. A student can check in by entering a 6-character code — no app installation required.
-3. The system automatically records absences when a session closes.
-4. Faculty Admin receives automatic alerts at 80% (warning) and 75% (critical).
-5. Faculty Admin can download PDF reports on lecturers, programmes, units, and students.
-6. All 4 roles have a personalised dashboard.
+1. A lecturer opens a session in under 1 minute, selects duration and code validity.
+2. A student checks in by entering a 6-character code — no app install required.
+3. The system auto-records absences when a session closes.
+4. Alerts fire automatically at ≤80% (warning) and <75% (critical) per course unit.
+5. Faculty Admin downloads PDF reports for lecturers, programmes, units, and students.
+6. Lecturers download PDF reports for their own course units.
+7. All 4 roles have a personalised, role-scoped dashboard.
+8. System Admin sets the active academic year and semester — all other roles see that period automatically.
+9. Students and lecturers can install the app on their phone home screen (PWA). Faculty Admin and System Admin use desktop only.
 
 ---
 
@@ -69,9 +70,9 @@ Faculty Admin monitors → generates reports → downloads PDF
 | Role | Interest |
 |---|---|
 | Student | Check in, view own attendance and eligibility status |
-| Lecturer | Open sessions, manage attendance, view class reports |
+| Lecturer | Open/close sessions, manage attendance, view class reports, download PDF |
 | Faculty Admin | Monitor faculty, assign lecturers, generate PDF reports, receive alerts |
-| System Admin | Set up academic structure, manage user accounts, maintain system |
+| System Admin | Set up academic structure, manage users, set active period |
 
 ---
 
@@ -81,13 +82,12 @@ Faculty Admin monitors → generates reports → downloads PDF
 Nkozi Campus
     └── Faculty (e.g. Faculty of Science)
             └── Programme (e.g. BSCS)
-                    └── Year (e.g. Year 3)
-                            └── Semester (e.g. Semester 1)
-                                    └── Course Unit (e.g. Web Development)
+                    └── CurriculumUnit (Programme + Year + Semester + CourseUnit)
+                                └── Course Unit (e.g. Database Systems)
 ```
 
-Course units can be **shared** across programmes. Example: BSCS Year 3 and BSIT Year 3
-both take Web Development — same session, same attendance list, same lecturer.
+Course units can be **shared** across programmes — one session, one attendance list.
+Sharing is managed by System Admin (share a unit to another faculty) or via curriculum mapping.
 
 ---
 
@@ -96,8 +96,11 @@ both take Web Development — same session, same attendance list, same lecturer.
 | Attendance | Status | Action |
 |---|---|---|
 | Above 80% | Good ✅ | No action |
-| At or below 80% | Warning ⚠️ | Alert sent to student, lecturer, faculty admin |
-| Below 75% | Not Eligible 🚨 | Critical alert sent to student, lecturer, faculty admin |
+| At or below 80% | Warning ⚠️ | Email alert to student, lecturer(s), Faculty Admin |
+| Below 75% | Not Eligible 🚨 | Critical email alert |
+
+Alerts fire once per threshold crossing per course unit. If attendance recovers and
+drops again, a new alert fires.
 
 ---
 
@@ -105,7 +108,9 @@ both take Web Development — same session, same attendance list, same lecturer.
 
 - Runs on **Ubuntu Server 22.04 LTS** (self-hosted, Nkozi Campus)
 - Deployed via **Docker + Docker Compose**
-- Must work on campus internet — no offline mode required
-- PDF reports must carry the **official UMU badge/logo**
-- All users authenticate via **Google OAuth only** — no passwords
+- Must work on campus network — no offline mode
+- PDF reports include the UMU logo
+- All users authenticate via **Google OAuth only**
 - Students use `@stud.umu.ac.ug`, staff use `@umu.ac.ug`
+- Faculty Admin and System Admin: **desktop browsers only**
+- Students and Lecturers: mobile + desktop (PWA)

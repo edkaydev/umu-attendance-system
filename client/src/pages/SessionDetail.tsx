@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useLocation } from 'react-router-dom'
 import { sessionApi, attendanceApi, reportApi } from '../api/endpoints'
 import type { SessionDetail as SessionDetailType } from '../api/endpoints'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -38,7 +39,14 @@ function StatPill({
 
 export default function SessionDetail() {
   const { sessionId = '' } = useParams()
+  const { user } = useAuth()
+  const location = useLocation()
   const toast = useToast()
+  const isLecturer = user?.role === 'lecturer'
+  // Back link context: faculty admin comes from /faculty-admin/sessions
+  const backTo = location.pathname.startsWith('/faculty-admin')
+    ? '/faculty-admin/sessions'
+    : '/lecturer/sessions'
 
   const [session, setSession] = useState<SessionDetailType | null>(null)
   const [editing, setEditing] = useState<{ recordId: string; studentName: string; currentStatus: AttendanceStatus } | null>(null)
@@ -46,6 +54,65 @@ export default function SessionDetail() {
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [reopening, setReopening] = useState(false)
+
+  // PDF generate → download two-step flow
+  const [generating, setGenerating] = useState(false)
+  const [reportReady, setReportReady] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  // Only the session's own lecturer can edit attendance (closed sessions only).
+  // Faculty Admin is read-only — they monitor, not modify.
+  const canEdit =
+    session !== null &&
+    session.status === 'closed' &&
+    isLecturer &&
+    session.lecturer.id === user?.id
+
+  async function handleGenerate() {
+    if (!session) return
+    setGenerating(true)
+    try {
+      await reportApi.courseUnit(session.courseUnitId, {
+        academicYear: session.academicYear,
+        semester: session.semester,
+      })
+      setReportReady(true)
+      toast.success('Report generated — ready to download')
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!session) return
+    setDownloading(true)
+    try {
+      const url = reportApi.pdfUrl('course-unit', session.courseUnitId, {
+        academicYear: session.academicYear,
+        semester: session.semester,
+      })
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      // e.g. "Database Systems - 2025_2026 Sem 1.pdf"
+      const safeName = session.courseUnit.name.replace(/[/\\?%*:|"<>]/g, '-')
+      const safeYear = session.academicYear.replace('/', '_')
+      a.download = `${safeName} - ${safeYear} Sem ${session.semester}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to download PDF')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   async function reload() {
     const s = await sessionApi.get(sessionId)
@@ -116,6 +183,9 @@ export default function SessionDetail() {
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
+          <Link to={backTo} className="mb-2 inline-block text-body-sm font-medium text-umu-red hover:underline">
+            ← Back to Sessions
+          </Link>
           <div className="mb-1 flex items-center gap-3">
             <h1 className="text-h1 font-bold text-text-primary">{session.courseUnit.name}</h1>
             <Badge status={session.status} />
@@ -139,26 +209,62 @@ export default function SessionDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {session.status === 'open' ? (
-            <Link to={`/lecturer/sessions/${sessionId}/live`}>
-              <Button variant="secondary">Live View</Button>
-            </Link>
+          {isLecturer && session.lecturer.id === user?.id && (
+            session.status === 'open' ? (
+              <Link to={`/lecturer/sessions/${sessionId}/live`}>
+                <Button variant="secondary">Live View</Button>
+              </Link>
+            ) : (() => {
+              // Reopen only allowed on the same calendar day (EAT = UTC+3)
+              const toEATDate = (d: Date) => new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+              const sessionDate = toEATDate(new Date(session.openedAt))
+              const today = toEATDate(new Date())
+              return sessionDate === today ? (
+                <Button variant="ghost" loading={reopening} onClick={handleReopen}>
+                  Reopen Session
+                </Button>
+              ) : null
+            })()
+          )}
+          {/* Two-step: Generate first, then Download becomes active */}
+          {!reportReady ? (
+            <Button
+              variant="secondary"
+              loading={generating}
+              onClick={handleGenerate}
+            >
+              {generating ? 'Generating…' : 'Generate Report'}
+            </Button>
           ) : (
-            <Button variant="ghost" loading={reopening} onClick={handleReopen}>
-              Reopen (same day only)
+            <Button
+              variant="secondary"
+              loading={downloading}
+              onClick={handleDownloadPdf}
+            >
+              {/* Download icon */}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {downloading ? 'Downloading…' : 'Download PDF'}
             </Button>
           )}
-          <a
-            href={reportApi.pdfUrl('course-unit', session.courseUnitId, {
-              academicYear: session.academicYear,
-              semester: session.semester,
-            })}
-            className="inline-flex min-h-[44px] items-center rounded border border-umu-red px-5 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4]"
-          >
-            Download PDF
-          </a>
         </div>
       </div>
+
+      {/* ── Open session notice ── */}
+      {session.status === 'open' && (
+        <div className="flex items-start gap-3 rounded-md border border-warning-border bg-warning-light px-4 py-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-warning">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p className="text-body-sm text-warning">
+            <span className="font-semibold">Session is still open.</span>{' '}
+            Attendance records are not final — students may still check in. Editing is only available after the session is closed.
+          </p>
+        </div>
+      )}
 
       {/* ── Count pills ── */}
       <div className="flex flex-wrap gap-3">
@@ -233,13 +339,19 @@ export default function SessionDetail() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
-                          onClick={() => openEdit(r.id, r.student.fullName, r.status)}
-                        >
-                          Edit
-                        </Button>
+                        {canEdit ? (
+                          <Button
+                            variant="ghost"
+                            className="min-h-[32px] px-3 py-1 text-body-sm"
+                            onClick={() => openEdit(r.id, r.student.fullName, r.status)}
+                          >
+                            Edit
+                          </Button>
+                        ) : session?.status === 'open' ? (
+                          <span className="text-body-sm text-text-disabled" title="Close the session before editing attendance">
+                            Session open
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   )

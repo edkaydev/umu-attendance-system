@@ -6,6 +6,11 @@ export const PROFILE_EDITING_KEYS = {
   admins:    'profileEditing.admins',
 } as const
 
+export const CURRENT_PERIOD_KEYS = {
+  academicYear: 'currentPeriod.academicYear',
+  semester:     'currentPeriod.semester',
+} as const
+
 export type ProfileEditingScope = keyof typeof PROFILE_EDITING_KEYS
 
 /** Read a system setting, falling back to a default when unset. */
@@ -46,4 +51,35 @@ export async function getProfileEditingSettings(): Promise<ProfileEditingSetting
 /** Whether a given scope is allowed to edit (default: yes). */
 export async function isProfileEditingEnabled(scope: ProfileEditingScope): Promise<boolean> {
   return (await getSetting(PROFILE_EDITING_KEYS[scope], 'true')) === 'true'
+}
+
+// ─── Current academic period ───────────────────────────────────────────────
+
+export interface CurrentPeriod {
+  academicYear: string
+  semester: number
+}
+
+function defaultAcademicYear(): string {
+  const now = new Date()
+  const y = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
+  return `${y}/${y + 1}`
+}
+
+/** Read the current global academic period (defaults to current year, sem 1). */
+export async function getCurrentPeriod(): Promise<CurrentPeriod> {
+  const [academicYear, semester] = await Promise.all([
+    getSetting(CURRENT_PERIOD_KEYS.academicYear, defaultAcademicYear()),
+    getSetting(CURRENT_PERIOD_KEYS.semester, '1'),
+  ])
+  return { academicYear, semester: Number(semester) }
+}
+
+/** Persist a new current global academic period. */
+export async function setCurrentPeriod(academicYear: string, semester: number): Promise<CurrentPeriod> {
+  await Promise.all([
+    setSetting(CURRENT_PERIOD_KEYS.academicYear, academicYear),
+    setSetting(CURRENT_PERIOD_KEYS.semester, String(semester)),
+  ])
+  return { academicYear, semester }
 }

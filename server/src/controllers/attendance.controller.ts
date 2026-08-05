@@ -28,7 +28,11 @@ export async function myAttendanceController(req: Request, res: Response, next: 
 /** Lecturer / faculty admin: full attendance list for a session. */
 export async function sessionAttendanceController(req: Request, res: Response, next: NextFunction) {
   try {
-    const { records, counts } = await getSessionAttendance(req.params.sessionId)
+    const { records, counts } = await getSessionAttendance(req.params.sessionId, {
+      id: req.user!.id,
+      role: req.user!.role,
+      facultyId: req.user!.facultyId ?? null,
+    })
     ok(res, { records, counts })
   } catch (e) {
     next(e)

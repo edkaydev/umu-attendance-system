@@ -2,12 +2,15 @@
 
 ## The 4 Roles
 
-| Role | Email Domain | Created By |
-|---|---|---|
-| System Admin | `@umu.ac.ug` | Another System Admin (or seeded at install) |
-| Faculty Admin | `@umu.ac.ug` | System Admin via staff CSV import |
-| Lecturer | `@umu.ac.ug` | System Admin via staff CSV import |
-| Student | `@stud.umu.ac.ug` | Self — appears after first Google login |
+| Role | Email Domain | Created By | Device |
+|---|---|---|---|
+| System Admin | `@umu.ac.ug` | Another System Admin (or seeded at install) | Desktop only |
+| Faculty Admin | `@umu.ac.ug` | System Admin via staff CSV import | Desktop only |
+| Lecturer | `@umu.ac.ug` | System Admin via staff CSV import | Mobile + Desktop |
+| Student | `@stud.umu.ac.ug` | Self — appears after first Google login | Mobile + Desktop |
+
+Faculty Admin and System Admin portals are blocked on narrow viewports with a
+"Desktop required" message.
 
 ---
 
@@ -18,31 +21,39 @@
 | **Authentication** |
 | Login via Google | ✅ | ✅ | ✅ | ✅ |
 | Complete own profile | ✅ | ✅ | ❌ | ❌ |
-| Edit own profile | ✅ | ✅ | ❌ | ❌ |
+| Edit own profile (when enabled by System Admin) | ✅ | ✅ | ❌ | ❌ |
+| **System Settings** |
+| Set active academic year + semester | ❌ | ❌ | ❌ | ✅ |
+| Enable/disable profile editing per role | ❌ | ❌ | ❌ | ✅ |
 | **Academic Structure** |
-| Create / edit Campus, Faculty, Programme | ❌ | ❌ | ❌ | ✅ |
-| Create / edit Course Units | ❌ | ❌ | ❌ | ✅ |
+| Create / edit Campus, Faculty, Programme, Course Units | ❌ | ❌ | ❌ | ✅ |
 | Map course units to programmes (curriculum) | ❌ | ❌ | ❌ | ✅ |
+| Share course units across faculties | ❌ | ❌ | ❌ | ✅ |
 | Import academic structure via CSV | ❌ | ❌ | ❌ | ✅ |
 | Import staff accounts via CSV | ❌ | ❌ | ❌ | ✅ |
-| Deactivate any user account | ❌ | ❌ | ❌ | ✅ |
+| Deactivate / reactivate any user account | ❌ | ❌ | ❌ | ✅ |
+| Change user role | ❌ | ❌ | ❌ | ✅ |
 | **Lecturer Assignment** |
-| Assign lecturer to course unit | ❌ | ❌ | ✅ | ❌ |
-| Remove lecturer from course unit | ❌ | ❌ | ✅ | ❌ |
+| Assign lecturer to course unit | ❌ | ❌ | ✅ (own faculty) | ❌ |
+| Remove lecturer from course unit | ❌ | ❌ | ✅ (own faculty) | ❌ |
+| Enrol student in course unit | ❌ | ❌ | ✅ (own faculty) | ❌ |
+| Remove student from course unit | ❌ | ❌ | ✅ (own faculty) | ❌ |
 | **Sessions** |
-| Open attendance session | ❌ | ✅ (own units) | ❌ | ❌ |
-| View session code (live) | ❌ | ✅ | ❌ | ❌ |
-| Close session | ❌ | ✅ (own units) | ❌ | ❌ |
-| View live check-in list | ❌ | ✅ (own units) | ❌ | ❌ |
-| Edit attendance after session closes | ❌ | ✅ (own units) | ❌ | ❌ |
+| Open attendance session | ❌ | ✅ (own assigned units) | ❌ | ❌ |
+| View session code live | ❌ | ✅ (own sessions) | ❌ | ❌ |
+| Close session | ❌ | ✅ (own sessions) | ❌ | ❌ |
+| Reopen session (same day, EAT) | ❌ | ✅ (own sessions) | ❌ | ❌ |
+| Extend session code TTL | ❌ | ✅ (own sessions) | ❌ | ❌ |
+| View live check-in list | ❌ | ✅ (own sessions) | ❌ | ❌ |
+| View session detail | ❌ | ✅ (own sessions) | ✅ (read-only, own faculty) | ❌ |
+| **Attendance Editing** |
+| Edit attendance record | ❌ | ✅ (own closed sessions only) | ❌ (read-only) | ❌ |
 | **Check-In** |
 | Enter session code to check in | ✅ | ❌ | ❌ | ❌ |
-| View own check-in confirmation | ✅ | ❌ | ❌ | ❌ |
 | **Attendance Records** |
 | View own attendance per unit | ✅ | ❌ | ❌ | ❌ |
-| View attendance for own units | ❌ | ✅ | ❌ | ❌ |
-| View attendance for all faculty units | ❌ | ❌ | ✅ | ❌ |
-| View attendance for all units (system-wide) | ❌ | ❌ | ❌ | ✅ |
+| View attendance for own sessions | ❌ | ✅ | ❌ | ❌ |
+| View attendance for any session in faculty | ❌ | ❌ | ✅ | ❌ |
 | **Audit Log** |
 | View audit log | ❌ | ❌ | ✅ | ✅ |
 | **Alerts** |
@@ -50,9 +61,8 @@
 | Receive alert for own units | ❌ | ✅ | ❌ | ❌ |
 | Receive alert for all faculty | ❌ | ❌ | ✅ | ❌ |
 | **Reports & PDF** |
-| Download own attendance PDF | ❌ | ❌ | ❌ | ❌ |
-| Download PDF for own units | ❌ | ✅ | ❌ | ❌ |
-| Download PDF: lecturer / programme / unit / student | ❌ | ❌ | ✅ | ❌ |
+| Download PDF for own course units | ❌ | ✅ | ❌ | ❌ |
+| Generate + download PDF: lecturer / programme / unit / student | ❌ | ❌ | ✅ (own faculty) | ❌ |
 | **Dashboards** |
 | Student dashboard | ✅ | ❌ | ❌ | ❌ |
 | Lecturer dashboard | ❌ | ✅ | ❌ | ❌ |
@@ -64,105 +74,105 @@
 ## Role Details
 
 ### System Admin
-The technical owner of the system. Typically UMU IT staff. There can be multiple.
+Technical owner of the system. Typically UMU IT staff. Multiple allowed.
 
 Responsibilities:
-- Sets up the entire academic hierarchy before each semester: Campus, Faculty, Programme, Year, Semester, Course Units, curriculum mappings
-- Imports staff (lecturers, faculty admins) via CSV
-- Manages user accounts (activate, deactivate, change role)
-- Monitors system health
+- Sets up the academic hierarchy each semester: Campus, Faculty, Programme, Course Units, curriculum
+- Imports staff via CSV
+- Manages user accounts (activate, deactivate, change role, update details)
+- Sets the global current academic year and semester
+- Enables/disables profile editing per role
+- Monitors system health and audit log
 
 Does NOT:
-- Monitor academic performance
 - Assign lecturers to units
+- Monitor academic performance
 - Receive attendance alerts
 
 ---
 
 ### Faculty Admin
-The academic monitoring officer. Belongs to one faculty.
+Academic monitoring officer. Belongs to one faculty.
 
 Responsibilities:
-- Assigns lecturers to course units within their faculty
-- Monitors attendance across their entire faculty
-- Answers questions: How is this lecturer doing? How is this programme doing? Is this student at risk?
-- Generates and downloads PDF reports
+- Assigns lecturers to course units in their faculty
+- Enrols students in course units
+- Monitors attendance across the entire faculty
+- Generates and downloads PDF reports (lecturer, programme, unit, student)
 - Receives all below-threshold alerts for their faculty
 
 Does NOT:
 - Set up academic structure
 - Open attendance sessions
-- Edit attendance records directly
+- Edit attendance records (read-only)
 
 ---
 
 ### Lecturer
-An academic staff member who teaches one or more course units.
+Academic staff who teach one or more course units.
 
-On first login:
-- Selects their Faculty
-- Faculty Admin then assigns them to specific course units
+On first login, selects their Faculty. Faculty Admin then assigns units.
 
 Can:
-- Open and close attendance sessions for assigned units
-- Display the session code to students
-- Edit attendance records after a session (with a required reason)
-- View class attendance reports for their own units
-- Download PDF summary for their own units
-- Receive alerts when their students drop below threshold
+- Open and close sessions for assigned units
+- Display the live code to students
+- Extend code validity or set auto-close duration
+- Edit attendance for their own closed sessions (with a required reason)
+- Download PDF for their own course units
+- Receive alerts when students in their units drop below threshold
 
 Cannot:
 - Assign themselves to units
-- View other lecturers' sessions or records
+- View sessions or attendance for other lecturers
+- Edit attendance on open sessions
 - Access faculty-wide reports
 
 ---
 
 ### Student
-An enrolled UMU student.
+Enrolled UMU student.
 
-On first login:
-- Selects: Campus → Faculty → Programme → Year → Semester
-- Enters their Registration Number
-- Auto-enrolled into all course units on that path
+On first login, completes profile (faculty, programme, year, semester, reg number).
+Auto-enrolled into course units for that path.
 
 Can:
 - Check in to sessions by entering the session code
-- View their own attendance: per unit, semester summary, weekly history
-- See their eligibility status (Good / Warning / Not Eligible) per unit
-- Edit their own profile at any time
+- View own attendance per unit, eligibility status, weekly activity
+- Edit own profile (when allowed by System Admin)
 
 Cannot:
-- View other students' attendance
+- View other students' records
 - Open sessions
-- Download PDF reports
+- Download reports
 
 ---
 
 ## RBAC Implementation
 
-Every API request goes through two middleware layers:
+Every API request passes through two middleware layers:
 
 ```
 Request
    ↓
-auth middleware      ← Is the JWT valid? Who is this user?
+authenticate    ← Verifies JWT, re-fetches user from DB (checks isActive + role live)
    ↓
-role middleware      ← Does this role have permission for this route?
+requireRole     ← Checks role against allowed list for this route
    ↓
-controller          ← Handle the request
+controller      ← Handles the request
+   ↓
+service         ← Enforces data scoping (e.g. lecturer only sees own sessions)
 ```
 
-Example role guard:
+The JWT payload carries only `sub` (user ID). The full user object (role, facultyId,
+isActive) is re-fetched from the database on every request — role or status changes
+take effect immediately without requiring a re-login.
+
+Data scoping is enforced at the **service layer** with database-level filters, not just UI.
 
 ```typescript
 // Only Faculty Admin can access this route
-router.get('/reports/lecturer/:id', requireRole('faculty_admin'), controller)
+router.get('/reports/lecturer/:id', authenticate, requireRole('faculty_admin'), controller)
 
 // Lecturer and Faculty Admin can access
-router.get('/sessions/:id', requireRole('lecturer', 'faculty_admin'), controller)
+router.get('/sessions/:id', authenticate, requireRole('lecturer', 'faculty_admin'), controller)
 ```
-
-Data scoping is enforced at the **service layer** — a lecturer calling
-`GET /sessions` only ever receives sessions for their assigned units,
-enforced in the database query, not just the UI.

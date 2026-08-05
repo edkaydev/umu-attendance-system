@@ -298,6 +298,30 @@ export async function getFacultyAdminDashboard(adminId: string) {
     })
   }
 
+  // Build per-student summary: name, regNumber, worst alert status
+  const students = await prisma.user.findMany({
+    where: { facultyId, role: 'student', isActive: true },
+    orderBy: { fullName: 'asc' },
+    select: { id: true, fullName: true, email: true, regNumber: true },
+  })
+
+  // Map studentId → worst alert type from active alerts
+  const alertByStudent = new Map<string, 'warning' | 'critical'>()
+  for (const a of activeAlerts) {
+    const existing = alertByStudent.get(a.student.id)
+    if (a.alertType === 'critical' || !existing) {
+      alertByStudent.set(a.student.id, a.alertType as 'warning' | 'critical')
+    }
+  }
+
+  const studentSummary = students.map((s) => ({
+    id: s.id,
+    fullName: s.fullName,
+    email: s.email,
+    regNumber: s.regNumber,
+    alertStatus: alertByStudent.get(s.id) ?? null,
+  }))
+
   return {
     overview: {
       courseUnits: unitCount,
@@ -309,6 +333,7 @@ export async function getFacultyAdminDashboard(adminId: string) {
     activeAlerts,
     lecturerSummary,
     programmeSummary,
+    studentSummary,
   }
 }
 

@@ -2,105 +2,84 @@
 
 ## Philosophy
 
-The UMU Attendance System uses a **white background, Google I/O-inspired design language** —
-clean surfaces, bold typography, subtle elevation, and strong use of colour for status
-and action. The UMU brand colours (red and yellow, taken directly from the official crest)
-are used as primary accents over Google's clean, spacious layout style.
+White background, **Google I/O-inspired** design language — clean surfaces, bold typography,
+borders instead of shadows, strong colour use for status and action. UMU brand colours
+(red and yellow from the official crest) are used as primary accents.
 
-Think: Google I/O's clarity and Material Design 3's expressiveness — but UMU-branded.
-
-**Logo reference:** The official UMU crest features a shield with red, yellow, and black
-sections, a bright yellow scroll banner, and the university name in black with red capitals.
-Background is always pure white.
+**Fonts:** Google Sans (primary), Inter (fallback), Google Sans Mono (code/session codes).
 
 ---
 
 ## Colour Palette
 
-### Brand Colours (from official UMU logo)
-| Name | Hex | Usage |
+### Brand Colours (from official UMU crest)
+| Token | Hex | Usage |
 |---|---|---|
-| UMU Red | `#CC0000` | Primary buttons, active nav, links, capital letters |
-| UMU Yellow | `#F5C800` | Banner/scroll accent, highlights, badges, hover tints |
-| UMU Black | `#1A1A1A` | Body text, borders, crest outline |
-| UMU Red Dark | `#A30000` | Button hover, pressed states |
-| UMU Yellow Light | `#FFF4B2` | Background tints, soft highlights, warning bg |
+| `umu-red` | `#CC0000` | Primary buttons, active nav, links |
+| `umu-red-dark` | `#A30000` | Button hover/pressed |
+| `umu-yellow` | `#F5C800` | Accents, highlights |
+| `umu-yellow-light` | `#FFF4B2` | Yellow tint backgrounds |
+| `umu-black` | `#1A1A1A` | Strong text, borders |
 
-### Neutral Colours
-| Name | Hex | Usage |
+### Surface Tokens
+| Token | Hex | Usage |
 |---|---|---|
-| White | `#FFFFFF` | Page background, card background |
-| Surface | `#F8F9FA` | Section backgrounds, input backgrounds |
-| Border | `#E2E8F0` | Card borders, dividers, input borders |
-| Text Primary | `#1A1A2E` | Headings, body text |
-| Text Secondary | `#64748B` | Subtext, labels, placeholders |
-| Text Disabled | `#CBD5E1` | Disabled inputs and buttons |
+| `surface-0` | `#FFFFFF` | Page background |
+| `surface-1` | `#F8F9FA` | Cards, sidebar, input background |
+| `surface-2` | `#F1F3F5` | Hover states, selected rows, role chips |
+| `surface-3` | `#E9ECEF` | Deeper section backgrounds |
+| `border` | `#E2E8F0` | All borders and dividers |
+| `text-primary` | `#1A1A2E` | Headings, body text |
+| `text-secondary` | `#64748B` | Subtext, labels, placeholders |
+| `text-disabled` | `#CBD5E1` | Disabled elements |
 
 ### Status Colours
-| Name | Hex | Usage |
-|---|---|---|
-| Success Green | `#16A34A` | Good attendance (>80%), success toasts |
-| Success Light | `#DCFCE7` | Success badge background |
-| Warning Amber | `#D97706` | Warning attendance (75–80%), warning toasts |
-| Warning Light | `#FEF3C7` | Warning badge background |
-| Danger Red | `#DC2626` | Not Eligible (<75%), error toasts |
-| Danger Light | `#FEE2E2` | Danger badge background |
-| Info Blue | `#2563EB` | Info toasts, neutral highlights |
-| Info Light | `#DBEAFE` | Info badge background |
-
-### Google I/O Inspired Surface Tokens
-| Name | Hex | Usage |
-|---|---|---|
-| Surface 0 | `#FFFFFF` | Base page background |
-| Surface 1 | `#F8F9FA` | Card, sidebar, input background |
-| Surface 2 | `#F1F3F5` | Hover background, selected rows |
-| Surface 3 | `#E9ECEF` | Active nav item background |
+| Token | Hex | Light Bg | Border | Usage |
+|---|---|---|---|---|
+| `success` | `#16A34A` | `#DCFCE7` | `#BBF7D0` | Good attendance, open session, success toast |
+| `warning` | `#D97706` | `#FEF3C7` | `#FDE68A` | Warning attendance, open session notice |
+| `danger` | `#DC2626` | `#FEE2E2` | `#FECACA` | Not eligible, error toast, danger actions |
+| `info` | `#2563EB` | `#DBEAFE` | `#BFDBFE` | Excused status, info toast |
 
 ---
 
 ## Typography
 
-**Font:** `Google Sans` (primary) + `Inter` (fallback) + `system-ui`
-
 ```css
 font-family: 'Google Sans', 'Inter', system-ui, -apple-system, sans-serif;
-```
-
-For code/session codes:
-```css
+/* Code / session codes */
 font-family: 'Google Sans Mono', 'Roboto Mono', 'Fira Code', monospace;
 ```
 
 ### Type Scale
 
-| Token | Size | Weight | Line Height | Usage |
-|---|---|---|---|---|
-| `display` | 48px | 700 | 1.1 | Hero text (session code display) |
-| `h1` | 32px | 700 | 1.2 | Page titles |
-| `h2` | 24px | 600 | 1.3 | Section headings |
-| `h3` | 20px | 600 | 1.4 | Card headings |
-| `h4` | 16px | 600 | 1.4 | Sub-section labels |
-| `body-lg` | 16px | 400 | 1.6 | Primary body text |
-| `body` | 14px | 400 | 1.6 | Default body text |
-| `body-sm` | 12px | 400 | 1.5 | Captions, helper text |
-| `label` | 12px | 500 | 1.4 | Form labels, table headers |
-| `code` | 14px | 500 | 1.5 | Session codes, technical values |
+| Token | Size | Weight | Usage |
+|---|---|---|---|
+| `display` | 48px / 700 | Session code display on live screen |
+| `h1` | 32px / 700 | Page titles |
+| `h2` | 24px / 600 | Section headings |
+| `h3` | 20px / 600 | Card headings |
+| `h4` | 16px / 600 | Sub-section labels |
+| `body-lg` | 16px / 400 | Primary body text |
+| `body` | 14px / 400 | Default body text |
+| `body-sm` | 12px / 400 | Captions, helper text |
+| `label` | 12px / 500 | Form labels, table headers (uppercase) |
 
 ---
 
-## Spacing Scale (4px base grid)
+## Spacing (4px base grid)
 
-| Token | Value | Usage |
-|---|---|---|
-| `space-1` | 4px | Micro gaps |
-| `space-2` | 8px | Inner padding small |
-| `space-3` | 12px | Between inline elements |
-| `space-4` | 16px | Default padding, gap |
-| `space-5` | 20px | Card inner padding |
-| `space-6` | 24px | Section gaps |
-| `space-8` | 32px | Large section gaps |
-| `space-10` | 40px | Page section spacing |
-| `space-12` | 48px | Hero/display sections |
+| Token | Value |
+|---|---|
+| `space-1` | 4px |
+| `space-2` | 8px |
+| `space-3` | 12px |
+| `space-4` | 16px |
+| `space-5` | 20px |
+| `space-6` | 24px |
+| `space-8` | 32px |
+| `space-10` | 40px |
+| `space-12` | 48px |
 
 ---
 
@@ -108,24 +87,25 @@ font-family: 'Google Sans Mono', 'Roboto Mono', 'Fira Code', monospace;
 
 | Token | Value | Usage |
 |---|---|---|
-| `radius-sm` | 6px | Badges, small chips |
-| `radius` | 10px | Buttons, inputs |
+| `radius-sm` | 6px | Tags, small chips |
+| `radius` | 10px | Buttons, inputs, nav items |
 | `radius-md` | 14px | Cards |
-| `radius-lg` | 20px | Modals, bottom sheets |
-| `radius-full` | 9999px | Pills, avatar circles |
+| `radius-lg` | 20px | Modals |
+| `radius-full` | 9999px | Badges/pills, avatar circles, progress bars |
 
 ---
 
 ## Elevation (Shadows)
 
-Google I/O uses subtle, layered shadows — not heavy drop shadows.
+Google I/O style: borders for structure, shadows only for floating elements.
 
 | Token | Value | Usage |
 |---|---|---|
-| `shadow-sm` | `0 1px 3px rgba(0,0,0,0.06)` | Input fields, small cards |
+| `shadow-sm` | `0 1px 3px rgba(0,0,0,0.06)` | Small cards |
 | `shadow` | `0 4px 12px rgba(0,0,0,0.08)` | Cards, dropdowns |
 | `shadow-md` | `0 8px 24px rgba(0,0,0,0.10)` | Modals, popovers |
 | `shadow-lg` | `0 16px 40px rgba(0,0,0,0.12)` | Full-screen overlays |
+| `focus-red` | `0 0 0 3px rgba(204,0,0,0.12)` | Input focus rings |
 
 ---
 
@@ -133,143 +113,99 @@ Google I/O uses subtle, layered shadows — not heavy drop shadows.
 
 ### Button
 
-Three variants:
-
 **Primary** — UMU Red, white text
 ```
-Background: #CC0000
-Text:       #FFFFFF
-Hover:      #A30000
-Border:     none
-Padding:    12px 24px
-Radius:     10px
-Font:       14px, weight 600
-Min-height: 44px
+bg: #CC0000 · text: #FFFFFF · hover: #A30000
+padding: 12px 24px · radius: 10px · min-height: 44px · font: 14px/600
 ```
 
-**Secondary** — White background, red border and text
+**Secondary** — white bg, red border + text
 ```
-Background: #FFFFFF
-Text:       #CC0000
-Border:     1.5px solid #CC0000
-Hover bg:   #FFF4F4
-Padding:    12px 24px
-Radius:     10px
+bg: #FFFFFF · text: #CC0000 · border: 1.5px solid #CC0000
+hover bg: #FFF4F4
 ```
 
-**Ghost** — No background, no border, red text
+**Ghost** — transparent, red text
 ```
-Background: transparent
-Text:       #CC0000
-Hover bg:   #FFF4F4
-Padding:    12px 24px
+bg: transparent · text: #CC0000 · hover bg: #FFF4F4
 ```
 
-**Danger** — Red, for destructive actions
+**Danger** — red bg, white text (destructive actions)
 ```
-Background: #DC2626
-Text:       #FFFFFF
-Hover:      #B91C1C
+bg: #DC2626 · text: #FFFFFF · hover: #B91C1C
 ```
 
 All buttons:
-- Minimum tap target: 44×44px
-- Loading state: spinner replaces text
-- Disabled: opacity 40%, cursor not-allowed
-- Transition: 150ms ease
+- Min tap target: 44×44px
+- Loading: spinner replaces text, disabled during load
+- Disabled: 40% opacity, not-allowed cursor
+- Transition: 150ms
 
 ---
 
 ### Input Field
 
 ```
-Background:   #F8F9FA
-Border:       1.5px solid #E2E8F0
-Border-focus: 1.5px solid #CC0000
-Radius:       10px
-Padding:      12px 16px
-Font:         14px, #1A1A1A
-Placeholder:  #94A3B8
-Shadow-focus: 0 0 0 3px rgba(204,0,0,0.12)
+bg: #F8F9FA · border: 1.5px solid #E2E8F0 · radius: 10px
+padding: 12px 16px · font: 14px · placeholder: #94A3B8
+focus border: #CC0000 · focus shadow: focus-red
 ```
 
-Label above input:
-```
-Font: 12px, weight 500, #64748B
-Margin-bottom: 6px
-```
+Label: 12px/500, `#64748B`, margin-bottom 6px
 
-Error state:
-```
-Border: 1.5px solid #DC2626
-Helper text: 12px, #DC2626 below input
-```
+Error state: border `#DC2626`, helper text `#DC2626` below input
 
 ---
 
 ### Card
 
 ```
-Background: #FFFFFF
-Border:     1px solid #E2E8F0
-Radius:     14px
-Padding:    20px 24px
-Shadow:     0 4px 12px rgba(0,0,0,0.08)
-```
-
-Hover (interactive cards):
-```
-Shadow:     0 8px 24px rgba(0,0,0,0.10)
-Transform:  translateY(-1px)
-Transition: 200ms ease
+bg: #FFFFFF · border: 1px solid #E2E8F0 · radius: 14px
+padding: 20px (default) · can be noPadding for full-width tables
 ```
 
 ---
 
-### Badge / Status Chip
+### Badge / Status Pill
 
-| Status | Background | Text | Border |
+```
+padding: 4px 10px · radius: 9999px · font: 12px/500
+```
+
+| Status | Bg | Text | Border |
 |---|---|---|---|
-| Good ✅ | `#DCFCE7` | `#16A34A` | `#BBF7D0` |
-| Warning ⚠️ | `#FEF3C7` | `#D97706` | `#FDE68A` |
-| Not Eligible 🚨 | `#FEE2E2` | `#DC2626` | `#FECACA` |
-| Excused 🔵 | `#DBEAFE` | `#2563EB` | `#BFDBFE` |
-| Open 🟢 | `#DCFCE7` | `#16A34A` | `#BBF7D0` |
-| Closed 🔴 | `#F1F5F9` | `#64748B` | `#E2E8F0` |
-
-```
-Padding:  4px 10px
-Radius:   9999px (pill)
-Font:     12px, weight 500
-```
+| good / open / present | `#DCFCE7` | `#16A34A` | `#BBF7D0` |
+| warning | `#FEF3C7` | `#D97706` | `#FDE68A` |
+| critical / not_eligible | `#FEE2E2` | `#DC2626` | `#FECACA` |
+| excused / info | `#DBEAFE` | `#2563EB` | `#BFDBFE` |
+| closed / absent / default | `#F1F5F9` | `#64748B` | `#E2E8F0` |
 
 ---
 
 ### Attendance Progress Bar
 
 ```
-Track:      #E2E8F0,  height 8px, radius 9999px
-Fill > 80%: #16A34A  (green)
-Fill 75–80%:#D97706  (amber)
-Fill < 75%: #DC2626  (red)
-Animated:   width transition 600ms ease
+Track: #E2E8F0, height 8px, radius 9999px
+Fill > 80%:   #16A34A (green)
+Fill 75–80%:  #D97706 (amber)
+Fill < 75%:   #DC2626 (red)
+Transition: width 600ms ease
 ```
 
 ---
 
-### Session Code Display
+### Session Code Display (Live Screen)
 
-The code shown on the lecturer's screen during a live session.
-Must be readable from a distance (projector / large monitor).
+The most prominent element in the app — readable from across a classroom.
 
 ```
-Font:       'Google Sans Mono', monospace
-Size:       72px (desktop) / 56px (mobile)
+Font:       Google Sans Mono, monospace
+Size:       72px desktop / 56px mobile
 Weight:     700
 Colour:     #CC0000
-Tracking:   0.15em (wide letter-spacing)
+Tracking:   0.15em
 Background: #FFFDF0
-Border:     2px solid #F5C800 (yellow)
+Border:     2px solid #F5C800
 Radius:     20px
 Padding:    24px 40px
 Shadow:     0 8px 24px rgba(204,0,0,0.15)
@@ -279,40 +215,46 @@ Shadow:     0 8px 24px rgba(204,0,0,0.15)
 
 ### Toast / Alert Banner
 
-Positioned: top-right, stacked, auto-dismiss after 4s
-
-| Type | Left border | Icon | Background |
-|---|---|---|---|
-| Success | `#16A34A` | ✅ | `#FFFFFF` |
-| Warning | `#D97706` | ⚠️ | `#FFFFFF` |
-| Error | `#DC2626` | ❌ | `#FFFFFF` |
-| Info | `#2563EB` | ℹ️ | `#FFFFFF` |
+Top-right, stacked, auto-dismiss after 4 seconds.
 
 ```
-Width:   360px max
-Radius:  10px
-Shadow:  0 8px 24px rgba(0,0,0,0.12)
-Padding: 14px 16px
-Border:  1px solid #E2E8F0
-Left:    4px solid [status colour]
+Width: 360px max · radius: 10px · padding: 14px 16px
+border: 1px solid #E2E8F0 · left: 4px solid [status colour]
+shadow: 0 8px 24px rgba(0,0,0,0.12)
+```
+
+Types: success (green) · warning (amber) · error (red) · info (blue)
+
+---
+
+### Navigation — Desktop Sidebar
+
+```
+Width: 240px · bg: #FFFFFF · border-right: 1px solid #E2E8F0
+
+Logo area:    h-16, padding 16px 20px
+Nav item:     h-11, padding 0 16px, radius 10px, 14px/500
+Active item:  bg #FFF4F4, text #CC0000
+Hover item:   bg #F8F9FA
+Icon:         20px, colour matches text
 ```
 
 ---
 
-### Navigation Sidebar
+### Navigation — Mobile Bottom Bar (Student + Lecturer)
 
 ```
-Width:        240px (desktop), hidden on mobile (drawer)
-Background:   #FFFFFF
-Border-right: 1px solid #E2E8F0
-Shadow:       2px 0 8px rgba(0,0,0,0.04)
+Height: 64px + env(safe-area-inset-bottom)
+bg: #FFFFFF · border-top: 1px solid #E2E8F0
+Position: fixed, bottom 0, inset-x 0
+z-index: 40
 
-Logo area:    height 64px, padding 16px 20px
-Nav item:     height 44px, padding 0 16px, radius 10px
-Active item:  background #FFF4F4, text #CC0000, left border 3px solid #CC0000
-Hover item:   background #F8F9FA
-Icon:         20px, colour matches text
-Font:         14px, weight 500
+Tab item:   flex-1, flex-col, items-center, gap 0.5
+Active tab: text #CC0000, icon pill bg #FFF4F4
+Inactive:   text #64748B
+Font:       11px/500
+
+Uses NavLink — active state driven by current route.
 ```
 
 ---
@@ -320,14 +262,26 @@ Font:         14px, weight 500
 ### Top Header Bar
 
 ```
-Height:     64px
-Background: #FFFFFF
-Border-bottom: 1px solid #E2E8F0
-Shadow:     0 1px 3px rgba(0,0,0,0.06)
-Padding:    0 24px
+Height: 64px desktop / 56px mobile
+bg: #FFFFFF · border-bottom: 1px solid #E2E8F0
+padding: 0 24px desktop / 0 16px mobile
 
-Left:  Hamburger (mobile) + UMU badge + App name
-Right: User avatar + name + role chip + logout
+Mobile left:  UMU logo + "UMU Attendance" (bold)
+Desktop left: faculty name or role label
+
+Desktop right: full name + email + role chip + "Logout" text button
+Mobile right:  logout icon button only
+```
+
+---
+
+### Modal
+
+```
+Backdrop: rgba(0,0,0,0.45), blur 2px
+Container: white, radius 20px, padding 32px, max-width 480px
+Shadow: 0 16px 40px rgba(0,0,0,0.16)
+Animation: scale 0.95→1.0, opacity 0→1, 200ms ease
 ```
 
 ---
@@ -335,136 +289,128 @@ Right: User avatar + name + role chip + logout
 ### Table
 
 ```
-Header row:
-  Background:  #F8F9FA
-  Font:        12px, weight 600, #64748B, uppercase, tracking 0.05em
-  Padding:     12px 16px
-  Border-bottom: 2px solid #E2E8F0
-
-Body row:
-  Padding:     14px 16px
-  Border-bottom: 1px solid #F1F5F9
-  Font:        14px, #1A1A2E
-
-Hover row:    background #F8F9FA
-Radius:       14px (container)
-Shadow:       shadow-sm
-```
-
----
-
-### Modal / Dialog
-
-```
-Backdrop:    rgba(0,0,0,0.45), blur 2px
-Container:   white, radius 20px, padding 32px
-Shadow:      0 16px 40px rgba(0,0,0,0.16)
-Max-width:   480px
-Animation:   scale 0.95→1.0, opacity 0→1, 200ms ease
+Header: bg #F8F9FA, font 12px/600/#64748B uppercase, padding 12px 16px
+Rows: padding 14px 16px, border-bottom 1px solid #F1F5F9
+Hover row: bg #F8F9FA
+Container: radius 14px, overflow-x-auto (horizontal scroll on narrow screens)
 ```
 
 ---
 
 ## Page Layout
 
-### Desktop (≥1024px)
+### Desktop (≥768px)
 ```
 ┌──────────┬────────────────────────────────┐
 │          │  Top Header (64px)             │
 │ Sidebar  │────────────────────────────────│
-│ (240px)  │                                │
-│          │  Page Content                  │
+│ (240px)  │  Page Content                  │
 │          │  Padding: 32px                 │
 │          │  Max-width: 1200px             │
-│          │                                │
 └──────────┴────────────────────────────────┘
 ```
 
-### Mobile (<1024px)
+### Mobile (<768px) — Student & Lecturer
 ```
 ┌────────────────────────────────┐
 │  Top Header (56px)             │
-│  [☰ menu]  [UMU]  [👤]        │
 ├────────────────────────────────┤
 │  Page Content                  │
 │  Padding: 16px                 │
+│  Padding-bottom: 96px          │  ← clears bottom nav
 ├────────────────────────────────┤
-│  Bottom Nav (56px)             │
-│  [🏠] [📋] [📊] [👤]          │
+│  Bottom Nav (64px + safe area) │
 └────────────────────────────────┘
 ```
 
-Bottom navigation on mobile replaces sidebar for Student and Lecturer roles.
+### Mobile (<768px) — Faculty Admin & System Admin
+```
+┌────────────────────────────────┐
+│  [Monitor icon]                │
+│  Desktop required              │
+│  The Faculty Admin portal is   │
+│  designed for larger screens.  │
+│  [UMU logo]                    │
+└────────────────────────────────┘
+```
 
 ---
 
-## Tailwind Config Tokens
+## Tailwind Config (actual `tailwind.config.ts`)
 
 ```typescript
-// tailwind.config.ts
 export default {
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
         umu: {
-          red:         '#CC0000',
-          'red-dark':  '#A30000',
-          yellow:      '#F5C800',
+          red:            '#CC0000',
+          'red-dark':     '#A30000',
+          yellow:         '#F5C800',
           'yellow-light': '#FFF4B2',
-          black:       '#1A1A1A',
+          black:          '#1A1A1A',
         },
-        surface: {
-          0: '#FFFFFF',
-          1: '#F8F9FA',
-          2: '#F1F3F5',
-          3: '#E9ECEF',
-        }
+        surface: { 0: '#FFFFFF', 1: '#F8F9FA', 2: '#F1F3F5', 3: '#E9ECEF' },
+        border:           '#E2E8F0',
+        'text-primary':   '#1A1A2E',
+        'text-secondary': '#64748B',
+        'text-disabled':  '#CBD5E1',
+        success: { DEFAULT: '#16A34A', light: '#DCFCE7', border: '#BBF7D0' },
+        warning: { DEFAULT: '#D97706', light: '#FEF3C7', border: '#FDE68A' },
+        danger:  { DEFAULT: '#DC2626', light: '#FEE2E2', border: '#FECACA' },
+        info:    { DEFAULT: '#2563EB', light: '#DBEAFE', border: '#BFDBFE' },
       },
       fontFamily: {
         sans: ['Google Sans', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['Google Sans Mono', 'Roboto Mono', 'monospace'],
+        mono: ['Google Sans Mono', 'Roboto Mono', 'Fira Code', 'monospace'],
+      },
+      fontSize: {
+        display:   ['48px', { lineHeight: '1.1', fontWeight: '700' }],
+        h1:        ['32px', { lineHeight: '1.2', fontWeight: '700' }],
+        h2:        ['24px', { lineHeight: '1.3', fontWeight: '600' }],
+        h3:        ['20px', { lineHeight: '1.4', fontWeight: '600' }],
+        h4:        ['16px', { lineHeight: '1.4', fontWeight: '600' }],
+        body:      ['14px', { lineHeight: '1.6', fontWeight: '400' }],
+        'body-lg': ['16px', { lineHeight: '1.6', fontWeight: '400' }],
+        'body-sm': ['12px', { lineHeight: '1.5', fontWeight: '400' }],
+        label:     ['12px', { lineHeight: '1.4', fontWeight: '500' }],
+        code:      ['14px', { lineHeight: '1.5', fontWeight: '500' }],
       },
       borderRadius: {
-        DEFAULT: '10px',
-        md:  '14px',
-        lg:  '20px',
+        DEFAULT: '10px', sm: '6px', md: '14px', lg: '20px', full: '9999px',
       },
       boxShadow: {
-        sm:  '0 1px 3px rgba(0,0,0,0.06)',
-        DEFAULT: '0 4px 12px rgba(0,0,0,0.08)',
-        md:  '0 8px 24px rgba(0,0,0,0.10)',
-        lg:  '0 16px 40px rgba(0,0,0,0.12)',
-      }
-    }
-  }
+        sm:          '0 1px 3px rgba(0,0,0,0.06)',
+        DEFAULT:     '0 4px 12px rgba(0,0,0,0.08)',
+        md:          '0 8px 24px rgba(0,0,0,0.10)',
+        lg:          '0 16px 40px rgba(0,0,0,0.12)',
+        'focus-red': '0 0 0 3px rgba(204,0,0,0.12)',
+      },
+    },
+  },
+  plugins: [],
 }
 ```
 
 ---
 
-## Google Font Import
-
-Add to `client/index.html`:
-
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
-```
-
-> Note: Google Sans is available via Google Fonts for web use.
-> Fallback to Inter if it fails to load.
-
----
-
-## PWA Manifest Colours
+## PWA Manifest (`vite.config.ts` → `manifest.webmanifest`)
 
 ```json
 {
   "name": "UMU Attendance",
   "short_name": "UMU Attend",
+  "description": "Attendance management system for Uganda Martyrs University",
   "theme_color": "#CC0000",
   "background_color": "#FFFFFF",
-  "display": "standalone"
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
 }
 ```
+
+`maskable` on the 512px icon fills Android adaptive icon shapes without white padding.

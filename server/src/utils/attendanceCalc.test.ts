@@ -28,13 +28,14 @@ describe('attendancePercentage (FR-07.3)', () => {
 })
 
 describe('attendanceStatus eligibility', () => {
-  it('is good above 80%', () => {
+  it('is good at 80% and above', () => {
+    expect(attendanceStatus(80)).toBe('good')
     expect(attendanceStatus(81)).toBe('good')
     expect(attendanceStatus(100)).toBe('good')
   })
 
-  it('is warning at 80% and down to 75%', () => {
-    expect(attendanceStatus(80)).toBe('warning')
+  it('is warning from 75% up to but not including 80%', () => {
+    expect(attendanceStatus(79.9)).toBe('warning')
     expect(attendanceStatus(75)).toBe('warning')
   })
 

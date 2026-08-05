@@ -97,15 +97,18 @@ export interface OpenSessionInput {
   startsAt?: string
   academicYear: string
   semester: number
+  classDuration?: number
+  codeTtl?: number
 }
 
 export interface SessionDetail extends Session {
   counts: Record<string, number>
   attendanceRecords: SessionAttendanceRecord[]
+  lecturer: { id: string; fullName: string; email: string }
 }
 
 export interface LiveSessionData {
-  session: Session & { codeExpiresAt: string; venue: string | null }
+  session: Session & { codeExpiresAt: string; venue: string | null; classDuration: number | null; codeTtl: number }
   presentCount: number
   enrolledCount: number
   present: {
@@ -119,6 +122,13 @@ export const sessionApi = {
   list: async (params?: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString()
     const res = await http.get<{ sessions: Session[] }>(`/api/sessions${qs ? `?${qs}` : ''}`)
+    return res.sessions
+  },
+  facultySessions: async (params?: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString()
+    const res = await http.get<{ sessions: (Session & { lecturer: { id: string; fullName: string } })[] }>(
+      `/api/sessions/faculty${qs ? `?${qs}` : ''}`
+    )
     return res.sessions
   },
   open: (data: OpenSessionInput) => http.post<{ message: string; session: Session }>('/api/sessions', data),
@@ -209,6 +219,13 @@ export const dashboardApi = {
         students: number
         avgAttendance: number | null
         unitsBelowThreshold: number
+      }[]
+      studentSummary: {
+        id: string
+        fullName: string
+        email: string
+        regNumber: string | null
+        alertStatus: 'warning' | 'critical' | null
       }[]
     }>('/api/dashboard/faculty-admin'),
   systemAdmin: () =>
@@ -458,6 +475,11 @@ export interface ProfileEditingSettings {
 }
 export type ProfileEditingScope = keyof ProfileEditingSettings
 
+export interface CurrentPeriod {
+  academicYear: string
+  semester: number
+}
+
 export const settingsApi = {
   profileEditing: async () => {
     const res = await http.get<{ enabled: ProfileEditingSettings }>('/api/settings/profile-editing')
@@ -467,5 +489,14 @@ export const settingsApi = {
     http.patch<{ enabled: ProfileEditingSettings; message: string }>(
       '/api/settings/profile-editing',
       settings
+    ),
+  currentPeriod: async (): Promise<CurrentPeriod> => {
+    const res = await http.get<{ period: CurrentPeriod }>('/api/settings/current-period')
+    return res.period
+  },
+  setCurrentPeriod: (period: CurrentPeriod) =>
+    http.patch<{ period: CurrentPeriod; message: string }>(
+      '/api/settings/current-period',
+      period
     ),
 }

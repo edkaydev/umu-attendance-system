@@ -60,6 +60,23 @@ export async function createAssignment(
 
   await assertNoCohortClash(input.lecturerId, input.courseUnitId, input.academicYear, input.semester)
 
+  // A unit can only be assigned to one lecturer per period
+  const existingAssignment = await prisma.lecturerAssignment.findFirst({
+    where: {
+      courseUnitId: input.courseUnitId,
+      academicYear: input.academicYear,
+      semester: input.semester,
+      lecturerId: { not: input.lecturerId },
+    },
+    include: { lecturer: { select: { fullName: true } } },
+  })
+  if (existingAssignment) {
+    throw new ApiError(
+      `This unit is already assigned to ${existingAssignment.lecturer.fullName} for ${input.academicYear} Semester ${input.semester}. Remove that assignment first.`,
+      409
+    )
+  }
+
   return prisma.lecturerAssignment.upsert({
     where: {
       lecturerId_courseUnitId_academicYear_semester: {

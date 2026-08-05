@@ -8,6 +8,8 @@ import {
   PROFILE_EDITING_KEYS,
   ProfileEditingScope,
   ProfileEditingSettings,
+  getCurrentPeriod,
+  setCurrentPeriod,
 } from '../services/settings.service'
 
 export const profileEditingSchema = z.object({
@@ -55,6 +57,39 @@ export async function setProfileEditing(
     const enabled = await getProfileEditingSettings()
     const changed = scopes.map((s) => `${SCOPE_LABEL[s]} ${updates[s] ? 'enabled' : 'disabled'}`).join(', ')
     ok(res, { enabled, message: changed })
+  } catch (e) {
+    next(e)
+  }
+}
+
+const currentPeriodSchema = z.object({
+  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
+  semester: z.number().int().min(1).max(2),
+})
+
+/** GET /api/settings/current-period — any authenticated user */
+export async function getCurrentPeriodController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    ok(res, { period: await getCurrentPeriod() })
+  } catch (e) {
+    next(e)
+  }
+}
+
+/** PATCH /api/settings/current-period — System Admin only */
+export async function setCurrentPeriodController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { academicYear, semester } = currentPeriodSchema.parse(req.body)
+    const period = await setCurrentPeriod(academicYear, semester)
+    ok(res, { period, message: `Current period set to ${academicYear} Semester ${semester}` })
   } catch (e) {
     next(e)
   }

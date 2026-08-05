@@ -4,7 +4,7 @@
 - **Server OS:** Ubuntu Server 22.04 LTS
 - **Deployment:** Docker + Docker Compose
 - **Domain:** e.g. `attendance.umu.ac.ug`
-- **SSL:** Certbot (Let's Encrypt) or self-signed cert
+- **SSL:** Certbot (Let's Encrypt)
 
 ---
 
@@ -12,24 +12,22 @@
 
 | Service | Image | Port |
 |---|---|---|
-| `db` | mysql:8 | 3306 (internal only) |
+| `db` | `mysql:8` | 3306 (internal only) |
 | `app` | Custom Node.js build | 4000 (internal only) |
-| `nginx` | nginx:alpine | 80, 443 (public) |
+| `nginx` | `nginx:alpine` | 80, 443 (public) |
 
 ---
 
-## Step 1 — Install Docker on Ubuntu Server
+## Step 1 — Install Docker
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y ca-certificates curl gnupg
 
-# Add Docker's GPG key
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-# Add Docker repo
 echo "deb [arch=$(dpkg --print-architecture) \
   signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/ubuntu \
@@ -39,7 +37,6 @@ echo "deb [arch=$(dpkg --print-architecture) \
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Allow running docker without sudo
 sudo usermod -aG docker $USER
 newgrp docker
 ```
@@ -65,8 +62,6 @@ cp server/.env.example server/.env
 nano server/.env
 ```
 
-Fill in all values:
-
 ```bash
 NODE_ENV=production
 PORT=4000
@@ -78,8 +73,8 @@ GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
 
-JWT_ACCESS_SECRET=<64-char-random-string>
-JWT_REFRESH_SECRET=<64-char-random-string>
+JWT_ACCESS_SECRET=<64-char-random>
+JWT_REFRESH_SECRET=<64-char-random>
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -96,7 +91,7 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ---
 
-## Step 4 — Add UMU Badge
+## Step 4 — Add UMU Badge Asset
 
 ```bash
 cp /path/to/umu-badge.png server/assets/umu-badge.png
@@ -107,13 +102,13 @@ cp /path/to/umu-badge.png server/assets/umu-badge.png
 ## Step 5 — Build and Start
 
 ```bash
-# Build React frontend
+# Build React PWA
 cd client && npm install && npm run build && cd ..
 
-# Start all services
+# Start all Docker services
 docker compose up -d --build
 
-# Check all containers are running
+# Verify all containers running
 docker compose ps
 ```
 
@@ -133,7 +128,8 @@ docker compose exec app npx prisma migrate deploy
 docker compose exec app npm run seed:admin
 ```
 
-This creates the first System Admin account using the email defined in `.env`.
+Creates the first System Admin account. After this, log in and set the current period
+(`Settings → Current Period`) before any other setup.
 
 ---
 
@@ -141,17 +137,13 @@ This creates the first System Admin account using the email defined in `.env`.
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-
-# Obtain certificate (replace with real domain)
 sudo certbot --nginx -d attendance.umu.ac.ug
-
-# Auto-renewal (runs twice daily)
 sudo systemctl enable certbot.timer
 ```
 
 ---
 
-## docker-compose.yml (overview)
+## docker-compose.yml
 
 ```yaml
 version: '3.9'
@@ -197,7 +189,7 @@ volumes:
 
 ---
 
-## Nginx Config (overview)
+## Nginx Config
 
 ```nginx
 server {
@@ -210,37 +202,53 @@ server {
     listen 443 ssl;
     server_name attendance.umu.ac.ug;
 
-    ssl_certificate /etc/letsencrypt/live/attendance.umu.ac.ug/fullchain.pem;
+    ssl_certificate     /etc/letsencrypt/live/attendance.umu.ac.ug/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/attendance.umu.ac.ug/privkey.pem;
 
-    # Serve React PWA
+    # React PWA — SPA routing
     root /usr/share/nginx/html;
     index index.html;
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Proxy API requests to Node.js
+    # API proxy
     location /api/ {
         proxy_pass http://app:4000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # PWA service worker — no cache
+    location /sw.js {
+        add_header Cache-Control "no-cache";
+        proxy_cache_bypass $http_pragma;
     }
 }
 ```
 
 ---
 
-## Deploy Script (`devops/scripts/deploy.sh`)
+## Google OAuth Setup
 
-Run this every time you push an update:
+1. [console.cloud.google.com](https://console.cloud.google.com) → Create project "UMU Attendance System"
+2. Enable **Google OAuth2 API**
+3. Create **OAuth 2.0 credentials** (Web Application type)
+4. Authorised redirect URI: `https://attendance.umu.ac.ug/api/auth/google/callback`
+5. Copy Client ID + Secret → `server/.env`
+6. In Google Workspace Admin: restrict OAuth app to `@umu.ac.ug` and `@stud.umu.ac.ug` domains
+
+---
+
+## Deploy Script (`devops/scripts/deploy.sh`)
 
 ```bash
 #!/bin/bash
 set -e
 cd /var/www/umu-attendance
 
-echo "Pulling latest code..."
+echo "Pulling latest..."
 git pull origin main
 
 echo "Building frontend..."
@@ -252,10 +260,9 @@ docker compose up -d --build
 echo "Running migrations..."
 docker compose exec app npx prisma migrate deploy
 
-echo "Done. Deployment complete."
+echo "Done."
 ```
 
-Make executable:
 ```bash
 chmod +x devops/scripts/deploy.sh
 ```
@@ -268,56 +275,47 @@ chmod +x devops/scripts/deploy.sh
 #!/bin/bash
 DATE=$(date +%Y-%m-%d_%H-%M)
 BACKUP_DIR=/var/backups/umu-attendance
-
 mkdir -p $BACKUP_DIR
 
 docker compose exec db mysqldump \
   -u umu_user -pStrongPassword123 umu_attendance \
   > $BACKUP_DIR/backup_$DATE.sql
 
-echo "Backup saved: $BACKUP_DIR/backup_$DATE.sql"
-
-# Keep only last 30 backups
+# Keep last 30 backups
 ls -t $BACKUP_DIR/*.sql | tail -n +31 | xargs -r rm
+echo "Backup: $BACKUP_DIR/backup_$DATE.sql"
 ```
 
-Schedule daily backup via cron:
+Schedule via cron:
 ```bash
 crontab -e
-# Add:
-0 2 * * * /var/www/umu-attendance/devops/scripts/backup-db.sh
+# 0 2 * * * /var/www/umu-attendance/devops/scripts/backup-db.sh
 ```
 
 ---
 
-## Google OAuth Setup
+## After First Deploy — System Admin Checklist
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a project: "UMU Attendance System"
-3. Enable the **Google+ API** and **Google OAuth2 API**
-4. Create OAuth 2.0 credentials (Web Application type)
-5. Add Authorized redirect URIs:
-   ```
-   https://attendance.umu.ac.ug/api/auth/google/callback
-   ```
-6. Copy Client ID and Client Secret into `server/.env`
-7. In Google Workspace Admin, restrict OAuth to `@umu.ac.ug` and `@stud.umu.ac.ug` domains
+1. Log in with System Admin Google account
+2. **Settings → Current Period** — set academic year and semester
+3. **Settings → Profile Editing** — enable for students and lecturers
+4. **Academic Setup** — create Campus, Faculty, Programmes, Course Units, Curriculum mappings
+5. **Users → Import Staff** — upload CSV with Faculty Admins and Lecturers
+6. Faculty Admins log in, complete their profiles, assign lecturers to units
+7. Students log in, complete profiles — auto-enrolled into course units
 
 ---
 
 ## Monitoring
 
 ```bash
-# View live logs
+# Live logs
 docker compose logs -f app
 
-# View Nginx logs
-docker compose logs -f nginx
-
-# Check container status
+# Container status
 docker compose ps
 
-# Restart a single service
+# Restart single service
 docker compose restart app
 ```
 
@@ -328,8 +326,9 @@ docker compose restart app
 | Problem | Check |
 |---|---|
 | App not starting | `docker compose logs app` |
-| DB connection error | Verify `DATABASE_URL` in `.env`, ensure `db` container is healthy |
-| Google login failing | Check `GOOGLE_CALLBACK_URL` matches exactly in Google Console |
-| PDF not generating | Ensure Chromium installed in Docker image, check `UMU_BADGE_PATH` |
-| Emails not sending | Verify `SMTP_PASS` is a Google App Password, not account password |
-| 502 Bad Gateway | Node.js app crashed — check `docker compose logs app` |
+| DB connection error | Verify `DATABASE_URL` in `.env`, check `db` container is healthy |
+| Google login failing | `GOOGLE_CALLBACK_URL` must match exactly in Google Console |
+| PDF not generating | Chromium must be available in Docker image; check `UMU_BADGE_PATH` |
+| Emails not sending | `SMTP_PASS` must be a Google App Password (not account password) |
+| 502 Bad Gateway | Node.js crashed — `docker compose logs app` |
+| PWA not installing | Check `/manifest.webmanifest` returns 200; check icons exist in `/public` |

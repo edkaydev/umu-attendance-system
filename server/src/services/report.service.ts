@@ -118,9 +118,14 @@ export async function getProgrammeReport(actor: ReportActor, programmeId: string
     const st = unitStats.get(s.courseUnitId) ?? { held: 0, present: 0, total: 0 }
     st.held++
     st.total += s.attendanceRecords.length
-    for (const r of s.attendanceRecords) if (isGood(r)) st.present++
-    unitStats.set(s.courseUnitId, st)
+    for (const r of s.attendanceRecords) {
+      if (isGood(r)) {
+        st.present++
+        present++
+      }
+    }
     total += s.attendanceRecords.length
+    unitStats.set(s.courseUnitId, st)
   }
 
   const units = curriculum.map((c) => {

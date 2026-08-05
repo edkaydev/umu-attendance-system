@@ -11,12 +11,12 @@ export function attendancePercentage(presentExcusedCount: number, totalSessions:
 
 /**
  * Eligibility status:
- *   > 80   → good
- *   75–80  → warning
+ *   >= 80  → good
+ *   75–79  → warning
  *   < 75   → not eligible
  */
 export function attendanceStatus(pct: number): AttendanceStatusLabel {
-  if (pct > 80) return 'good'
+  if (pct >= 80) return 'good'
   if (pct >= 75) return 'warning'
   return 'not_eligible'
 }

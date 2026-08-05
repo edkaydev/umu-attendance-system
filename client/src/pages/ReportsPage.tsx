@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { reportApi, dashboardApi, assignmentApi, attendanceApi } from '../api/endpoints'
+import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -31,15 +32,6 @@ interface UnitStudent {
   student: { id: string; regNumber: string | null; fullName: string }
   percentage: number
   status: UnitStatus
-}
-
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear].map((y) => ({
-    value: `${y}/${y + 1}`,
-    label: `${y}/${y + 1}`,
-  }))
 }
 
 // ─── InfoPill ────────────────────────────────────────────────────────────────
@@ -124,7 +116,7 @@ function ProgrammeReport({ data }: { data: unknown }) {
                     ? 'text-text-disabled'
                     : u.avgAttendance < 75
                     ? 'text-danger'
-                    : u.avgAttendance <= 80
+                    : u.avgAttendance < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
@@ -174,7 +166,7 @@ function LecturerReport({ data }: { data: unknown }) {
                     ? 'text-text-disabled'
                     : u.avgAttendance < 75
                     ? 'text-danger'
-                    : u.avgAttendance <= 80
+                    : u.avgAttendance < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
@@ -226,7 +218,7 @@ function CourseUnitReport({ data }: { data: unknown }) {
                 className={`text-body font-semibold ${
                   s.percentage < 75
                     ? 'text-danger'
-                    : s.percentage <= 80
+                    : s.percentage < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
@@ -272,7 +264,7 @@ function StudentReport({ data }: { data: unknown }) {
                 className={`text-body font-semibold ${
                   u.percentage < 75
                     ? 'text-danger'
-                    : u.percentage <= 80
+                    : u.percentage < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
@@ -294,10 +286,13 @@ function StudentReport({ data }: { data: unknown }) {
 
 export default function ReportsPage() {
   const toast = useToast()
+  const { period: globalPeriod } = usePeriod()
 
   const [tab, setTab]                 = useState<ReportType>('programme')
-  const [academicYear, setAcademicYear] = useState(academicYearOptions()[0].value)
-  const [semester, setSemester]       = useState('1')
+
+  // Period is read from the System Admin setting — users cannot change it
+  const academicYear = globalPeriod?.academicYear ?? ''
+  const semester     = String(globalPeriod?.semester ?? 1)
 
   const [programmes,   setProgrammes]   = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['programmeSummary']>([])
   const [lecturers,    setLecturers]    = useState<Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>['lecturerSummary']>([])
@@ -309,8 +304,41 @@ export default function ReportsPage() {
   const [lecturerId,   setLecturerId]   = useState('')
   const [studentId,    setStudentId]    = useState('')
 
+  // Search strings for each entity selector
+  const [programmeSearch,  setProgrammeSearch]  = useState('')
+  const [courseUnitSearch, setCourseUnitSearch] = useState('')
+  const [lecturerSearch,   setLecturerSearch]   = useState('')
+  const [studentSearch,    setStudentSearch]    = useState('')
+
   const [result,  setResult]  = useState<unknown | null>(null)
   const [loading, setLoading] = useState(false)
+  const [pdfDownloading, setPdfDownloading] = useState(false)
+
+  // Filtered lists
+  const filteredProgrammes = useMemo(() => {
+    const q = programmeSearch.trim().toLowerCase()
+    return q ? programmes.filter((p) => p.programme.name.toLowerCase().includes(q) || p.programme.code.toLowerCase().includes(q)) : programmes
+  }, [programmes, programmeSearch])
+
+  const filteredCourseUnits = useMemo(() => {
+    const q = courseUnitSearch.trim().toLowerCase()
+    return q ? courseUnits.filter((u) => u.name.toLowerCase().includes(q) || u.code.toLowerCase().includes(q)) : courseUnits
+  }, [courseUnits, courseUnitSearch])
+
+  const filteredLecturers = useMemo(() => {
+    const q = lecturerSearch.trim().toLowerCase()
+    return q ? lecturers.filter((l) => l.fullName.toLowerCase().includes(q) || l.email.toLowerCase().includes(q)) : lecturers
+  }, [lecturers, lecturerSearch])
+
+  const filteredStudents = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase()
+    return q
+      ? unitStudents.filter((s) =>
+          s.student.fullName.toLowerCase().includes(q) ||
+          (s.student.regNumber ?? '').toLowerCase().includes(q)
+        )
+      : unitStudents
+  }, [unitStudents, studentSearch])
 
   // Load selectable items on mount
   useEffect(() => {
@@ -385,6 +413,39 @@ export default function ReportsPage() {
     }
   }
 
+  async function downloadPdf() {
+    if (!selectedId) return
+    setPdfDownloading(true)
+    try {
+      const url = reportApi.pdfUrl(tab, selectedId, period)
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      // Build a readable filename from the tab + entity name
+      const r = result as Record<string, { name?: string; code?: string; fullName?: string; regNumber?: string }> | null
+      let label: string = tab
+      if (r) {
+        if (tab === 'programme' && r.programme) label = r.programme.code ?? tab
+        else if (tab === 'course-unit' && r.courseUnit) label = r.courseUnit.code ?? tab
+        else if (tab === 'lecturer' && r.lecturer) label = (r.lecturer.fullName ?? tab).replace(/\s+/g, '-')
+        else if (tab === 'student' && r.student) label = r.student.regNumber ?? tab
+      }
+      const safeYear = period.academicYear.replace('/', '_')
+      a.download = `${label}-report-${safeYear}-sem${period.semester}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to download PDF')
+    } finally {
+      setPdfDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
 
@@ -420,97 +481,133 @@ export default function ReportsPage() {
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Entity selector */}
+          {/* Entity selector — with inline search */}
           {tab === 'programme' && (
-            <Select
-              label="Programme"
-              placeholder="Select programme"
-              value={programmeId}
-              onChange={(e) => setProgrammeId(e.target.value)}
-              options={programmes.map((p) => ({ value: p.programme.id, label: p.programme.name }))}
-            />
+            <div>
+              <input
+                placeholder="Search programmes…"
+                value={programmeSearch}
+                onChange={(e) => { setProgrammeSearch(e.target.value); setProgrammeId('') }}
+                className="mb-1 w-full rounded border border-border bg-white px-3 py-2 text-body-sm text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+              />
+              <Select
+                label="Programme"
+                placeholder="Select programme"
+                value={programmeId}
+                onChange={(e) => { setProgrammeId(e.target.value); setResult(null) }}
+                options={filteredProgrammes.map((p) => ({ value: p.programme.id, label: p.programme.name }))}
+              />
+            </div>
           )}
           {tab === 'course-unit' && (
-            <Select
-              label="Course Unit"
-              placeholder="Select course unit"
-              value={courseUnitId}
-              onChange={(e) => setCourseUnitId(e.target.value)}
-              options={courseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))}
-            />
+            <div>
+              <input
+                placeholder="Search course units…"
+                value={courseUnitSearch}
+                onChange={(e) => { setCourseUnitSearch(e.target.value); setCourseUnitId('') }}
+                className="mb-1 w-full rounded border border-border bg-white px-3 py-2 text-body-sm text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+              />
+              <Select
+                label="Course Unit"
+                placeholder="Select course unit"
+                value={courseUnitId}
+                onChange={(e) => { setCourseUnitId(e.target.value); setResult(null) }}
+                options={filteredCourseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))}
+              />
+            </div>
           )}
           {tab === 'lecturer' && (
-            <Select
-              label="Lecturer"
-              placeholder="Select lecturer"
-              value={lecturerId}
-              onChange={(e) => setLecturerId(e.target.value)}
-              options={lecturers.map((l) => ({ value: l.id, label: l.fullName }))}
-            />
+            <div>
+              <input
+                placeholder="Search lecturers…"
+                value={lecturerSearch}
+                onChange={(e) => { setLecturerSearch(e.target.value); setLecturerId('') }}
+                className="mb-1 w-full rounded border border-border bg-white px-3 py-2 text-body-sm text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+              />
+              <Select
+                label="Lecturer"
+                placeholder="Select lecturer"
+                value={lecturerId}
+                onChange={(e) => { setLecturerId(e.target.value); setResult(null) }}
+                options={filteredLecturers.map((l) => ({ value: l.id, label: l.fullName }))}
+              />
+            </div>
           )}
           {tab === 'student' && (
             <>
-              <Select
-                label="Course Unit"
-                placeholder="Select course unit first"
-                value={courseUnitId}
-                onChange={(e) => setCourseUnitId(e.target.value)}
-                options={courseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))}
-              />
-              <Select
-                label="Student"
-                placeholder={
-                  courseUnitId
-                    ? unitStudents.length
-                      ? 'Select student'
-                      : 'No students enrolled'
-                    : 'Select a course unit first'
-                }
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                options={unitStudents.map((s) => ({
-                  value: s.student.id,
-                  label: `${s.student.fullName}${s.student.regNumber ? ` (${s.student.regNumber})` : ''}`,
-                }))}
-              />
+              <div>
+                <input
+                  placeholder="Search course units…"
+                  value={courseUnitSearch}
+                  onChange={(e) => { setCourseUnitSearch(e.target.value); setCourseUnitId('') }}
+                  className="mb-1 w-full rounded border border-border bg-white px-3 py-2 text-body-sm text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+                />
+                <Select
+                  label="Course Unit"
+                  placeholder="Select course unit first"
+                  value={courseUnitId}
+                  onChange={(e) => { setCourseUnitId(e.target.value); setResult(null) }}
+                  options={filteredCourseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))}
+                />
+              </div>
+              <div>
+                <input
+                  placeholder="Search students…"
+                  value={studentSearch}
+                  onChange={(e) => { setStudentSearch(e.target.value); setStudentId('') }}
+                  className="mb-1 w-full rounded border border-border bg-white px-3 py-2 text-body-sm text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+                  disabled={!courseUnitId}
+                />
+                <Select
+                  label="Student"
+                  placeholder={
+                    courseUnitId
+                      ? unitStudents.length ? 'Select student' : 'No students enrolled'
+                      : 'Select a course unit first'
+                  }
+                  value={studentId}
+                  onChange={(e) => { setStudentId(e.target.value); setResult(null) }}
+                  options={filteredStudents.map((s) => ({
+                    value: s.student.id,
+                    label: `${s.student.fullName}${s.student.regNumber ? ` (${s.student.regNumber})` : ''}`,
+                  }))}
+                />
+              </div>
             </>
           )}
 
-          {/* Period selectors */}
-          <Select
-            label="Academic Year"
-            value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            options={academicYearOptions()}
-          />
-          <Select
-            label="Semester"
-            value={semester}
-            onChange={(e) => setSemester(e.target.value)}
-            options={[
-              { value: '1', label: 'Semester 1' },
-              { value: '2', label: 'Semester 2' },
-            ]}
-          />
+          {/* Period — read-only, set by System Admin */}
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Academic Year</span>
+            <div className="flex min-h-[42px] items-center rounded border border-border bg-surface-1 px-3 text-body text-text-primary">
+              {academicYear || '—'}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Semester</span>
+            <div className="flex min-h-[42px] items-center rounded border border-border bg-surface-1 px-3 text-body text-text-primary">
+              Semester {semester}
+            </div>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
           <Button loading={loading} onClick={generate} disabled={!selectedId}>
             Generate Report
           </Button>
-          {selectedId && (
-            <a
-              href={reportApi.pdfUrl(tab, selectedId, period)}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded border border-umu-red px-6 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4]"
-            >
-              {/* Download icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {/* PDF only available after report is generated */}
+          {result !== null && selectedId && (
+            <Button variant="secondary" loading={pdfDownloading} onClick={downloadPdf}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download PDF
-            </a>
+              {pdfDownloading ? 'Downloading…' : 'Download PDF'}
+            </Button>
+          )}
+          {!result && selectedId && (
+            <span className="text-body-sm text-text-disabled">Generate the report first to unlock PDF download</span>
           )}
         </div>
       </Card>
@@ -527,12 +624,13 @@ export default function ReportsPage() {
           {/* PDF download at bottom of preview too */}
           {selectedId && (
             <div className="border-t border-border px-5 py-3 text-right">
-              <a
-                href={reportApi.pdfUrl(tab, selectedId, period)}
-                className="text-body font-medium text-umu-red hover:underline"
+              <button
+                onClick={downloadPdf}
+                disabled={pdfDownloading}
+                className="text-body font-medium text-umu-red hover:underline disabled:opacity-50"
               >
-                Download this report as PDF →
-              </a>
+                {pdfDownloading ? 'Downloading…' : 'Download this report as PDF →'}
+              </button>
             </div>
           )}
         </Card>

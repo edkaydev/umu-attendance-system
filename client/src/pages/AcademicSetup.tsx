@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react'
 import { academicApi } from '../api/endpoints'
+import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -56,17 +57,9 @@ function FormModal({
   )
 }
 
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear, startYear + 1].map((y) => ({
-    value: `${y}/${y + 1}`,
-    label: `${y}/${y + 1}`,
-  }))
-}
-
 export default function AcademicSetup() {
   const toast = useToast()
+  const { period: globalPeriod } = usePeriod()
   const [tab, setTab] = useState<Tab>('campuses')
 
   const [campuses, setCampuses] = useState<Campus[]>([])
@@ -89,7 +82,7 @@ export default function AcademicSetup() {
   const [originalSharedFacultyIds, setOriginalSharedFacultyIds] = useState<string[]>([])
   const [year, setYear] = useState('1')
   const [semester, setSemester] = useState('1')
-  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
+  const [academicYear, setAcademicYear] = useState('')
 
   const loadAll = useCallback(async () => {
     try {
@@ -127,7 +120,7 @@ export default function AcademicSetup() {
     setOriginalSharedFacultyIds([])
     setYear('1')
     setSemester('1')
-    setAcademicYear(academicYearOptions()[1].value)
+    setAcademicYear(globalPeriod?.academicYear ?? '')
   }
 
   function openEdit(kind: string, item: { id: string } & Partial<Campus & Faculty & Programme & CourseUnit>) {
@@ -140,7 +133,7 @@ export default function AcademicSetup() {
     const shared = (item.sharedFaculties ?? []).map((sf) => sf.facultyId)
     setSharedFacultyIds(shared)
     setOriginalSharedFacultyIds(shared)
-    setAcademicYear(academicYearOptions()[1].value)
+    setAcademicYear(globalPeriod?.academicYear ?? '')
   }
 
   async function handleSave() {
@@ -413,6 +406,12 @@ export default function AcademicSetup() {
         )}
         {modal === 'curriculum' && (
           <>
+            {globalPeriod && (
+              <div className="mb-3 rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
+                Global period: <span className="font-semibold text-text-primary">{globalPeriod.academicYear} · Semester {globalPeriod.semester}</span>
+                <span className="ml-1 text-text-disabled">(pre-filled below; you can change these)</span>
+              </div>
+            )}
             <Select label="Course Unit" value={courseUnitId} onChange={(e) => setCourseUnitId(e.target.value)} options={courseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))} />
             <Select label="Programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)} options={programmes.map((p) => ({ value: p.id, label: p.name }))} />
             <div className="grid grid-cols-3 gap-3">
@@ -431,7 +430,12 @@ export default function AcademicSetup() {
                   { value: '2', label: 'Sem 2' },
                 ]}
               />
-              <Select label="Acad. Year" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} options={academicYearOptions()} />
+              <Input
+                label="Acad. Year"
+                placeholder="e.g. 2025/2026"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+              />
             </div>
           </>
         )}

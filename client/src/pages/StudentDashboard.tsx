@@ -241,24 +241,37 @@ export default function StudentDashboard() {
           </p>
         ) : (
           <div className="space-y-4">
-            {data.units.map((u: UnitAttendance) => (
-              <div key={u.courseUnit.id}>
-                <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-sm font-medium text-text-primary">{u.courseUnit.name}</span>
-                    <span className="ml-2 text-xs text-text-secondary">{u.courseUnit.code}</span>
+            {data.units.map((u: UnitAttendance) => {
+              // If there's a live open session for this unit where the student already checked in,
+              // the current percentage is provisional — mark it pending.
+              const liveForUnit = live.find(
+                (s) => s.courseUnit.id === u.courseUnit.id && s.checkedIn
+              )
+              return (
+                <div key={u.courseUnit.id}>
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-sm font-medium text-text-primary">{u.courseUnit.name}</span>
+                      <span className="ml-2 text-xs text-text-secondary">{u.courseUnit.code}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {liveForUnit && (
+                        <span className="inline-flex items-center rounded-full border border-warning-border bg-warning-light px-2.5 py-0.5 text-xs font-medium text-warning">
+                          Session in progress
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-text-primary">{u.percentage}%</span>
+                      <Badge status={u.status} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-text-primary">{u.percentage}%</span>
-                    <Badge status={u.status} />
-                  </div>
+                  <ProgressBar percentage={u.percentage} />
+                  <p className="mt-1 text-xs text-text-secondary">
+                    {u.attended} of {u.sessionsHeld} closed sessions
+                    {liveForUnit && ' · attendance updates when lecturer closes the session'}
+                  </p>
                 </div>
-                <ProgressBar percentage={u.percentage} />
-                <p className="mt-1 text-xs text-text-secondary">
-                  {u.attended} of {u.sessionsHeld} sessions
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </Card>

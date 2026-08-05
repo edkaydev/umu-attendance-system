@@ -4,6 +4,7 @@ import { ok } from '../utils/apiResponse'
 import {
   openSession,
   listSessions,
+  listSessionsForFaculty,
   getSession,
   getLiveSession,
   closeSession,
@@ -19,12 +20,24 @@ const openSessionSchema = z.object({
   startsAt: z.string().datetime().optional(),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
   semester: z.number().int().min(1).max(2),
+  classDuration: z.number().int().min(1).max(180).optional(),
+  codeTtl: z.number().int().min(5).max(60).optional(),
 })
 
 const listQuerySchema = z.object({
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/).optional(),
   semester: z.coerce.number().int().min(1).max(2).optional(),
   status: z.enum(['open', 'closed']).optional(),
+  /** Pass ?today=true to scope to today's sessions only */
+  today: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
+  /** Pass ?date=YYYY-MM-DD to scope to a specific day */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 })
 
 export async function openSessionController(req: Request, res: Response, next: NextFunction) {
@@ -40,7 +53,34 @@ export async function openSessionController(req: Request, res: Response, next: N
 export async function listSessionsController(req: Request, res: Response, next: NextFunction) {
   try {
     const filters = listQuerySchema.parse(req.query)
-    const sessions = await listSessions(req.user!.id, filters)
+    const sessions = await listSessions(req.user!.id, {
+      academicYear: filters.academicYear,
+      semester: filters.semester,
+      status: filters.status,
+      today: filters.today || undefined,
+      date: filters.date,
+    })
+    ok(res, { sessions })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function listFacultySessionsController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const filters = listQuerySchema.parse(req.query)
+    const facultyId = req.user!.facultyId
+    if (!facultyId) {
+      ok(res, { sessions: [] })
+      return
+    }
+    const sessions = await listSessionsForFaculty(facultyId, {
+      academicYear: filters.academicYear,
+      semester: filters.semester,
+      status: filters.status,
+      today: filters.today || undefined,
+      date: filters.date,
+    })
     ok(res, { sessions })
   } catch (e) {
     next(e)

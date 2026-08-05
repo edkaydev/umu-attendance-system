@@ -4,8 +4,43 @@ import { ApiError } from '../utils/apiResponse'
 import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
 import { writeAuditLog } from '../utils/audit'
 
-/** All records of a session with student details (FR-05.12 / FR-07.5). */
-export async function getSessionAttendance(sessionId: string) {
+/** All records of a session with student details (FR-05.12 / FR-07.5).
+ *  Lecturer must own the session; Faculty Admin must be in the same or shared faculty. */
+export async function getSessionAttendance(
+  sessionId: string,
+  actor: { id: string; role: string; facultyId: string | null }
+) {
+  // Fetch session with faculty info for scope check
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: {
+      lecturerId: true,
+      courseUnit: {
+        select: {
+          facultyId: true,
+          sharedFaculties: { select: { facultyId: true } },
+        },
+      },
+    },
+  })
+  if (!session) throw new ApiError('Session not found', 404)
+
+  if (actor.role === 'lecturer') {
+    if (session.lecturerId !== actor.id) {
+      throw new ApiError('You can only view attendance for your own sessions', 403)
+    }
+  } else if (actor.role === 'faculty_admin') {
+    const allowed = new Set([
+      session.courseUnit.facultyId,
+      ...session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+    ])
+    if (!actor.facultyId || !allowed.has(actor.facultyId)) {
+      throw new ApiError('Session is outside your faculty', 403)
+    }
+  } else if (actor.role !== 'system_admin') {
+    throw new ApiError('Forbidden', 403)
+  }
+
   const records = await prisma.attendanceRecord.findMany({
     where: { sessionId },
     select: {
@@ -179,7 +214,18 @@ export async function editAttendance(
 
   const record = await prisma.attendanceRecord.findUnique({
     where: { id: recordId },
-    include: { session: { include: { courseUnit: { select: { facultyId: true } } } } },
+    include: {
+      session: {
+        include: {
+          courseUnit: {
+            select: {
+              facultyId: true,
+              sharedFaculties: { select: { facultyId: true } },
+            },
+          },
+        },
+      },
+    },
   })
   if (!record) throw new ApiError('Attendance record not found', 404)
   if (record.status === newStatus) {
@@ -190,11 +236,8 @@ export async function editAttendance(
     if (record.session.lecturerId !== editor.id) {
       throw new ApiError('You can only edit attendance for your own sessions', 403)
     }
-  } else if (editor.role === 'faculty_admin') {
-    if (record.session.courseUnit.facultyId !== editor.facultyId) {
-      throw new ApiError('Record is outside your faculty', 403)
-    }
   } else if (editor.role !== 'system_admin') {
+    // Faculty Admin is read-only — they monitor but cannot modify attendance
     throw new ApiError('Forbidden', 403)
   }
 

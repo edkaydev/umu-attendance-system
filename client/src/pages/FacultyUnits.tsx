@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { enrollmentApi, assignmentApi, FacultyUnitOverview } from '../api/endpoints'
+import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -8,20 +9,6 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
-
-function academicYearOptions(): { value: string; label: string }[] {
-  const now = new Date()
-  const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  return [startYear - 1, startYear, startYear + 1].map((y) => ({
-    value: `${y}/${y + 1}`,
-    label: `${y}/${y + 1}`,
-  }))
-}
-
-const SEMESTER_OPTIONS = [
-  { value: '1', label: 'Semester 1' },
-  { value: '2', label: 'Semester 2' },
-]
 
 type ManageUser =
   | FacultyUnitOverview['students'][number]
@@ -217,6 +204,7 @@ export function FacultyUserUnits() {
     <UserUnitsEditor
       user={user}
       courseUnits={data.courseUnits}
+      allLecturers={data.lecturers}
       onChanged={reload}
     />
   )
@@ -225,33 +213,62 @@ export function FacultyUserUnits() {
 function UserUnitsEditor({
   user,
   courseUnits,
+  allLecturers,
   onChanged,
 }: {
   user: ManageUser
   courseUnits: FacultyUnitOverview['courseUnits']
+  /** All lecturers in the faculty — used to detect units already taken by someone else */
+  allLecturers: FacultyUnitOverview['lecturers']
   onChanged: () => void
 }) {
   const toast = useToast()
+  const { period: globalPeriod } = usePeriod()
   const [busy, setBusy] = useState(false)
   const [courseUnitId, setCourseUnitId] = useState('')
-  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
-  const [semester, setSemester] = useState('1')
   const [unitSearch, setUnitSearch] = useState('')
   const [pending, setPending] = useState<PendingAction | null>(null)
 
   const student = isStudent(user)
   const current: UnitEntry[] = student ? user.enrollments : user.lecturerAssignments
 
-  // Only units the user already has in the SAME year + semester are hidden,
-  // so the same unit can still be added for a different period.
-  const available = useMemo(() => {
-    const taken = new Set(
-      current
-        .filter((c) => c.academicYear === academicYear && c.semester === Number(semester))
-        .map((c) => c.courseUnitId)
-    )
-    return courseUnits.filter((cu) => !taken.has(cu.id))
-  }, [courseUnits, current, academicYear, semester])
+  const academicYear = globalPeriod?.academicYear ?? ''
+  const semester = globalPeriod?.semester ?? 1
+
+  // Units the current user already has in this period
+  const takenByThisUser = useMemo(
+    () =>
+      new Set(
+        current
+          .filter((c) => c.academicYear === academicYear && c.semester === semester)
+          .map((c) => c.courseUnitId)
+      ),
+    [current, academicYear, semester]
+  )
+
+  // For lecturers: units already claimed by a DIFFERENT lecturer for this period
+  // (unit exclusivity — one lecturer per unit per period)
+  const takenByOtherLecturer = useMemo(() => {
+    if (student) return new Set<string>() // students share units freely
+    const taken = new Set<string>()
+    for (const l of allLecturers) {
+      if (l.id === user.id) continue // skip self
+      for (const a of l.lecturerAssignments) {
+        if (a.academicYear === academicYear && a.semester === semester) {
+          taken.add(a.courseUnitId)
+        }
+      }
+    }
+    return taken
+  }, [student, allLecturers, user.id, academicYear, semester])
+
+  const available = useMemo(
+    () =>
+      courseUnits.filter(
+        (cu) => !takenByThisUser.has(cu.id) && !takenByOtherLecturer.has(cu.id)
+      ),
+    [courseUnits, takenByThisUser, takenByOtherLecturer]
+  )
 
   const filteredAvailable = useMemo(() => {
     const q = unitSearch.trim().toLowerCase()
@@ -263,6 +280,7 @@ function UserUnitsEditor({
 
   async function runAdd() {
     if (!pending || pending.kind !== 'add') return
+    if (!globalPeriod) { toast.error('System period not loaded'); return }
     setBusy(true)
     try {
       if (student) {
@@ -270,14 +288,14 @@ function UserUnitsEditor({
           studentId: user.id,
           courseUnitId: pending.unitId,
           academicYear,
-          semester: Number(semester),
+          semester,
         })
       } else {
         await assignmentApi.create({
           lecturerId: user.id,
           courseUnitId: pending.unitId,
           academicYear,
-          semester: Number(semester),
+          semester,
         })
       }
       toast.success('Unit added')
@@ -315,10 +333,7 @@ function UserUnitsEditor({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          to="/faculty-admin/units"
-          className="text-body-sm font-medium text-umu-red hover:underline"
-        >
+        <Link to="/faculty-admin/units" className="text-body-sm font-medium text-umu-red hover:underline">
           ← Back to Units
         </Link>
         <h1 className="mt-2 text-h1 font-bold text-text-primary">{user.fullName}</h1>
@@ -327,6 +342,14 @@ function UserUnitsEditor({
           {student && user.regNumber ? ` · ${user.regNumber}` : ''}
         </p>
       </div>
+
+      {/* Period banner */}
+      {globalPeriod && (
+        <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
+          Period: <span className="font-semibold text-text-primary">{globalPeriod.academicYear} · Semester {globalPeriod.semester}</span>
+          <span className="ml-1 text-text-disabled">(set by System Admin)</span>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Current units */}
@@ -338,9 +361,7 @@ function UserUnitsEditor({
               {current.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
-                    <p className="truncate text-body font-medium text-text-primary">
-                      {c.courseUnit.name}
-                    </p>
+                    <p className="truncate text-body font-medium text-text-primary">{c.courseUnit.name}</p>
                     <p className="text-body-sm text-text-secondary">
                       {c.courseUnit.code} &middot; {c.academicYear} &middot; Semester {c.semester}
                     </p>
@@ -349,9 +370,7 @@ function UserUnitsEditor({
                     variant="secondary"
                     className="min-h-[32px] shrink-0 px-3 py-1 text-body-sm"
                     disabled={busy}
-                    onClick={() =>
-                      setPending({ kind: 'remove', recordId: c.id, unitName: c.courseUnit.name })
-                    }
+                    onClick={() => setPending({ kind: 'remove', recordId: c.id, unitName: c.courseUnit.name })}
                   >
                     Remove
                   </Button>
@@ -374,41 +393,16 @@ function UserUnitsEditor({
               label="Course Unit"
               placeholder={
                 filteredAvailable.length === 0
-                  ? unitSearch
-                    ? 'No units match your search'
-                    : 'No more units for this period'
+                  ? unitSearch ? 'No units match' : 'All units assigned for this period'
                   : 'Select a unit'
               }
               value={courseUnitId}
               onChange={(e) => setCourseUnitId(e.target.value)}
-              options={filteredAvailable.map((cu) => ({
-                value: cu.id,
-                label: `${cu.code} — ${cu.name}`,
-              }))}
+              options={filteredAvailable.map((cu) => ({ value: cu.id, label: `${cu.code} — ${cu.name}` }))}
             />
-            {available.length === 0 && !unitSearch && (
-              <p className="text-body-sm text-text-disabled">
-                All faculty units are already assigned for {academicYear} &middot; Semester{' '}
-                {semester}. Try another period.
-              </p>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Academic Year"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                options={academicYearOptions()}
-              />
-              <Select
-                label="Semester"
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                options={SEMESTER_OPTIONS}
-              />
-            </div>
             <Button
               fullWidth
-              disabled={!courseUnitId}
+              disabled={!courseUnitId || !globalPeriod}
               className="!min-h-[40px]"
               onClick={() => {
                 const cu = available.find((x) => x.id === courseUnitId)
@@ -421,7 +415,7 @@ function UserUnitsEditor({
         </Card>
       </div>
 
-      {/* Confirm popup */}
+      {/* Confirm modal */}
       <Modal open={Boolean(pending)} onClose={() => setPending(null)}>
         <div className="space-y-4">
           <h2 className="text-h2 font-semibold">
@@ -429,22 +423,16 @@ function UserUnitsEditor({
           </h2>
           <p className="text-body text-text-secondary">
             {pending?.kind === 'remove' ? (
-              <>
-                Remove <span className="font-semibold text-text-primary">{pending?.unitName}</span>{' '}
-                from {user.fullName}?
-              </>
+              <>Remove <span className="font-semibold text-text-primary">{pending.unitName}</span> from {user.fullName}?</>
             ) : (
               <>
-                Assign{' '}
-                <span className="font-semibold text-text-primary">{pendingUnit || 'this unit'}</span>{' '}
-                to {user.fullName} for {academicYear} &middot; Semester {semester}?
+                Assign <span className="font-semibold text-text-primary">{pendingUnit}</span> to {user.fullName} for{' '}
+                <span className="font-semibold text-text-primary">{academicYear} · Semester {semester}</span>?
               </>
             )}
           </p>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>
-              Cancel
-            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>Cancel</Button>
             <Button
               variant={pending?.kind === 'remove' ? 'danger' : 'primary'}
               loading={busy}

@@ -5,10 +5,15 @@ import {
   settingsApi,
   ProfileEditingScope,
   ProfileEditingSettings,
+  CurrentPeriod,
 } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
+import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.systemAdmin>>
@@ -92,6 +97,13 @@ export default function SystemAdminDashboard() {
   const [profileEditing, setProfileEditing] = useState<ProfileEditingSettings | null>(null)
   const [toggling, setToggling] = useState<ProfileEditingScope | null>(null)
 
+  // Current period state
+  const [currentPeriod, setCurrentPeriod] = useState<CurrentPeriod | null>(null)
+  const [periodModalOpen, setPeriodModalOpen] = useState(false)
+  const [periodYear, setPeriodYear] = useState('')
+  const [periodSemester, setPeriodSemester] = useState('1')
+  const [savingPeriod, setSavingPeriod] = useState(false)
+
   useEffect(() => {
     dashboardApi
       .systemAdmin()
@@ -103,6 +115,10 @@ export default function SystemAdminDashboard() {
       .profileEditing()
       .then(setProfileEditing)
       .catch(() => setProfileEditing(null))
+    settingsApi
+      .currentPeriod()
+      .then(setCurrentPeriod)
+      .catch(() => setCurrentPeriod(null))
   }, [toast])
 
   async function toggleProfileEditing(scope: ProfileEditingScope) {
@@ -116,6 +132,30 @@ export default function SystemAdminDashboard() {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to update setting')
     } finally {
       setToggling(null)
+    }
+  }
+
+  function openPeriodModal() {
+    setPeriodYear(currentPeriod?.academicYear ?? '')
+    setPeriodSemester(String(currentPeriod?.semester ?? 1))
+    setPeriodModalOpen(true)
+  }
+
+  async function handleSetPeriod() {
+    if (!periodYear.trim()) return toast.error('Academic year is required (e.g. 2025/2026)')
+    setSavingPeriod(true)
+    try {
+      const res = await settingsApi.setCurrentPeriod({
+        academicYear: periodYear.trim(),
+        semester: Number(periodSemester),
+      })
+      setCurrentPeriod(res.period)
+      toast.success(res.message)
+      setPeriodModalOpen(false)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to set period')
+    } finally {
+      setSavingPeriod(false)
     }
   }
 
@@ -151,6 +191,35 @@ export default function SystemAdminDashboard() {
           sub={data.overview.activeSessionsToday > 0 ? 'Live' : 'None active'}
         />
       </div>
+
+      {/* ── Current Period ── */}
+      <section>
+        <h2 className="mb-3 text-h4 font-semibold text-text-primary">Current Academic Period</h2>
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              {currentPeriod ? (
+                <>
+                  <p className="text-h3 font-bold text-text-primary">
+                    {currentPeriod.academicYear} &middot; Semester {currentPeriod.semester}
+                  </p>
+                  <p className="mt-0.5 text-body-sm text-text-secondary">
+                    This is the active academic period used across the platform — for check-ins,
+                    unit assignments, and profile setup.
+                  </p>
+                </>
+              ) : (
+                <p className="text-body text-warning font-medium">
+                  No period set yet. Set one so students and lecturers can be assigned correctly.
+                </p>
+              )}
+            </div>
+            <Button onClick={openPeriodModal}>
+              {currentPeriod ? 'Change Period' : 'Set Period'}
+            </Button>
+          </div>
+        </Card>
+      </section>
 
       {/* ── System settings ── */}
       <section>
@@ -307,6 +376,39 @@ export default function SystemAdminDashboard() {
           )}
         </Card>
       </div>
+
+      {/* ── Change period modal ── */}
+      <Modal open={periodModalOpen} onClose={() => setPeriodModalOpen(false)} title="Set Current Academic Period">
+        <div className="space-y-4">
+          <p className="text-body-sm text-text-secondary">
+            This sets the active academic period used platform-wide for student check-ins,
+            unit assignments, and profile setup. It does not modify historical records.
+          </p>
+          <Input
+            label="Academic Year"
+            placeholder="e.g. 2025/2026"
+            value={periodYear}
+            onChange={(e) => setPeriodYear(e.target.value)}
+          />
+          <Select
+            label="Semester"
+            value={periodSemester}
+            onChange={(e) => setPeriodSemester(e.target.value)}
+            options={[
+              { value: '1', label: 'Semester 1' },
+              { value: '2', label: 'Semester 2' },
+            ]}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setPeriodModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={savingPeriod} onClick={handleSetPeriod}>
+              Save Period
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

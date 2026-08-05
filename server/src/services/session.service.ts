@@ -4,7 +4,7 @@ import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
 import { writeAuditLog } from '../utils/audit'
 
-const CODE_TTL_MINUTES = 5
+const DEFAULT_CODE_TTL = 5 // minutes
 
 export interface OpenSessionInput {
   courseUnitId: string
@@ -13,6 +13,8 @@ export interface OpenSessionInput {
   startsAt?: string
   academicYear: string
   semester: number
+  classDuration?: number  // 1–180 min; null = no auto-close
+  codeTtl?: number        // 5–60 min; defaults to 5
 }
 
 async function assertLecturerAssigned(
@@ -86,6 +88,11 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     return Boolean(taken)
   })
 
+  const codeTtlMinutes = Math.min(60, Math.max(5, input.codeTtl ?? DEFAULT_CODE_TTL))
+  const classDuration = input.classDuration
+    ? Math.min(180, Math.max(1, input.classDuration))
+    : null
+
   const session = await prisma.session.create({
     data: {
       courseUnitId: input.courseUnitId,
@@ -93,11 +100,13 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
       academicYear: input.academicYear,
       semester: input.semester,
       code,
-      codeExpiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60_000),
+      codeExpiresAt: new Date(Date.now() + codeTtlMinutes * 60_000),
       status: SessionStatus.open,
       venue: input.venue ?? null,
       mode,
       startsAt,
+      classDuration,
+      codeTtl: codeTtlMinutes,
     },
     include: { courseUnit: { select: { id: true, code: true, name: true } } },
   })
@@ -109,24 +118,45 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
   return session
 }
 
-/** List sessions for units assigned to the lecturer (FR-04.5 scoping). */
+/** List sessions owned by the lecturer. Supports optional today/date filtering. */
 export async function listSessions(
   lecturerId: string,
-  filters?: { academicYear?: string; semester?: number; status?: SessionStatus }
+  filters?: {
+    academicYear?: string
+    semester?: number
+    status?: SessionStatus
+    /** ISO date string YYYY-MM-DD — only return sessions opened on this day */
+    date?: string
+    /** convenience flag: only return sessions opened today (server timezone) */
+    today?: boolean
+  }
 ) {
-  const assignments = await prisma.lecturerAssignment.findMany({
-    where: { lecturerId },
-    select: { courseUnitId: true },
-  })
-  const unitIds = assignments.map((a) => a.courseUnitId)
-  if (unitIds.length === 0) return []
+  // Build the date range if requested
+  let dateFilter: { gte: Date; lt: Date } | undefined
+  if (filters?.today) {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 1)
+    dateFilter = { gte: start, lt: end }
+  } else if (filters?.date) {
+    // Accept YYYY-MM-DD
+    const start = new Date(filters.date + 'T00:00:00')
+    if (!Number.isNaN(start.getTime())) {
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      dateFilter = { gte: start, lt: end }
+    }
+  }
 
   return prisma.session.findMany({
     where: {
-      courseUnitId: { in: unitIds },
+      // Scope strictly to sessions this lecturer opened — not just units assigned
+      lecturerId,
       ...(filters?.academicYear ? { academicYear: filters.academicYear } : {}),
       ...(filters?.semester ? { semester: filters.semester } : {}),
       ...(filters?.status ? { status: filters.status } : {}),
+      ...(dateFilter ? { openedAt: dateFilter } : {}),
     },
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
@@ -140,13 +170,67 @@ export async function listSessions(
   })
 }
 
-/** Get a single session + attendance list. Lecturer (own units) or Faculty Admin (own faculty). */
+/** List all sessions belonging to course units within a faculty (Faculty Admin view). */
+export async function listSessionsForFaculty(
+  facultyId: string,
+  filters?: {
+    academicYear?: string
+    semester?: number
+    status?: SessionStatus
+    today?: boolean
+    date?: string
+  }
+) {
+  let dateFilter: { gte: Date; lt: Date } | undefined
+  if (filters?.today) {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 1)
+    dateFilter = { gte: start, lt: end }
+  } else if (filters?.date) {
+    const start = new Date(filters.date + 'T00:00:00')
+    if (!Number.isNaN(start.getTime())) {
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      dateFilter = { gte: start, lt: end }
+    }
+  }
+
+  return prisma.session.findMany({
+    where: {
+      courseUnit: { facultyId },
+      ...(filters?.academicYear ? { academicYear: filters.academicYear } : {}),
+      ...(filters?.semester ? { semester: filters.semester } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(dateFilter ? { openedAt: dateFilter } : {}),
+    },
+    include: {
+      courseUnit: { select: { id: true, code: true, name: true } },
+      lecturer: { select: { id: true, fullName: true } },
+      _count: {
+        select: {
+          attendanceRecords: { where: { status: 'present' } },
+        },
+      },
+    },
+    orderBy: { openedAt: 'desc' },
+  })
+}
+
+/** Get a single session + attendance list. Lecturer (own units) or Faculty Admin (own or shared faculty). */
 export async function getSession(sessionId: string, actor: { id: string; role: string; facultyId: string | null }) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
       courseUnit: {
-        select: { id: true, code: true, name: true, facultyId: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          facultyId: true,
+          sharedFaculties: { select: { facultyId: true } },
+        },
       },
       lecturer: { select: { id: true, fullName: true, email: true } },
       attendanceRecords: {
@@ -175,7 +259,11 @@ export async function getSession(sessionId: string, actor: { id: string; role: s
       session.semester
     )
   } else if (actor.role === 'faculty_admin') {
-    if (session.courseUnit.facultyId !== actor.facultyId) {
+    const allowed = new Set([
+      session.courseUnit.facultyId,
+      ...session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+    ])
+    if (!actor.facultyId || !allowed.has(actor.facultyId)) {
       throw new ApiError('Session is outside your faculty', 403)
     }
   } else if (actor.role !== 'system_admin') {
@@ -235,6 +323,8 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
       mode: session.mode,
       startsAt: session.startsAt,
       openedAt: session.openedAt,
+      classDuration: session.classDuration,
+      codeTtl: session.codeTtl ?? DEFAULT_CODE_TTL,
       courseUnit: session.courseUnit,
     },
     presentCount: presentRecords.length,
@@ -310,13 +400,18 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
   }
 
   const opened = session.closedAt ?? session.openedAt
-  const sameDay =
-    opened.toDateString() === new Date().toDateString()
+  // Compare calendar dates in EAT (UTC+3) so the check reflects the lecturer's local day
+  const toEATDate = (d: Date) => {
+    const eat = new Date(d.getTime() + 3 * 60 * 60 * 1000)
+    return eat.toISOString().slice(0, 10) // "YYYY-MM-DD"
+  }
+  const sameDay = toEATDate(opened) === toEATDate(new Date())
   if (!sameDay) {
     throw new ApiError('Sessions can only be reopened on the same day', 400)
   }
 
-  // New code + expiry so students can check in again
+  // New code + expiry using the original codeTtl
+  const ttl = session.codeTtl ?? DEFAULT_CODE_TTL
   const code = await generateUniqueSessionCode(async (candidate) => {
     const taken = await prisma.session.findFirst({
       where: { code: candidate, status: 'open' },
@@ -330,7 +425,7 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
     data: {
       status: SessionStatus.open,
       code,
-      codeExpiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60_000),
+      codeExpiresAt: new Date(Date.now() + ttl * 60_000),
       closedAt: null,
     },
   })
@@ -339,7 +434,7 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
 }
 
 /** Extend an open session's code expiry by N minutes (same code, keeps the session live). */
-export async function extendSessionTime(sessionId: string, lecturerId: string, minutes = CODE_TTL_MINUTES) {
+export async function extendSessionTime(sessionId: string, lecturerId: string, minutes = DEFAULT_CODE_TTL) {
   const session = await prisma.session.findUnique({ where: { id: sessionId } })
   if (!session) throw new ApiError('Session not found', 404)
   if (session.lecturerId !== lecturerId) {

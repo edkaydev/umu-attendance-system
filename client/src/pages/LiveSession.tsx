@@ -37,6 +37,7 @@ export default function LiveSession() {
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
   const [extending, setExtending] = useState(false)
+  const [copied, setCopied] = useState(false)
   const firstLoad = useRef(true)
 
   const load = useCallback(async () => {
@@ -60,6 +61,17 @@ export default function LiveSession() {
   }, [load])
 
   const secondsLeft = useCountdown(data?.session.status === 'open' ? data.session.codeExpiresAt : undefined)
+
+  async function handleCopy() {
+    if (!data) return
+    try {
+      await navigator.clipboard.writeText(data.session.code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Could not copy to clipboard')
+    }
+  }
 
   async function handleExtend() {
     setExtending(true)
@@ -150,6 +162,28 @@ export default function LiveSession() {
                   {data.session.code}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="mt-3 flex items-center gap-1.5 mx-auto text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <svg className="h-3.5 w-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                    Copy code
+                  </>
+                )}
+              </button>
               <p className={`mt-4 text-body-sm font-medium ${secondsLeft <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
                 {secondsLeft > 0
                   ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`

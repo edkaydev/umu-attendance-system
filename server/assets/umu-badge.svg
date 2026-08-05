@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="120" height="140" viewBox="0 0 120 140">
-  <path d="M60 6 L110 28 V80 C110 114 89 130 60 138 C31 130 10 114 10 80 V28 Z" fill="#CC0000" stroke="#F5C800" stroke-width="5"/>
-  <path d="M60 22 L96 38 V78 C96 102 82 116 60 123 C38 116 24 102 24 78 V38 Z" fill="#F5C800"/>
-  <text x="60" y="82" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="26" font-weight="bold" fill="#CC0000">UMU</text>
-  <text x="60" y="108" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" letter-spacing="1" fill="#FFFFFF">NKOZI</text>
-</svg>

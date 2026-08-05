@@ -209,6 +209,8 @@ model Session {
   venue            String?           @db.VarChar(100)
   mode             SessionMode       @default(physical)
   startsAt         DateTime?
+  classDuration    Int?              /// class length in minutes (max 180); null = no auto-close
+  codeTtl          Int?              /// initial code validity in minutes (5–60); null = 5 default
   openedAt         DateTime          @default(now())
   closedAt         DateTime?
   attendanceRecords AttendanceRecord[]

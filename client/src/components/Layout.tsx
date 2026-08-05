@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
 
 // ─── SVG icon components ─────────────────────────────────────────────────────
-// All 20×20, strokeWidth 1.75, rounded line caps — Google I/O / Material Symbols style
 
 function IconHome() {
   return (
@@ -46,7 +45,6 @@ function IconBarChart() {
     </svg>
   )
 }
-
 
 function IconUsers() {
   return (
@@ -109,6 +107,15 @@ function IconLogOut() {
   )
 }
 
+function IconMonitor() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8M12 17v4"/>
+    </svg>
+  )
+}
+
 // ─── Nav config ──────────────────────────────────────────────────────────────
 
 type NavItem = { to: string; label: string; Icon: () => JSX.Element }
@@ -116,18 +123,19 @@ type NavItem = { to: string; label: string; Icon: () => JSX.Element }
 const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   student: [
     { to: '/student',            label: 'Dashboard',    Icon: IconHome },
-    { to: '/student/attendance', label: 'My Attendance', Icon: IconClipboard },
-    { to: '/student/profile',    label: 'My Profile',   Icon: IconUser },
+    { to: '/student/attendance', label: 'Attendance',   Icon: IconClipboard },
+    { to: '/student/profile',    label: 'Profile',      Icon: IconUser },
   ],
   lecturer: [
     { to: '/lecturer',          label: 'Dashboard', Icon: IconHome },
     { to: '/lecturer/sessions', label: 'Sessions',  Icon: IconCalendar },
-    { to: '/lecturer/profile',  label: 'My Profile', Icon: IconUser },
+    { to: '/lecturer/profile',  label: 'Profile',   Icon: IconUser },
   ],
   faculty_admin: [
-    { to: '/faculty-admin',         label: 'Dashboard', Icon: IconHome },
-    { to: '/faculty-admin/units',   label: 'Units',     Icon: IconClipboard },
-    { to: '/faculty-admin/reports', label: 'Reports',   Icon: IconBarChart },
+    { to: '/faculty-admin',          label: 'Dashboard', Icon: IconHome },
+    { to: '/faculty-admin/sessions', label: 'Sessions',  Icon: IconCalendar },
+    { to: '/faculty-admin/units',    label: 'Units',     Icon: IconClipboard },
+    { to: '/faculty-admin/reports',  label: 'Reports',   Icon: IconBarChart },
   ],
   system_admin: [
     { to: '/system-admin',           label: 'Dashboard',      Icon: IconHome },
@@ -145,6 +153,31 @@ const ROLE_LABEL: Record<Role, string> = {
   system_admin:  'System Admin',
 }
 
+// Roles that work fine on mobile — students check in, lecturers run sessions.
+// FA Admin and System Admin are data-heavy desktop tools.
+const MOBILE_ROLES: Role[] = ['student', 'lecturer']
+
+// ─── Desktop-only gate ───────────────────────────────────────────────────────
+// FA Admin and System Admin see this on narrow viewports instead of a broken layout.
+
+function DesktopOnlyGate({ role }: { role: Role }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-8 text-center">
+      <div className="text-text-secondary">
+        <IconMonitor />
+      </div>
+      <div>
+        <h1 className="text-h2 font-bold text-text-primary">Desktop required</h1>
+        <p className="mt-2 max-w-sm text-body text-text-secondary">
+          The <span className="font-semibold">{ROLE_LABEL[role]}</span> portal is designed for
+          larger screens. Please open this on a laptop or desktop browser.
+        </p>
+      </div>
+      <img src="/umu-logo.png" alt="UMU" className="h-10 w-auto opacity-60" />
+    </div>
+  )
+}
+
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -153,109 +186,195 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (!user) return null
 
   const nav = NAV_BY_ROLE[user.role] ?? []
+  const isMobileRole = MOBILE_ROLES.includes(user.role)
 
+  // FA Admin / System Admin: block on narrow viewports
+  if (!isMobileRole) {
+    return (
+      <>
+        {/* Desktop layout — same as always */}
+        <div className="hidden min-h-screen bg-white md:flex">
+          {/* Sidebar */}
+          <aside className="w-[240px] shrink-0 border-r border-border bg-white flex flex-col">
+            <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
+              <img src="/umu-logo.png" alt="UMU logo" className="h-8 w-auto" />
+              <span className="text-h4 font-bold text-text-primary leading-tight">UMU Attendance</span>
+            </div>
+            <nav className="flex-1 space-y-0.5 p-3" aria-label="Main navigation">
+              {nav.map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to.split('/').length === 2}
+                  className={({ isActive }) =>
+                    `flex h-11 items-center gap-3 rounded px-3 text-body font-medium transition-colors duration-100 ${
+                      isActive ? 'bg-[#FFF4F4] text-umu-red' : 'text-text-primary hover:bg-surface-1'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={isActive ? 'text-umu-red' : 'text-text-secondary'}><Icon /></span>
+                      {label}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="border-t border-border px-4 py-3">
+              <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+              <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+              <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
+            </div>
+          </aside>
+
+          {/* Main column */}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-6">
+              <span className="text-body font-semibold text-text-secondary">
+                {user.faculty?.name ?? ROLE_LABEL[user.role]}
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className="text-body font-medium text-text-primary leading-tight">{user.fullName}</p>
+                  <p className="text-body-sm text-text-secondary">{user.email}</p>
+                </div>
+                <span className="rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary">
+                  {ROLE_LABEL[user.role]}
+                </span>
+                <button
+                  onClick={logout}
+                  aria-label="Log out"
+                  className="flex min-h-[36px] items-center gap-1.5 rounded px-3 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary"
+                >
+                  <IconLogOut />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </header>
+            <main className="flex-1 p-8">
+              <div className="mx-auto w-full max-w-[1200px]">{children}</div>
+            </main>
+          </div>
+        </div>
+
+        {/* Mobile gate */}
+        <div className="md:hidden">
+          <DesktopOnlyGate role={user.role} />
+        </div>
+      </>
+    )
+  }
+
+  // ── Student / Lecturer: full mobile + desktop layout ──
   return (
     <div className="flex min-h-screen bg-white">
 
-      {/* ── Desktop sidebar ── */}
+      {/* Desktop sidebar (hidden on mobile) */}
       <aside className="hidden w-[240px] shrink-0 border-r border-border bg-white md:flex md:flex-col">
-        {/* Logo area */}
         <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
           <img src="/umu-logo.png" alt="UMU logo" className="h-8 w-auto" />
           <span className="text-h4 font-bold text-text-primary leading-tight">UMU Attendance</span>
         </div>
-
-        {/* Nav items */}
         <nav className="flex-1 space-y-0.5 p-3" aria-label="Main navigation">
           {nav.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}
-              end={to === `/${user.role.replace('_', '-')}`}
+              end={to.split('/').length === 2}
               className={({ isActive }) =>
                 `flex h-11 items-center gap-3 rounded px-3 text-body font-medium transition-colors duration-100 ${
-                  isActive
-                    ? 'bg-[#FFF4F4] text-umu-red'
-                    : 'text-text-primary hover:bg-surface-1'
+                  isActive ? 'bg-[#FFF4F4] text-umu-red' : 'text-text-primary hover:bg-surface-1'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <span className={isActive ? 'text-umu-red' : 'text-text-secondary'}>
-                    <Icon />
-                  </span>
+                  <span className={isActive ? 'text-umu-red' : 'text-text-secondary'}><Icon /></span>
                   {label}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
-
-        {/* Sidebar footer: user info */}
         <div className="border-t border-border px-4 py-3">
-          <p className="text-body-sm font-medium text-text-primary truncate">{user.fullName}</p>
-          <p className="text-body-sm text-text-secondary truncate">{ROLE_LABEL[user.role]}</p>
+          <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+          <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+          <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
         </div>
       </aside>
 
-      {/* ── Main column ── */}
+      {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
 
         {/* Top header */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-5 md:px-6">
-          {/* Left: title (mobile shows UMU wordmark, desktop shows faculty/role) */}
-          <div className="flex items-center gap-2">
-            <img src="/umu-logo.png" alt="UMU" className="h-7 w-auto md:hidden" />
-            <span className="text-body font-semibold text-text-secondary md:block hidden">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-white px-4 md:h-16 md:px-6">
+          {/* Mobile: logo + app name. Desktop: faculty/role label */}
+          <div className="flex items-center gap-2.5">
+            <img src="/umu-logo.png" alt="UMU" className="h-7 w-auto" />
+            <span className="text-body font-bold text-text-primary md:hidden">UMU Attendance</span>
+            <span className="hidden text-body font-semibold text-text-secondary md:block">
               {user.faculty?.name ?? ROLE_LABEL[user.role]}
             </span>
           </div>
 
-          {/* Right: user + logout */}
+          {/* Right: desktop shows name + role + logout; mobile shows just logout icon */}
           <div className="flex items-center gap-2">
-            <div className="hidden text-right sm:block">
+            <div className="hidden text-right md:block">
               <p className="text-body font-medium text-text-primary leading-tight">{user.fullName}</p>
               <p className="text-body-sm text-text-secondary">{user.email}</p>
             </div>
-            <span className="hidden rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary sm:inline">
+            <span className="hidden rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary md:inline">
               {ROLE_LABEL[user.role]}
             </span>
             <button
               onClick={logout}
               aria-label="Log out"
-              className="flex min-h-[36px] items-center gap-1.5 rounded px-3 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary"
+              className="flex min-h-[36px] items-center gap-1.5 rounded px-2 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary md:px-3"
             >
               <IconLogOut />
-              <span className="hidden sm:inline">Logout</span>
+              <span className="hidden md:inline">Logout</span>
             </button>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 md:p-8">
+        {/* Page content
+            — On mobile, pb-20 ensures content clears the fixed bottom nav (h-16 + safe area)
+            — On desktop, no bottom nav so normal padding */}
+        <main className="flex-1 overflow-x-hidden p-4 pb-24 md:p-8 md:pb-8">
           <div className="mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
       </div>
 
-      {/* ── Mobile bottom nav (student & lecturer only) ── */}
-      {(user.role === 'student' || user.role === 'lecturer') && (
-        <nav
-          className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-border bg-white md:hidden"
-          aria-label="Mobile navigation"
-        >
-          {nav.map(({ to, label, Icon }) => (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-text-secondary transition-colors active:bg-surface-1"
-            >
-              <Icon />
-              {label}
-            </button>
-          ))}
-        </nav>
-      )}
+      {/* ── Mobile bottom nav — fixed, only student & lecturer ── */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-border bg-white pb-safe md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Mobile navigation"
+      >
+        {nav.map(({ to, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to.split('/').length === 2}
+            onClick={() => navigate(to)}
+            className={({ isActive }) =>
+              `flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-[11px] font-medium transition-colors ${
+                isActive ? 'text-umu-red' : 'text-text-secondary'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className={`rounded-full px-4 py-1 transition-colors ${isActive ? 'bg-[#FFF4F4]' : ''}`}>
+                  <Icon />
+                </span>
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   )
 }
