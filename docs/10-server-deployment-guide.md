@@ -1,0 +1,601 @@
+# How to Deploy UMU Attendance to a Ubuntu Server
+### A step-by-step guide for beginners
+
+---
+
+## What you will end up with
+
+By the end of this guide, the UMU Attendance System will be:
+- Running on your Ubuntu server
+- Accessible from any browser on the network
+- Secured with HTTPS (padlock in the browser)
+- Automatically restarting if the server reboots
+
+---
+
+## What you need before you start
+
+| Thing | Where to get it |
+|---|---|
+| A Ubuntu Server 22.04 machine | VPS provider (Railway, DigitalOcean, Hetzner) or a physical server on campus |
+| The server's IP address | Shown in your VPS dashboard, or run `ip addr` on the server |
+| A domain name pointed at the server | Ask UMU IT to add `attendance.umu.ac.ug → your IP` in DNS |
+| SSH access to the server | Your VPS provider gives you a username + password or SSH key |
+| The Google OAuth credentials | Already set up — Client ID and Secret from Google Cloud Console |
+| A Gmail App Password for sending emails | See Step 9 below |
+
+> **What is SSH?**
+> SSH lets you control the server from your laptop by typing commands.
+> You open a terminal and connect remotely — like TeamViewer but text-only.
+
+---
+
+## Step 0 — Connect to your server
+
+On your laptop, open a terminal (Mac/Linux) or PowerShell (Windows) and type:
+
+```bash
+ssh your-username@your-server-ip
+```
+
+Example:
+```bash
+ssh ubuntu@41.210.100.50
+```
+
+It will ask for a password. Type it (nothing shows on screen while typing — that is normal). Press Enter.
+
+You are now inside the server. Every command below is typed here.
+
+---
+
+## Step 1 — Update the server
+
+Always do this first on a fresh server. It downloads security fixes.
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+> `sudo` means "run as administrator".
+> `apt` is Ubuntu's package manager (like an app store for the terminal).
+> `-y` means "yes to everything" so it doesn't ask you to confirm each package.
+
+This takes 1–3 minutes. Wait for it to finish.
+
+---
+
+## Step 2 — Install Docker
+
+Docker lets you run the app, database, and web server as isolated containers.
+Think of each container as a mini computer inside your server.
+
+```bash
+# Install required tools
+sudo apt install -y ca-certificates curl gnupg
+
+# Add Docker's official key (proves the download is genuine)
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Add Docker to the list of sources Ubuntu can install from
+echo "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list
+
+# Install Docker
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Let your user run Docker without typing sudo every time
+sudo usermod -aG docker $USER
+
+# Apply the group change (or log out and back in)
+newgrp docker
+```
+
+**Check it worked:**
+```bash
+docker --version
+```
+You should see something like: `Docker version 26.1.3`
+
+---
+
+## Step 3 — Install Git
+
+Git lets you download the project code from GitHub.
+
+```bash
+sudo apt install -y git
+```
+
+**Check it worked:**
+```bash
+git --version
+```
+
+---
+
+## Step 4 — Download the project
+
+```bash
+# Create a folder for the app
+sudo mkdir -p /var/www/umu-attendance
+sudo chown $USER:$USER /var/www/umu-attendance
+
+# Download the code from GitHub
+git clone https://github.com/edkaydev/umu-attendance-system.git /var/www/umu-attendance
+
+# Go into the project folder
+cd /var/www/umu-attendance
+```
+
+> `git clone` copies the entire project from GitHub to your server.
+> You only do this once. After that you use `git pull` to get updates.
+
+---
+
+## Step 5 — Create the environment file
+
+The `.env` file holds all your secret settings (database password, Google keys, etc.).
+It is never uploaded to GitHub — you create it fresh on each server.
+
+```bash
+cp server/.env.example server/.env
+nano server/.env
+```
+
+> `nano` is a simple text editor in the terminal.
+> Use arrow keys to move. Edit the values. When done: **Ctrl+X → Y → Enter** to save.
+
+Fill in each value:
+
+```bash
+NODE_ENV=production
+PORT=4000
+CLIENT_URL=https://attendance.umu.ac.ug
+
+# Database — change the password to something strong
+DATABASE_URL=mysql://umu_user:ChooseAStrongPassword@db:3306/umu_attendance
+
+# Google OAuth — from Google Cloud Console
+GOOGLE_CLIENT_ID=paste-your-client-id-here
+GOOGLE_CLIENT_SECRET=paste-your-client-secret-here
+GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
+
+# JWT secrets — generate these (see below)
+JWT_ACCESS_SECRET=paste-64-char-random-string-here
+JWT_REFRESH_SECRET=paste-different-64-char-random-string-here
+JWT_ACCESS_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Email — for sending attendance alerts
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=attendance@umu.ac.ug
+SMTP_PASS=paste-your-gmail-app-password-here
+ALERT_FROM_EMAIL=attendance@umu.ac.ug
+ALERT_FROM_NAME=UMU Attendance System
+
+# UMU logo path inside the container
+UMU_LOGO_PATH=/app/assets/umu-logo.png
+
+# First system admin account
+SEED_ADMIN_EMAIL=admin@umu.ac.ug
+SEED_ADMIN_NAME=System Administrator
+```
+
+**Generate the JWT secrets** (run this twice — one for each secret):
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+Copy the output and paste it as your `JWT_ACCESS_SECRET`, run again for `JWT_REFRESH_SECRET`.
+
+---
+
+## Step 6 — Update the Docker Compose database password
+
+Open the docker-compose file and match the password you chose in `.env`:
+
+```bash
+nano devops/docker-compose.yml
+```
+
+Find this section and change `StrongPassword123` to match what you put in `DATABASE_URL`:
+```yaml
+MYSQL_PASSWORD: ChooseAStrongPassword
+```
+
+Save: **Ctrl+X → Y → Enter**
+
+---
+
+## Step 7 — Install Node.js (to build the frontend)
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+**Check it worked:**
+```bash
+node --version   # should show v20.x.x
+npm --version    # should show 10.x.x
+```
+
+---
+
+## Step 8 — Build the React frontend
+
+This turns the React source code into static HTML/CSS/JS files that Nginx will serve.
+
+```bash
+cd /var/www/umu-attendance/client
+npm install
+npm run build
+cd ..
+```
+
+> `npm install` downloads all the code libraries the frontend needs.
+> `npm run build` compiles everything into the `client/dist/` folder.
+> This takes 1–2 minutes.
+
+---
+
+## Step 9 — Gmail App Password (for email alerts)
+
+The system sends email alerts when students fall below the attendance threshold.
+Gmail requires an "App Password" — a special password just for apps, not your real password.
+
+1. Go to [myaccount.google.com](https://myaccount.google.com)
+2. Click **Security** → **2-Step Verification** (must be turned on first)
+3. Scroll down → **App passwords**
+4. Select app: **Mail** → Select device: **Other** → type "UMU Attendance"
+5. Click **Generate** → copy the 16-character password
+6. Paste it as `SMTP_PASS` in your `.env` file
+
+---
+
+## Step 10 — Start the containers
+
+```bash
+cd /var/www/umu-attendance
+docker compose -f devops/docker-compose.yml up -d --build
+```
+
+> `-d` means "detached" — runs in the background so you can keep using the terminal.
+> `--build` builds the Node.js Docker image from source.
+> First time takes 3–5 minutes (downloading images).
+
+**Check everything is running:**
+```bash
+docker compose -f devops/docker-compose.yml ps
+```
+
+You should see three containers all with status `Up`:
+```
+NAME          STATUS
+umu-db        Up
+umu-app       Up
+umu-nginx     Up
+```
+
+---
+
+## Step 11 — Run database migrations
+
+This creates all the database tables the app needs.
+
+```bash
+docker compose -f devops/docker-compose.yml exec app npx prisma migrate deploy
+```
+
+> `exec app` means "run this command inside the app container".
+> `prisma migrate deploy` applies all the database schema changes.
+
+---
+
+## Step 12 — Create the first System Admin account
+
+```bash
+docker compose -f devops/docker-compose.yml exec app npm run seed:admin
+```
+
+This creates the System Admin account using the email you set in `SEED_ADMIN_EMAIL`.
+That person can now log in with their Google account.
+
+---
+
+## Step 13 — Set up SSL (HTTPS)
+
+Without this, browsers will show "Not Secure" and Google OAuth will not work in production.
+
+First, make sure your domain (`attendance.umu.ac.ug`) is pointing to this server's IP.
+You can check with:
+```bash
+ping attendance.umu.ac.ug
+```
+It should return your server's IP address. If not, DNS hasn't updated yet — wait 10–30 minutes and try again.
+
+Once DNS works:
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d attendance.umu.ac.ug
+```
+
+Certbot will ask for your email and ask you to agree to terms. Type `Y` and press Enter.
+It automatically gets a free SSL certificate and configures Nginx.
+
+**Auto-renewal** (certificates expire every 90 days — this renews them automatically):
+```bash
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+```
+
+---
+
+## Step 14 — Update Google OAuth for production
+
+Go back to Google Cloud Console → your OAuth client → add the production URLs:
+
+**Authorised JavaScript origins:**
+```
+https://attendance.umu.ac.ug
+```
+
+**Authorised redirect URIs:**
+```
+https://attendance.umu.ac.ug/api/auth/google/callback
+```
+
+Also update your `.env`:
+```bash
+nano server/.env
+```
+Change:
+```bash
+CLIENT_URL=https://attendance.umu.ac.ug
+GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
+```
+
+Then restart the app container to pick up the new `.env`:
+```bash
+docker compose -f devops/docker-compose.yml restart app
+```
+
+---
+
+## Step 15 — Open the app
+
+Go to `https://attendance.umu.ac.ug` in your browser.
+
+You should see the UMU Attendance login page. Sign in with the System Admin Google account.
+
+**First things to do after logging in:**
+1. Settings → Set the current Academic Year and Semester
+2. Settings → Enable profile editing for students and lecturers
+3. Academic Setup → Create Faculty, Programmes, Course Units
+4. Users → Import Staff → upload CSV with lecturers and faculty admins
+5. Faculty Admins log in → assign lecturers to units
+6. Students log in → complete their profiles → auto-enrolled
+
+---
+
+## How to update the app when you push new code
+
+Every time you push changes to GitHub, run this on the server:
+
+```bash
+cd /var/www/umu-attendance
+
+# Pull the latest code
+git pull origin main
+
+# Rebuild the frontend
+cd client && npm install && npm run build && cd ..
+
+# Restart the containers with the new code
+docker compose -f devops/docker-compose.yml up -d --build
+
+# Apply any new database changes
+docker compose -f devops/docker-compose.yml exec app npx prisma migrate deploy
+```
+
+Or use the deploy script:
+```bash
+bash devops/scripts/deploy.sh
+```
+
+---
+
+## Useful commands — day to day
+
+```bash
+# See if all containers are running
+docker compose -f devops/docker-compose.yml ps
+
+# Watch live logs from the app (Ctrl+C to stop)
+docker compose -f devops/docker-compose.yml logs -f app
+
+# Watch live logs from Nginx (web server)
+docker compose -f devops/docker-compose.yml logs -f nginx
+
+# Restart just the app (after changing .env)
+docker compose -f devops/docker-compose.yml restart app
+
+# Stop everything
+docker compose -f devops/docker-compose.yml down
+
+# Start everything again
+docker compose -f devops/docker-compose.yml up -d
+
+# Get inside the app container (like SSH but into Docker)
+docker compose -f devops/docker-compose.yml exec app sh
+```
+
+---
+
+## Database backup
+
+Run this any time you want to save a copy of your data:
+
+```bash
+bash devops/scripts/backup-db.sh
+```
+
+Backups are saved to `/var/backups/umu-attendance/`. The last 30 are kept automatically.
+
+**Schedule automatic daily backup at 2am:**
+```bash
+crontab -e
+```
+Add this line at the bottom:
+```
+0 2 * * * /var/www/umu-attendance/devops/scripts/backup-db.sh
+```
+Save: **Ctrl+X → Y → Enter**
+
+---
+
+## Troubleshooting
+
+### "Cannot connect to server" / site not loading
+```bash
+# Check all containers are up
+docker compose -f devops/docker-compose.yml ps
+
+# Check for errors in the app
+docker compose -f devops/docker-compose.yml logs app --tail=50
+```
+
+---
+
+### "502 Bad Gateway" in the browser
+The Node.js app crashed. Check why:
+```bash
+docker compose -f devops/docker-compose.yml logs app --tail=100
+```
+Common causes: wrong `DATABASE_URL`, missing `.env` values, bad JWT secret.
+Fix the `.env` then restart:
+```bash
+docker compose -f devops/docker-compose.yml restart app
+```
+
+---
+
+### "redirect_uri_mismatch" on Google login
+The URL in your `.env` doesn't match what's registered in Google Console.
+
+Check your `.env`:
+```bash
+grep GOOGLE_CALLBACK_URL server/.env
+```
+Make sure it exactly matches the URI in Google Cloud Console → Clients → your client → Authorised redirect URIs.
+
+---
+
+### "Access denied" when logging in
+The Google account is not in the database. Either:
+- The email domain is wrong (must be `@umu.ac.ug` or `@stud.umu.ac.ug`)
+- Staff account hasn't been imported yet (System Admin needs to import staff CSV)
+- Account is deactivated (System Admin → Users → reactivate)
+
+---
+
+### Google login works but redirects back to login page
+Usually a cookie problem. Check:
+```bash
+grep CLIENT_URL server/.env
+```
+It must be `https://` not `http://` in production, and must match the exact domain.
+
+---
+
+### Database connection error
+```bash
+# Check the database container is healthy
+docker compose -f devops/docker-compose.yml ps db
+
+# Check db logs
+docker compose -f devops/docker-compose.yml logs db --tail=30
+```
+Common cause: `DATABASE_URL` password doesn't match `MYSQL_PASSWORD` in docker-compose.yml.
+
+---
+
+### Emails not sending
+```bash
+docker compose -f devops/docker-compose.yml logs app | grep -i smtp
+```
+Common causes:
+- `SMTP_PASS` is your real Gmail password instead of an App Password
+- 2-Step Verification not enabled on the Gmail account (required for App Passwords)
+- Firewall blocking port 587 — check with `telnet smtp.gmail.com 587`
+
+---
+
+### PDF download not working / shows error
+```bash
+docker compose -f devops/docker-compose.yml logs app | grep -i puppet
+```
+Common cause: Chromium not installed in the Docker image.
+Check your `Dockerfile` includes:
+```dockerfile
+RUN apt-get install -y chromium
+```
+
+---
+
+### "No space left on device"
+Docker images and logs fill up disk over time. Clean up:
+```bash
+# Remove unused Docker images and containers
+docker system prune -f
+
+# Check disk usage
+df -h
+```
+
+---
+
+### Container keeps restarting
+```bash
+docker compose -f devops/docker-compose.yml logs app --tail=20
+```
+Look for the error on the last line before it crashed. Usually a missing `.env` variable or database not ready yet.
+
+---
+
+### How to check server disk / memory
+
+```bash
+# Disk space
+df -h
+
+# Memory usage
+free -h
+
+# CPU and running processes
+top
+# Press Q to quit top
+```
+
+---
+
+## Quick reference card
+
+| Task | Command |
+|---|---|
+| Connect to server | `ssh ubuntu@your-ip` |
+| Go to project folder | `cd /var/www/umu-attendance` |
+| Check containers | `docker compose -f devops/docker-compose.yml ps` |
+| View app logs | `docker compose -f devops/docker-compose.yml logs -f app` |
+| Restart app | `docker compose -f devops/docker-compose.yml restart app` |
+| Deploy update | `bash devops/scripts/deploy.sh` |
+| Backup database | `bash devops/scripts/backup-db.sh` |
+| Check disk space | `df -h` |
+| Edit env file | `nano server/.env` |
