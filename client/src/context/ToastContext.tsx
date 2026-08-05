@@ -41,16 +41,31 @@ let nextId = 1
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
+  // Deduplication: track recently shown messages so the same error
+  // from a retry storm or multiple components can't stack endlessly.
+  const recentKeys = new Set<string>()
+
   const dismiss = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
   const toast = useCallback(
     (type: ToastType, message: string) => {
+      // Deduplicate: ignore if the same type+message was shown in the last 3s
+      const key = `${type}::${message}`
+      if (recentKeys.has(key)) return
+      recentKeys.add(key)
+      setTimeout(() => recentKeys.delete(key), 3000)
+
       const id = nextId++
-      setToasts((prev) => [...prev, { id, type, message }])
+      setToasts((prev) => {
+        // Also cap at 5 visible toasts — oldest gets dropped if we overflow
+        const next = [...prev, { id, type, message }]
+        return next.length > 5 ? next.slice(next.length - 5) : next
+      })
       setTimeout(() => dismiss(id), 4000)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dismiss]
   )
 
@@ -70,8 +85,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className={`pointer-events-auto flex items-start gap-2 rounded border border-border border-l-4 bg-white p-3.5 shadow-md ${borderByType[t.type]}`}
             onClick={() => dismiss(t.id)}
+            role="alert"
           >
-            <span>{iconByType[t.type]}</span>
+            <span aria-hidden="true">{iconByType[t.type]}</span>
             <span className="text-sm text-text-primary">{t.message}</span>
           </div>
         ))}
