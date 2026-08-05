@@ -96,13 +96,14 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
 
     let user = await prisma.user.findUnique({ where: { email } })
     if (!user) {
+      const needsProfile = role === 'student' || role === 'lecturer'
       user = await prisma.user.create({
         data: {
           googleId: `dev-${role}-${crypto.randomUUID()}`,
           email,
           fullName: `Dev ${role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`,
           role,
-          profileComplete: false,
+          profileComplete: !needsProfile,
           isActive: true,
         },
       })
@@ -110,6 +111,14 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
 
     if (role !== user.role) {
       user = await prisma.user.update({ where: { id: user.id }, data: { role } })
+    }
+
+    const needsProfile = user.role === 'student' || user.role === 'lecturer'
+    if (!needsProfile && !user.profileComplete) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { profileComplete: true },
+      })
     }
 
     const redirect = await finalizeLogin(
