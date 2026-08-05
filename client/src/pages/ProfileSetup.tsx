@@ -24,7 +24,7 @@ const SEMESTER_OPTIONS = [
   { value: '2', label: 'Semester 2' },
 ]
 
-export default function ProfileSetup() {
+export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const { user, refresh } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -44,10 +44,29 @@ export default function ProfileSetup() {
   useEffect(() => {
     profileApi
       .options()
-      .then(setOptions)
+      .then((opts) => {
+        setOptions(opts)
+        if (edit && user) {
+          setFacultyId(user.facultyId ?? '')
+          setProgrammeId(user.programmeId ?? '')
+          setYear(user.year ? String(user.year) : '')
+          setSemester(user.semester ? String(user.semester) : '')
+          if (user.academicYear) setAcademicYear(user.academicYear)
+          setRegNumber(user.regNumber ?? '')
+          if (user.facultyId) {
+            for (const c of opts.campuses) {
+              if (c.faculties.some((f) => f.id === user.facultyId)) {
+                setCampusId(c.id)
+                break
+              }
+            }
+          }
+        }
+      })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false))
-  }, [toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit])
 
   const isStudent = user?.role === 'student'
 
@@ -92,7 +111,7 @@ export default function ProfileSetup() {
       }
       setSaving(true)
       try {
-        await profileApi.complete(data)
+        await (edit ? profileApi.update(data) : profileApi.complete(data))
         await refresh()
         toast.success('Profile saved')
         navigate('/student')
@@ -108,7 +127,7 @@ export default function ProfileSetup() {
       }
       setSaving(true)
       try {
-        await profileApi.complete({ facultyId })
+        await (edit ? profileApi.update({ facultyId }) : profileApi.complete({ facultyId }))
         await refresh()
         toast.success('Profile saved')
         navigate('/lecturer')
@@ -124,7 +143,9 @@ export default function ProfileSetup() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
       <div className="w-full max-w-lg">
         <h1 className="text-h1 font-bold text-text-primary">Welcome, {user?.fullName}!</h1>
-        <p className="mt-1 mb-6 text-body-lg text-text-secondary">Complete your profile to continue.</p>
+        <p className="mt-1 mb-6 text-body-lg text-text-secondary">
+          {edit ? 'Update your academic details — your enrolled units will be recalculated.' : 'Complete your profile to continue.'}
+        </p>
 
         <Card>
           {isStudent ? (

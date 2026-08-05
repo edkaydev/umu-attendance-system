@@ -59,6 +59,15 @@ function IconUsers() {
   )
 }
 
+function IconUser() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4"/>
+      <path d="M4 21v-1a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v1"/>
+    </svg>
+  )
+}
+
 function IconBuilding() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -108,10 +117,12 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   student: [
     { to: '/student',            label: 'Dashboard',    Icon: IconHome },
     { to: '/student/attendance', label: 'My Attendance', Icon: IconClipboard },
+    { to: '/student/profile',    label: 'My Profile',   Icon: IconUser },
   ],
   lecturer: [
     { to: '/lecturer',          label: 'Dashboard', Icon: IconHome },
     { to: '/lecturer/sessions', label: 'Sessions',  Icon: IconCalendar },
+    { to: '/lecturer/profile',  label: 'My Profile', Icon: IconUser },
   ],
   faculty_admin: [
     { to: '/faculty-admin',         label: 'Dashboard', Icon: IconHome },

@@ -82,6 +82,18 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            <Route
+              path="/student/profile"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['student']}>
+                    <AppLayout>
+                      <ProfileSetup edit />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
 
             {/* Lecturer */}
             <Route
@@ -91,6 +103,18 @@ export default function App() {
                   <RequireRole roles={['lecturer']}>
                     <AppLayout>
                       <LecturerDashboard />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/lecturer/profile"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['lecturer']}>
+                    <AppLayout>
+                      <ProfileSetup edit />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

@@ -53,6 +53,8 @@ export const profileApi = {
   },
   complete: (data: StudentProfileInput | { facultyId: string }) =>
     http.put<{ message: string }>('/api/profile/complete', data),
+  update: (data: StudentProfileInput | { facultyId: string }) =>
+    http.put<{ message: string }>('/api/profile', data),
 }
 
 // ─── Attendance / Check-in ───
