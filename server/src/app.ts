@@ -15,6 +15,7 @@ import alertRoutes from './routes/alert.routes'
 import dashboardRoutes from './routes/dashboard.routes'
 import reportRoutes from './routes/report.routes'
 import auditLogRoutes from './routes/audit-log.routes'
+import settingsRoutes from './routes/settings.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
 
 const app = express()
@@ -48,6 +49,7 @@ app.use('/api/alerts', alertRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/audit-logs', auditLogRoutes)
+app.use('/api/settings', settingsRoutes)
 
 // 404 + global error handler (must be last)
 app.use(notFoundHandler)

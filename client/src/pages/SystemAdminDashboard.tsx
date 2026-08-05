@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardApi } from '../api/endpoints'
+import { dashboardApi, settingsApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
@@ -84,6 +84,8 @@ export default function SystemAdminDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<DashData | null>(null)
+  const [profileEditing, setProfileEditing] = useState<boolean | null>(null)
+  const [toggling, setToggling] = useState(false)
 
   useEffect(() => {
     dashboardApi
@@ -92,7 +94,25 @@ export default function SystemAdminDashboard() {
       .catch((e) =>
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
       )
+    settingsApi
+      .profileEditing()
+      .then(setProfileEditing)
+      .catch(() => setProfileEditing(true))
   }, [toast])
+
+  async function toggleProfileEditing() {
+    if (profileEditing === null) return
+    setToggling(true)
+    try {
+      const res = await settingsApi.setProfileEditing(!profileEditing)
+      setProfileEditing(res.enabled)
+      toast.success(res.message)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update setting')
+    } finally {
+      setToggling(false)
+    }
+  }
 
   if (!data) {
     return (
@@ -126,6 +146,37 @@ export default function SystemAdminDashboard() {
           sub={data.overview.activeSessionsToday > 0 ? 'Live' : 'None active'}
         />
       </div>
+
+      {/* ── System settings ── */}
+      <section>
+        <h2 className="mb-3 text-h4 font-semibold text-text-primary">System Settings</h2>
+        <Card noPadding>
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+            <div className="min-w-0">
+              <p className="text-body font-semibold text-text-primary">Profile editing</p>
+              <p className="mt-0.5 text-body-sm text-text-secondary">
+                {profileEditing
+                  ? 'Users can edit their own profiles. Toggle off to freeze all profile edits (e.g. during registration).'
+                  : 'Profile editing is frozen. Students and lecturers cannot change their academic details.'}
+              </p>
+            </div>
+            <button
+              onClick={toggleProfileEditing}
+              disabled={profileEditing === null || toggling}
+              aria-pressed={profileEditing === true}
+              className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 ${
+                profileEditing === false ? 'bg-text-disabled' : 'bg-success'
+              } disabled:opacity-60`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-150 ${
+                  profileEditing === false ? 'translate-x-0.5' : 'translate-x-[26px]'
+                }`}
+              />
+            </button>
+          </div>
+        </Card>
+      </section>
 
       {/* ── Quick actions ── */}
       <section>

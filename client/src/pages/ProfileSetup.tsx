@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { profileApi, StudentProfileInput, ProfileOptions } from '../api/endpoints'
+import { profileApi, StudentProfileInput, ProfileOptions, settingsApi } from '../api/endpoints'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -32,6 +32,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [editingDisabled, setEditingDisabled] = useState(false)
 
   const [campusId, setCampusId] = useState('')
   const [facultyId, setFacultyId] = useState('')
@@ -40,6 +41,15 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [semester, setSemester] = useState('')
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[1].value)
   const [regNumber, setRegNumber] = useState('')
+
+  useEffect(() => {
+    if (edit) {
+      settingsApi
+        .profileEditing()
+        .then((enabled) => setEditingDisabled(!enabled))
+        .catch(() => setEditingDisabled(false))
+    }
+  }, [edit])
 
   useEffect(() => {
     profileApi
@@ -95,6 +105,10 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   }
 
   async function handleSubmit() {
+    if (editingDisabled) {
+      toast.error('Profile editing is currently disabled by the System Admin')
+      return
+    }
     if (isStudent) {
       if (!campusId || !facultyId || !programmeId || !year || !semester || !regNumber.trim()) {
         toast.error('Please complete all fields')
@@ -148,6 +162,12 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         </p>
 
         <Card>
+          {editingDisabled && (
+            <div className="mb-4 rounded border border-warning-border bg-warning-light px-4 py-3 text-body-sm text-warning">
+              Profile editing is currently disabled by the System Admin. Your academic details are
+              frozen until it is re-enabled.
+            </div>
+          )}
           {isStudent ? (
             <>
               <Select
@@ -207,7 +227,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
             </>
           )}
 
-          <Button fullWidth loading={saving} onClick={handleSubmit}>
+          <Button fullWidth loading={saving} disabled={editingDisabled} onClick={handleSubmit}>
             Save &amp; Continue
           </Button>
         </Card>

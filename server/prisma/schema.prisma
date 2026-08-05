@@ -297,3 +297,11 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model SystemSetting {
+  key       String   @id @db.VarChar(50)
+  value     String   @db.VarChar(100)
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}

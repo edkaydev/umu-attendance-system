@@ -353,3 +353,13 @@ export const auditLogApi = {
     )
   },
 }
+
+// ─── System settings ───
+export const settingsApi = {
+  profileEditing: async () => {
+    const res = await http.get<{ enabled: boolean }>('/api/settings/profile-editing')
+    return res.enabled
+  },
+  setProfileEditing: (enabled: boolean) =>
+    http.patch<{ enabled: boolean; message: string }>('/api/settings/profile-editing', { enabled }),
+}
