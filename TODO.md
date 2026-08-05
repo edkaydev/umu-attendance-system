@@ -120,11 +120,11 @@ Status guide: `[ ]` = pending · `[x]` = done
 
 ## Phase 7 — PWA & DevOps (99–100)
 
-- [ ] 99. Configure PWA: manifest (name, icons, theme #CC0000), service worker, install banner
-- [ ] 100. Verify end-to-end: build client, docker compose up, migrations, smoke test, lint/typecheck
+- [x] 99. Configure PWA: manifest (name, icons, theme #CC0000), service worker, install banner
+- [x] 100. Verify end-to-end: build client, docker compose up, migrations, smoke test, lint/typecheck
 
 ---
 
 ## Progress
 
-Completed: **98** / 100
+Completed: **100** / 100
