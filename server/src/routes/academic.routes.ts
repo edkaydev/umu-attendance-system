@@ -24,6 +24,7 @@ import {
   getOptions,
   importStructure,
   importStaff,
+  importStudents,
   campusSchema,
   facultySchema,
   programmeSchema,
@@ -77,5 +78,6 @@ router.delete('/curriculum/:id', authenticate, adminOnly, deleteCurriculum)
 // CSV imports
 router.post('/import/structure', authenticate, adminOnly, upload.single('file'), importStructure)
 router.post('/import/staff', authenticate, adminOnly, upload.single('file'), importStaff)
+router.post('/import/students', authenticate, adminOnly, upload.single('file'), importStudents)
 
 export default router

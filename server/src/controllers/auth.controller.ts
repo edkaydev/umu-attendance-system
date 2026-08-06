@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import passport from 'passport'
 import crypto from 'crypto'
+import { z } from 'zod'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import {
@@ -8,12 +9,30 @@ import {
   refreshSession,
   logoutSession,
   getCurrentUser,
+  loginWithPassword,
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
 import { prisma } from '../config/db'
 
 const OAUTH_SCOPES = ['profile', 'email']
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email').max(150),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+})
+
+/** POST /api/auth/login — sign in with email + password. */
+export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { email, password } = loginSchema.parse(req.body)
+    const user = await loginWithPassword(email, password)
+    const redirect = await finalizeLogin(user, res)
+    ok(res, { user: await getCurrentUser(user.id), redirect })
+  } catch (error) {
+    next(error)
+  }
+}
 
 /** GET /api/auth/google — start the OAuth flow (redirect to Google). */
 export function googleRedirect(req: Request, res: Response, next: NextFunction): void {

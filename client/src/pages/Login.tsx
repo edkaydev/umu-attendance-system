@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { GuestOnly } from '../components/RouteGuards'
 import { authApi } from '../api/endpoints'
+import { ApiClientError } from '../api/client'
 import type { Role } from '../types'
 
 const DEV_ROLES: { role: Role; label: string }[] = [
@@ -11,19 +12,37 @@ const DEV_ROLES: { role: Role; label: string }[] = [
 ]
 
 export default function Login() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loggingIn, setLoggingIn] = useState(false)
   const [devError, setDevError] = useState<string | null>(null)
-  const [loggingIn, setLoggingIn] = useState<Role | null>(null)
+  const [devLoggingIn, setDevLoggingIn] = useState<Role | null>(null)
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setLoggingIn(true)
+    try {
+      const res = await authApi.login(email.trim(), password)
+      window.location.assign(res.redirect)
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Login failed. Please try again.')
+    } finally {
+      setLoggingIn(false)
+    }
+  }
 
   async function devLogin(role: Role) {
     setDevError(null)
-    setLoggingIn(role)
+    setDevLoggingIn(role)
     try {
       const res = await authApi.devLogin(role)
       window.location.assign(res.redirect)
     } catch {
       setDevError('Dev login failed. Is the server running in development mode?')
     } finally {
-      setLoggingIn(null)
+      setDevLoggingIn(null)
     }
   }
 
@@ -36,10 +55,53 @@ export default function Login() {
         <h1 className="text-h1 font-bold text-text-primary">Uganda Martyrs University</h1>
         <p className="mt-1 text-h3 text-text-secondary">Attendance System</p>
 
+        {/* Email + password sign in */}
+        <form
+          onSubmit={handleLogin}
+          className="mt-10 w-full max-w-sm rounded-md border border-border bg-surface-1 p-6"
+        >
+          <label className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
+            Email
+          </label>
+          <input
+            type="email"
+            required
+            autoComplete="username"
+            placeholder="name@umu.ac.ug"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mb-4 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+          />
+
+          <label className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
+            Password
+          </label>
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mb-2 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+          />
+
+          {error && <p className="mb-2 text-center text-body-sm text-danger">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loggingIn}
+            className="mt-4 min-h-[48px] w-full rounded bg-umu-red px-8 py-3 text-body-lg font-semibold text-white transition-colors duration-150 hover:bg-umu-red-dark disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loggingIn ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
         {/* Google sign-in — no shadow, just border (Google I/O style) */}
         <a
           href="/api/auth/google"
-          className="mt-10 inline-flex min-h-[48px] items-center gap-3 rounded border border-border bg-white px-8 py-3 text-body-lg font-medium text-text-primary transition-colors duration-150 hover:bg-surface-1 active:bg-surface-2"
+          className="mt-4 inline-flex min-h-[48px] items-center gap-3 rounded border border-border bg-white px-8 py-3 text-body-lg font-medium text-text-primary transition-colors duration-150 hover:bg-surface-1 active:bg-surface-2"
         >
           {/* Official Google G SVG */}
           <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
@@ -62,10 +124,10 @@ export default function Login() {
                 <button
                   key={role}
                   onClick={() => devLogin(role)}
-                  disabled={loggingIn !== null}
+                  disabled={devLoggingIn !== null}
                   className="min-h-[40px] rounded border border-umu-red bg-white px-4 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loggingIn === role ? 'Signing in…' : `Login as ${label}`}
+                  {devLoggingIn === role ? 'Signing in…' : `Login as ${label}`}
                 </button>
               ))}
             </div>

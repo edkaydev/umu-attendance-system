@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/role'
 import {
   getUsers,
   getUserById,
+  createUserController,
   deactivateUser,
   activateUser,
   updateUserRole,
@@ -15,6 +16,7 @@ const router = Router()
 const adminOnly = requireRole('system_admin')
 
 router.get('/',                     authenticate, adminOnly, getUsers)
+router.post('/',                    authenticate, adminOnly, createUserController)
 router.get('/:id',                  authenticate, adminOnly, getUserById)
 router.patch('/:id',                authenticate, adminOnly, updateUserController)
 router.patch('/:id/deactivate',     authenticate, adminOnly, deactivateUser)

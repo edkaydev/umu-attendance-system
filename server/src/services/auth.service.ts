@@ -4,6 +4,8 @@ import { prisma } from '../config/db'
 import { signAccessToken, setAuthCookies, clearAuthCookies } from './jwt.service'
 import { createRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from './refresh-token.service'
 import { ApiError } from '../utils/apiResponse'
+import { verifyPassword } from '../utils/password'
+import { roleMatchesEmail } from '../utils/domain'
 
 const DASHBOARD_BY_ROLE: Record<Role, string> = {
   student: '/student',
@@ -74,6 +76,27 @@ export async function refreshSession(rawRefreshToken: string, res: Response): Pr
 export async function logoutSession(userId: string, res: Response): Promise<void> {
   await revokeAllRefreshTokens(userId)
   clearAuthCookies(res)
+}
+
+/**
+ * Verify email + password and return the account for session creation.
+ * Rejects wrong credentials, disabled accounts, and emails whose domain does
+ * not match the account's role (students must be @stud.umu.ac.ug).
+ */
+export async function loginWithPassword(email: string, password: string): Promise<AuthUser> {
+  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+
+  if (!user?.password || !(await verifyPassword(password, user.password))) {
+    throw new ApiError('Invalid email or password', 401)
+  }
+  if (!user.isActive) {
+    throw new ApiError('Account is disabled', 403)
+  }
+  if (!roleMatchesEmail(user.role, user.email)) {
+    throw new ApiError('This email cannot sign in to this account type', 403)
+  }
+
+  return { id: user.id, email: user.email, role: user.role, profileComplete: user.profileComplete }
 }
 
 /** Full profile for the /auth/me endpoint. */

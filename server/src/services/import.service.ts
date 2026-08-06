@@ -2,6 +2,8 @@ import { parse } from 'csv-parse/sync'
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { hashPassword } from '../utils/password'
+import { roleMatchesEmail } from '../utils/domain'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 
@@ -169,7 +171,8 @@ async function importCurriculumRow(row: Row): Promise<void> {
 
 /**
  * Import staff accounts from CSV (FR-03.6).
- * Columns: name, email, role (lecturer | faculty_admin)
+ * Columns: name, email, role (lecturer | faculty_admin), password (optional).
+ * A missing password means the account can only sign in with Google.
  */
 export async function importStaff(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -188,27 +191,114 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
       const name = row['name']
       const email = row['email']?.trim().toLowerCase()
       const roleRaw = normalizeCode(row['role'])
+      const plainPassword = row['password']?.trim()
 
       if (!name || !email) throw new Error('Missing name or email')
       if (!email.endsWith('@umu.ac.ug')) {
         throw new Error(`Email must be @umu.ac.ug`)
       }
+      if (plainPassword && plainPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters')
+      }
 
       const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
       if (!role) throw new Error('Role must be "lecturer" or "faculty_admin"')
 
-      await prisma.user.upsert({
-        where: { email },
-        create: {
-          googleId: `import:${email}`,
-          email,
-          fullName: name,
-          role,
-          profileComplete: false,
-          isActive: true,
-        },
-        update: { fullName: name, role, isActive: true },
-      })
+      const existing = await prisma.user.findUnique({ where: { email } })
+
+      if (existing) {
+        await prisma.user.update({
+          where: { email },
+          data: {
+            fullName: name,
+            role,
+            isActive: true,
+            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+          },
+        })
+      } else {
+        await prisma.user.create({
+          data: {
+            email,
+            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            fullName: name,
+            role,
+            profileComplete: false,
+            isActive: true,
+          },
+        })
+      }
+      result.imported++
+    } catch (error) {
+      result.failed++
+      result.errors.push({ row: line, message: (error as Error).message })
+    }
+  }
+
+  return result
+}
+
+/**
+ * Import student accounts from CSV.
+ * Columns: name, email, regNumber (optional), password (optional).
+ * Emails must end in @stud.umu.ac.ug. Students complete their academic
+ * profile (campus/faculty/programme) on first login.
+ */
+export async function importStudents(buffer: Buffer): Promise<ImportResult> {
+  const result: ImportResult = { imported: 0, failed: 0, errors: [] }
+
+  let rows: Row[]
+  try {
+    rows = parseCsv(buffer)
+  } catch (error) {
+    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const line = i + 2
+    try {
+      const name = row['name']
+      const email = row['email']?.trim().toLowerCase()
+      const regNumber = row['regNumber']?.trim()
+      const plainPassword = row['password']?.trim()
+
+      if (!name || !email) throw new Error('Missing name or email')
+      if (!email.endsWith('@stud.umu.ac.ug')) {
+        throw new Error(`Email must be @stud.umu.ac.ug`)
+      }
+      if (plainPassword && plainPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters')
+      }
+
+      const existing = await prisma.user.findUnique({ where: { email } })
+
+      if (existing) {
+        if (!roleMatchesEmail(existing.role, email)) {
+          throw new Error('Email is already used by a non-student account')
+        }
+        await prisma.user.update({
+          where: { email },
+          data: {
+            fullName: name,
+            ...(regNumber ? { regNumber } : {}),
+            isActive: true,
+            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+          },
+        })
+      } else {
+        await prisma.user.create({
+          data: {
+            email,
+            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            fullName: name,
+            role: Role.student,
+            profileComplete: false,
+            isActive: true,
+            ...(regNumber ? { regNumber } : {}),
+          },
+        })
+      }
       result.imported++
     } catch (error) {
       result.failed++

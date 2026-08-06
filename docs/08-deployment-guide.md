@@ -170,8 +170,11 @@ docker compose exec app npx prisma migrate deploy
 docker compose exec app npm run seed:admin
 ```
 
-Creates the first System Admin account using `SEED_ADMIN_EMAIL` from `server/.env`. After
-this, log in and set the current period (`Settings → Current Period`) before any other setup.
+Creates the first System Admin account using `SEED_ADMIN_EMAIL` /
+`SEED_ADMIN_PASSWORD` from `server/.env` (default `edwardadmin@umu.ac.ug`). The
+login page has an email + password form, so the admin signs in without Google.
+After logging in, set the current period (`Settings → Current Period`) before any
+other setup.
 
 ---
 
@@ -291,6 +294,11 @@ server {
 > domain/IP, just **add** the new ones — keep the old ones so the previous deployment
 > keeps working.
 
+> **Google is optional.** Every account can sign in with email + password instead, so the
+> app works even while the UMU Workspace admin hasn't approved the Google app. Students
+> use `@stud.umu.ac.ug` accounts, staff use `@umu.ac.ug`. Accounts are created by the
+> System Admin (User Management → Add User, or CSV imports on the Import page).
+
 ---
 
 ## Deploy Script (`devops/scripts/deploy.sh`)
@@ -363,7 +371,7 @@ Google login failure.
 | 3 | **Nginx config** (`devops/nginx/umu-attendance.conf`) | `server_name` on both server blocks, and both `ssl_certificate`/`ssl_certificate_key` paths → `YOUR-DOMAIN`. |
 | 4 | **`server/.env`** | `CLIENT_URL=https://YOUR-DOMAIN` and `GOOGLE_CALLBACK_URL=https://YOUR-DOMAIN/api/auth/google/callback` |
 | 5 | **Google Cloud Console** | Add `https://YOUR-DOMAIN` to **Authorised JavaScript origins** and `https://YOUR-DOMAIN/api/auth/google/callback` to **Authorised redirect URIs** (old ones can stay). |
-| 6 | **Environment files** | On a new server, `.env` and `server/.env` are created fresh from the `.example` files — nothing is committed to GitHub. Set a new strong database password and new JWT secrets. |
+| 6 | **Environment files** | On a new server, `.env` and `server/.env` are created fresh from the `.example` files — nothing is committed to GitHub. Set a new strong database password, new JWT secrets, and `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. |
 
 Quick search for leftover references to the old domain:
 ```bash
@@ -377,11 +385,12 @@ grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-di
 
 ## After First Deploy — System Admin Checklist
 
-1. Log in with System Admin Google account
+1. Log in with the System Admin account (`edwardadmin@umu.ac.ug` + `SEED_ADMIN_PASSWORD`)
 2. **Settings → Current Period** — set academic year and semester
 3. **Settings → Profile Editing** — enable for students and lecturers
 4. **Academic Setup** — create Campus, Faculty, Programmes, Course Units, Curriculum mappings
-5. **Users → Import Staff** — upload CSV with Faculty Admins and Lecturers
+5. **Users → Add User** or **CSV Imports** — create Staff (`name,email,role,password`) and
+   Student (`name,email,regNumber,password`) accounts
 6. Faculty Admins log in, complete their profiles, assign lecturers to units
 7. Students log in, complete profiles — auto-enrolled into course units
 

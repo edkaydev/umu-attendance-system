@@ -5,6 +5,7 @@ import {
   profileApi,
   ProfileOptions,
   AdminUserUpdateInput,
+  CreateUserInput,
 } from '../api/endpoints'
 import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
@@ -26,6 +27,223 @@ const ROLE_LABEL: Record<Role, string> = {
 }
 
 const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
+
+const ROLE_OPTIONS = [
+  { value: 'student',       label: 'Student' },
+  { value: 'lecturer',      label: 'Lecturer' },
+  { value: 'faculty_admin', label: 'Faculty Admin' },
+  { value: 'system_admin',  label: 'System Admin' },
+]
+
+function CreateUserModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const toast = useToast()
+  const { period: globalPeriod } = usePeriod()
+
+  const [options, setOptions] = useState<ProfileOptions | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<Role>('student')
+  const [password, setPassword] = useState('')
+  const [campusId, setCampusId] = useState('')
+  const [facultyId, setFacultyId] = useState('')
+  const [programmeId, setProgrammeId] = useState('')
+  const [year, setYear] = useState('')
+  const [regNumber, setRegNumber] = useState('')
+
+  const isStudent = role === 'student'
+  const isStaff = role === 'lecturer' || role === 'faculty_admin'
+
+  useEffect(() => {
+    profileApi
+      .options()
+      .then(setOptions)
+      .catch(() => setOptions(null))
+  }, [])
+
+  const campusFaculties = useMemo(() => {
+    if (!options) return []
+    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
+  }, [options, campusId])
+
+  const programmes = useMemo(() => {
+    if (!options) return []
+    for (const c of options.campuses) {
+      for (const f of c.faculties) {
+        if (f.id === facultyId) return f.programmes
+      }
+    }
+    return []
+  }, [options, facultyId])
+
+  const staffFaculties = useMemo(() => {
+    return options?.campuses.flatMap((c) => c.faculties) ?? []
+  }, [options])
+
+  async function handleCreate() {
+    const payload: CreateUserInput = {
+      fullName: fullName.trim(),
+      email: email.trim(),
+      role,
+      password,
+    }
+    if (!payload.fullName) return toast.error('Full name is required')
+    if (!payload.email) return toast.error('Email is required')
+    if (payload.password.length < 6) return toast.error('Password must be at least 6 characters')
+
+    if (isStudent) {
+      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
+        return toast.error('Please complete all academic fields')
+      }
+      if (!globalPeriod) {
+        return toast.error('System period not loaded yet, please wait')
+      }
+      payload.campusId = campusId
+      payload.facultyId = facultyId
+      payload.programmeId = programmeId
+      payload.year = Number(year)
+      payload.semester = globalPeriod.semester
+      payload.academicYear = globalPeriod.academicYear
+      payload.regNumber = regNumber.trim()
+    } else if (isStaff) {
+      payload.facultyId = facultyId || null
+    }
+
+    setSaving(true)
+    try {
+      await userApi.create(payload)
+      toast.success(`${fullName.trim()} created`)
+      onCreated()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to create user')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Add User">
+      <div className="space-y-4">
+        <Input label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Input
+          label="Email"
+          type="email"
+          placeholder="name@umu.ac.ug"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Select
+          label="Role"
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value as Role)
+            setCampusId('')
+            setFacultyId('')
+            setProgrammeId('')
+          }}
+          options={ROLE_OPTIONS}
+        />
+        <Input
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="At least 6 characters"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {isStudent && (
+          <>
+            {globalPeriod && (
+              <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
+                Academic period:{' '}
+                <span className="font-semibold text-text-primary">
+                  {globalPeriod.academicYear} · Semester {globalPeriod.semester}
+                </span>
+                <span className="ml-1 text-text-disabled">(from global setting)</span>
+              </div>
+            )}
+            <Select
+              label="Campus"
+              placeholder="Select campus"
+              value={campusId}
+              onChange={(e) => {
+                setCampusId(e.target.value)
+                setFacultyId('')
+                setProgrammeId('')
+              }}
+              options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+            />
+            <Select
+              label="Faculty"
+              placeholder="Select faculty"
+              value={facultyId}
+              onChange={(e) => {
+                setFacultyId(e.target.value)
+                setProgrammeId('')
+              }}
+              options={campusFaculties.map((f) => ({ value: f.id, label: f.name }))}
+            />
+            <Select
+              label="Programme"
+              placeholder="Select programme"
+              value={programmeId}
+              onChange={(e) => setProgrammeId(e.target.value)}
+              options={programmes.map((p) => ({ value: p.id, label: p.name }))}
+            />
+            <Select
+              label="Year of Study"
+              placeholder="Select"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              options={YEAR_OPTIONS}
+            />
+            <Input
+              label="Reg Number"
+              placeholder="e.g. BSCS/2024/0123"
+              value={regNumber}
+              onChange={(e) => setRegNumber(e.target.value)}
+            />
+          </>
+        )}
+
+        {isStaff && (
+          <>
+            <Select
+              label="Faculty"
+              placeholder="Select faculty"
+              value={facultyId}
+              onChange={(e) => setFacultyId(e.target.value)}
+              options={[
+                { value: '', label: 'No faculty (unassigned)' },
+                ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
+              ]}
+            />
+            <p className="text-body-sm text-text-secondary">
+              They will only be able to manage data within this faculty.
+            </p>
+          </>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={handleCreate}>
+            Create User
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
 
 function EditUserModal({
   user,
@@ -244,6 +462,9 @@ export default function UserManagement() {
   // Edit-user modal state
   const [editTarget, setEditTarget] = useState<ManagedUser | null>(null)
 
+  // Create-user modal state
+  const [creating, setCreating] = useState(false)
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   // Build query params from current filter state
@@ -325,11 +546,15 @@ export default function UserManagement() {
     <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div>
-        <h1 className="text-h1 font-bold text-text-primary">User Management</h1>
-        <p className="mt-1 text-body text-text-secondary">
-          Manage accounts, roles, and faculty assignments. Users sign in with Google OAuth.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-h1 font-bold text-text-primary">User Management</h1>
+          <p className="mt-1 text-body text-text-secondary">
+            Manage accounts, roles, and faculty assignments. Users sign in with their email
+            and password (or Google).
+          </p>
+        </div>
+        <Button onClick={() => setCreating(true)}>Add User</Button>
       </div>
 
       {/* ── Filters ── */}
@@ -530,6 +755,17 @@ export default function UserManagement() {
           onClose={() => setEditTarget(null)}
           onSaved={() => {
             setEditTarget(null)
+            reload()
+          }}
+        />
+      )}
+
+      {/* ── Add user modal ── */}
+      {creating && (
+        <CreateUserModal
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false)
             reload()
           }}
         />

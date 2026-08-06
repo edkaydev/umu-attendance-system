@@ -20,6 +20,9 @@ const TEMPLATES: Record<string, string> = {
   curriculum: 'courseUnitCode,programmeCode,year,semester,academicYear',
 }
 
+const STAFF_TEMPLATE = 'name,email,role,password'
+const STUDENT_TEMPLATE = 'name,email,regNumber,password'
+
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
     <div className="mt-4 rounded border border-border bg-surface-1 p-4">
@@ -44,11 +47,14 @@ export default function ImportData() {
   const [type, setType] = useState('faculties')
   const [file, setFile] = useState<File | null>(null)
   const [staffFile, setStaffFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState<'structure' | 'staff' | null>(null)
+  const [studentFile, setStudentFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState<'structure' | 'staff' | 'students' | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [staffResult, setStaffResult] = useState<ImportResult | null>(null)
+  const [studentResult, setStudentResult] = useState<ImportResult | null>(null)
   const structureRef = useRef<HTMLInputElement>(null)
   const staffRef = useRef<HTMLInputElement>(null)
+  const studentRef = useRef<HTMLInputElement>(null)
 
   function downloadTemplate() {
     const blob = new Blob([TEMPLATES[type] + '\n'], { type: 'text/csv' })
@@ -56,6 +62,26 @@ export default function ImportData() {
     const a = document.createElement('a')
     a.href = url
     a.download = `${type}-template.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadStaffTemplate() {
+    const blob = new Blob([STAFF_TEMPLATE + '\n'], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'staff-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadStudentTemplate() {
+    const blob = new Blob([STUDENT_TEMPLATE + '\n'], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'students-template.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -86,6 +112,23 @@ export default function ImportData() {
     try {
       const res = await importApi.staff(staffFile)
       setStaffResult(res.result)
+      toast.success('Import finished')
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function runStudents() {
+    if (!studentFile) {
+      toast.error('Choose a CSV file first')
+      return
+    }
+    setLoading('students')
+    try {
+      const res = await importApi.students(studentFile)
+      setStudentResult(res.result)
       toast.success('Import finished')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
@@ -138,8 +181,8 @@ export default function ImportData() {
 
         <Card title="Staff Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates or updates lecturer / faculty admin accounts (name, email, role). Emails must
-            end in @umu.ac.ug.
+            Creates or updates lecturer / faculty admin accounts. Emails must end in
+            @umu.ac.ug. The password column is the password staff use to sign in.
           </p>
           <input
             ref={staffRef}
@@ -151,12 +194,47 @@ export default function ImportData() {
               setStaffResult(null)
             }}
           />
-          <Button loading={loading === 'staff'} onClick={runStaff}>
-            Import Staff
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button loading={loading === 'staff'} onClick={runStaff}>
+              Import Staff
+            </Button>
+            <Button variant="secondary" onClick={downloadStaffTemplate}>
+              Download Template
+            </Button>
+          </div>
           {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
           <p className="mt-4 text-xs text-text-secondary">
-            Template columns: <code className="code-font">name,email,role</code> (role: lecturer | faculty_admin)
+            Template columns: <code className="code-font">{STAFF_TEMPLATE}</code>{' '}
+            (role: lecturer | faculty_admin)
+          </p>
+        </Card>
+
+        <Card title="Student Accounts">
+          <p className="mb-3 text-body-sm text-text-secondary">
+            Creates student accounts with the given password. Emails must end in
+            @stud.umu.ac.ug. Students complete their academic profile on first login.
+          </p>
+          <input
+            ref={studentRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
+            onChange={(e) => {
+              setStudentFile(e.target.files?.[0] ?? null)
+              setStudentResult(null)
+            }}
+          />
+          <div className="flex flex-wrap gap-3">
+            <Button loading={loading === 'students'} onClick={runStudents}>
+              Import Students
+            </Button>
+            <Button variant="secondary" onClick={downloadStudentTemplate}>
+              Download Template
+            </Button>
+          </div>
+          {studentResult && <ResultPanel result={studentResult} label="Students import" />}
+          <p className="mt-4 text-xs text-text-secondary">
+            Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code> (regNumber optional)
           </p>
         </Card>
       </div>

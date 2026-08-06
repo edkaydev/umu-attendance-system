@@ -11,6 +11,7 @@ export type AuditAction =
   | 'PDF_DOWNLOAD'
   | 'PROFILE_COMPLETE'
   | 'USER_UPDATE'
+  | 'USER_CREATE'
   | 'IMPORT'
 
 /**

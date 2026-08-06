@@ -115,8 +115,9 @@ model CurriculumUnit {
 
 model User {
   id              String   @id @default(uuid())
-  googleId        String   @unique @db.VarChar(100)
+  googleId        String?  @unique @db.VarChar(100)
   email           String   @unique @db.VarChar(150)
+  password        String?  @db.VarChar(255)
   fullName        String   @db.VarChar(100)
   role            Role
   // Faculty link (all roles except system_admin set this)

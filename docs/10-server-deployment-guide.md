@@ -191,7 +191,8 @@ ALERT_FROM_NAME=UMU Attendance System
 UMU_LOGO_PATH=/app/assets/umu-logo.png
 
 # First system admin account
-SEED_ADMIN_EMAIL=admin@umu.ac.ug
+SEED_ADMIN_EMAIL=edwardadmin@umu.ac.ug
+SEED_ADMIN_PASSWORD=choose-a-strong-password
 SEED_ADMIN_NAME=System Administrator
 ```
 
@@ -375,8 +376,14 @@ docker compose exec app npx prisma migrate deploy
 docker compose exec app npm run seed:admin
 ```
 
-This creates the System Admin account using the email you set in `SEED_ADMIN_EMAIL`.
-That person can now log in with their Google account.
+This creates the System Admin account using the email and password you set in
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (default `edwardadmin@umu.ac.ug`).
+That person signs in on the login page with that email + password, or with Google once
+UMU Workspace has allowed the app. They can then add every other user (staff and
+students) from **User Management → Add User** or by CSV import.
+
+> The **login page now has an email + password form**, so nobody needs Google to sign in.
+> Students use `@stud.umu.ac.ug` accounts and staff use `@umu.ac.ug` accounts.
 
 ---
 
@@ -430,15 +437,20 @@ docker compose up -d app
 
 Go to `https://attendance.umu.ac.ug` in your browser.
 
-You should see the UMU Attendance login page. Sign in with the System Admin Google account.
+You should see the UMU Attendance login page with an email + password form (and a Google
+button). Sign in as the System Admin with `edwardadmin@umu.ac.ug` + the password you set
+in `SEED_ADMIN_PASSWORD`.
 
 **First things to do after logging in:**
 1. Settings → Set the current Academic Year and Semester
 2. Settings → Enable profile editing for students and lecturers
 3. Academic Setup → Create Faculty, Programmes, Course Units
-4. Users → Import Staff → upload CSV with lecturers and faculty admins
+4. Users → Add User, or Import → CSV → Staff/Student accounts (each account gets a password)
 5. Faculty Admins log in → assign lecturers to units
 6. Students log in → complete their profiles → auto-enrolled
+
+> CSV templates: **Staff** = `name,email,role,password` (role: lecturer | faculty_admin),
+> **Students** = `name,email,regNumber,password`. Download the template from the Import page.
 
 ---
 
@@ -584,7 +596,11 @@ Make sure it exactly matches the URI in Google Cloud Console → Clients → you
 ---
 
 ### "Access denied" when logging in
-The Google account is not in the database. Either:
+For **email + password** login: the email or password is wrong, or the account was not
+created yet (System Admin must create/import it first). Students must use a
+`@stud.umu.ac.ug` email and staff an `@umu.ac.ug` email.
+
+For **Google** login, the Google account may not match a user in the database. Common causes:
 - The email domain is wrong (must be `@umu.ac.ug` or `@stud.umu.ac.ug`)
 - Staff account hasn't been imported yet (System Admin needs to import staff CSV)
 - Account is deactivated (System Admin → Users → reactivate)

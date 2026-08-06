@@ -24,6 +24,7 @@ import {
 import {
   importStructure as importStructureCsv,
   importStaff as importStaffCsv,
+  importStudents as importStudentsCsv,
   StructureImportType,
 } from '../services/import.service'
 import { writeAuditLog } from '../utils/audit'
@@ -275,6 +276,27 @@ export async function importStaff(
     }
     const result = await importStaffCsv(req.file.buffer)
     await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'staff', {
+      imported: result.imported,
+      failed: result.failed,
+    })
+    ok(res, { result })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function importStudents(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'CSV file is required (field name: file)' })
+      return
+    }
+    const result = await importStudentsCsv(req.file.buffer)
+    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'students', {
       imported: result.imported,
       failed: result.failed,
     })

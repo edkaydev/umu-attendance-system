@@ -7,6 +7,7 @@ import { writeAuditLog } from '../utils/audit'
 import {
   listUsers,
   getUser,
+  createUser,
   setUserActive,
   changeUserRole,
   assignFaculty,
@@ -15,6 +16,20 @@ import {
 
 const roleSchema = z.object({
   role: z.nativeEnum(Role),
+})
+
+const createUserSchema = z.object({
+  fullName: z.string().trim().min(1, 'Full name is required').max(100),
+  email: z.string().email('Invalid email').max(150),
+  role: z.nativeEnum(Role),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+  facultyId: z.string().uuid().nullable().optional(),
+  campusId: z.string().uuid().optional(),
+  programmeId: z.string().uuid().optional(),
+  year: z.number().int().min(1).max(6).optional(),
+  semester: z.number().int().min(1).max(2).optional(),
+  academicYear: z.string().regex(/^\d{4}\/\d{4}$/).optional(),
+  regNumber: z.string().trim().min(1).max(30).optional(),
 })
 
 const commonProfileFields = {
@@ -52,6 +67,27 @@ export async function getUsers(req: Request, res: Response, next: NextFunction):
 export async function getUserById(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     ok(res, { user: await getUser(req.params.id) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function createUserController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const input = createUserSchema.parse(req.body)
+    const user = await createUser(input)
+
+    await writeAuditLog(req.user!.id, 'USER_CREATE', 'user', user!.id, {
+      fullName: user?.fullName,
+      email: user?.email,
+      role: input.role,
+    })
+
+    ok(res, { user }, 201)
   } catch (e) {
     next(e)
   }

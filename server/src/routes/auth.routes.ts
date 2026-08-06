@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/auth'
 import {
+  login,
   googleRedirect,
   googleCallback,
   refresh,
@@ -11,6 +12,7 @@ import {
 
 const router = Router()
 
+router.post('/login', login)
 router.get('/google', googleRedirect)
 router.get('/google/callback', googleCallback)
 router.post('/dev-login', devLogin)

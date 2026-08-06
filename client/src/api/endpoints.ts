@@ -18,11 +18,18 @@ import type {
 } from '../types'
 
 // ─── Auth ───
+export interface LoginResponse {
+  user: User
+  redirect: string
+}
+
 export const authApi = {
   me: async () => {
     const res = await http.get<{ user: User }>('/api/auth/me')
     return res.user
   },
+  login: (email: string, password: string) =>
+    http.post<LoginResponse>('/api/auth/login', { email, password }),
   logout: () => http.post<{ message: string }>('/api/auth/logout'),
   devLogin: (role: Role) =>
     http.post<{ user: User; redirect: string }>('/api/auth/dev-login', { role }),
@@ -408,11 +415,17 @@ export interface AdminUserUpdateInput {
   regNumber?: string
 }
 
+export interface CreateUserInput extends AdminUserUpdateInput {
+  role: Role
+  password: string
+}
+
 export const userApi = {
   list: async (params?: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString()
     return http.get<{ users: ManagedUser[]; total: number }>(`/api/users${qs ? `?${qs}` : ''}`)
   },
+  create: (data: CreateUserInput) => http.post<{ user: ManagedUser }>('/api/users', data),
   deactivate:   (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/deactivate`),
   activate:     (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/activate`),
   changeRole:   (id: string, role: Role)  => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
@@ -440,6 +453,11 @@ export const importApi = {
     const fd = new FormData()
     fd.append('file', file)
     return http.upload<{ result: ImportResult }>('/api/academic/import/staff', fd)
+  },
+  students: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return http.upload<{ result: ImportResult }>('/api/academic/import/students', fd)
   },
 }
 

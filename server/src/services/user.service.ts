@@ -1,6 +1,8 @@
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { hashPassword } from '../utils/password'
+import { roleMatchesEmail } from '../utils/domain'
 import { validateStudentPath, recalculateEnrollments } from './profile.service'
 
 export interface ListUsersParams {
@@ -56,6 +58,112 @@ export async function listUsers({ role, search, page = 1, limit = 20 }: ListUser
   ])
 
   return { users, total, page, limit }
+}
+
+export interface CreateUserInput {
+  fullName: string
+  email: string
+  role: Role
+  password: string
+  facultyId?: string | null
+  campusId?: string
+  programmeId?: string
+  year?: number
+  semester?: number
+  academicYear?: string
+  regNumber?: string
+}
+
+/**
+ * System Admin manually creates a user account (email + password).
+ * Students must use @stud.umu.ac.ug; staff and admins must use @umu.ac.ug.
+ */
+export async function createUser(input: CreateUserInput) {
+  const email = input.email.trim().toLowerCase()
+
+  const clash = await prisma.user.findUnique({ where: { email } })
+  if (clash) throw new ApiError('A user with this email already exists', 409)
+
+  if (!roleMatchesEmail(input.role, email)) {
+    throw new ApiError(
+      input.role === Role.student
+        ? 'Student emails must end in @stud.umu.ac.ug'
+        : 'Staff emails must end in @umu.ac.ug',
+      400
+    )
+  }
+
+  const password = await hashPassword(input.password)
+
+  const data: {
+    email: string
+    password: string
+    fullName: string
+    role: Role
+    facultyId?: string | null
+    programmeId?: string | null
+    year?: number | null
+    semester?: number | null
+    academicYear?: string | null
+    regNumber?: string | null
+    profileComplete: boolean
+  } = {
+    email,
+    password,
+    fullName: input.fullName.trim(),
+    role: input.role,
+    profileComplete: input.role === Role.system_admin,
+  }
+
+  if (input.role === Role.student) {
+    if (
+      !input.campusId || !input.facultyId || !input.programmeId ||
+      !input.year || !input.semester || !input.academicYear || !input.regNumber
+    ) {
+      throw new ApiError('Student academic details are required', 400)
+    }
+    await validateStudentPath({
+      campusId: input.campusId,
+      facultyId: input.facultyId,
+      programmeId: input.programmeId,
+      year: input.year,
+      semester: input.semester,
+      academicYear: input.academicYear,
+      regNumber: input.regNumber,
+    })
+    data.facultyId = input.facultyId
+    data.programmeId = input.programmeId
+    data.year = input.year
+    data.semester = input.semester
+    data.academicYear = input.academicYear
+    data.regNumber = input.regNumber
+    data.profileComplete = true
+  } else if (input.role === Role.lecturer || input.role === Role.faculty_admin) {
+    const facultyId = input.facultyId ?? null
+    if (facultyId !== null) {
+      const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
+      if (!faculty) throw new ApiError('Faculty not found', 404)
+      if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+    }
+    data.facultyId = facultyId
+    data.profileComplete = facultyId !== null
+  }
+
+  const user = await prisma.user.create({ data })
+
+  if (input.role === Role.student) {
+    await recalculateEnrollments(user.id, {
+      campusId: input.campusId!,
+      facultyId: input.facultyId!,
+      programmeId: input.programmeId!,
+      year: input.year!,
+      semester: input.semester!,
+      academicYear: input.academicYear!,
+      regNumber: input.regNumber!,
+    })
+  }
+
+  return prisma.user.findUnique({ where: { id: user.id }, select: managedUserSelect })
 }
 
 export async function getUser(id: string) {

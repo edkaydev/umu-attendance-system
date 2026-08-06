@@ -32,20 +32,16 @@ passport.use(
         })
 
         if (!user) {
-          // Check if staff email was pre-registered by System Admin
-          if (isStaff) {
-            const existing = await prisma.user.findUnique({
+          // If an account with this email already exists (created by admin via
+          // CSV import / Add User with a password), link it to this Google ID.
+          const existing = await prisma.user.findUnique({ where: { email } })
+          if (existing) {
+            user = await prisma.user.update({
               where: { email },
+              data: { googleId: profile.id },
             })
-            if (existing) {
-              // Link Google ID to pre-registered staff account
-              user = await prisma.user.update({
-                where: { email },
-                data: { googleId: profile.id },
-              })
-            } else {
-              return done(new Error('NOT_REGISTERED'), undefined)
-            }
+          } else if (isStaff) {
+            return done(new Error('NOT_REGISTERED'), undefined)
           } else {
             // Students are created on first login
             user = await prisma.user.create({
