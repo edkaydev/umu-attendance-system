@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { profileApi, StudentProfileInput, ProfileOptions, settingsApi } from '../api/endpoints'
@@ -15,7 +14,6 @@ const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `
 export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const { user, refresh } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
   const { period: globalPeriod } = usePeriod()
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
@@ -117,7 +115,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         await (edit ? profileApi.update(data) : profileApi.complete(data))
         await refresh()
         toast.success('Profile saved')
-        navigate('/student')
+        // RequireAuth will redirect to the dashboard once profileComplete = true
       } catch (e) {
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
       } finally {
@@ -133,7 +131,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         await (edit ? profileApi.update({ facultyId }) : profileApi.complete({ facultyId }))
         await refresh()
         toast.success('Profile saved')
-        navigate('/lecturer')
+        // RequireAuth will redirect to /lecturer once profileComplete = true
       } catch (e) {
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
       } finally {
