@@ -14,7 +14,9 @@ import {
   setSupportSettings,
   getDefaultUserPasswordStatus,
   setDefaultUserPassword,
+  resetDatabase,
 } from '../services/settings.service'
+import { writeAuditLog } from '../utils/audit'
 
 export const profileEditingSchema = z.object({
   students: z.boolean().optional(),
@@ -160,6 +162,24 @@ export async function setSupportSettingsController(
     const data = supportSettingsSchema.parse(req.body)
     const support = await setSupportSettings(data)
     ok(res, { support, message: 'Support details updated' })
+  } catch (e) {
+    next(e)
+  }
+}
+
+/** POST /api/settings/reset-database — System Admin only. Full end-of-semester wipe. */
+export async function resetDatabaseController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await resetDatabase(req.user!.id)
+    await writeAuditLog(req.user!.id, 'RESET_DATABASE', 'system', 'all', result as unknown as Record<string, unknown>)
+    ok(res, {
+      message: 'Database reset complete. All academic data has been wiped.',
+      result,
+    })
   } catch (e) {
     next(e)
   }

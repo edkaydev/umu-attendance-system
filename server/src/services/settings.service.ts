@@ -160,3 +160,103 @@ export async function setSupportSettings(
   if (data.guide !== undefined) await setSetting(SUPPORT_KEYS.guide, data.guide)
   return getSupportSettings()
 }
+
+// ─── End-of-semester database reset ─────────────────────────────────────────
+
+export interface ResetDatabaseResult {
+  deletedAttendanceEdits: number
+  deletedAttendanceRecords: number
+  deletedSessions: number
+  deletedEnrollments: number
+  deletedAssignments: number
+  deletedAlerts: number
+  deletedCurriculumUnits: number
+  deletedCourseUnitFaculties: number
+  deletedCourseUnits: number
+  deletedProgrammes: number
+  deletedFaculties: number
+  deletedUsers: number
+  deletedRefreshTokens: number
+  deletedAuditLogs: number
+}
+
+/**
+ * End-of-semester full database wipe.
+ *
+ * Deletes ALL transactional and academic data in the correct FK order.
+ * System Admin accounts (role = system_admin) and system settings are KEPT
+ * so the admin can still log in and reconfigure for the next semester.
+ *
+ * @param actorId  The system_admin user performing the reset (never deleted).
+ */
+export async function resetDatabase(actorId: string): Promise<ResetDatabaseResult> {
+  // Run everything in a transaction so it's all-or-nothing
+  return prisma.$transaction(async (tx) => {
+    // 1. Attendance edits (FK → attendance_records)
+    const { count: deletedAttendanceEdits } = await tx.attendanceEdit.deleteMany({})
+
+    // 2. Attendance records (FK → sessions, users)
+    const { count: deletedAttendanceRecords } = await tx.attendanceRecord.deleteMany({})
+
+    // 3. Sessions (FK → course_units, users)
+    const { count: deletedSessions } = await tx.session.deleteMany({})
+
+    // 4. Enrollments (FK → users, course_units)
+    const { count: deletedEnrollments } = await tx.enrollment.deleteMany({})
+
+    // 5. Lecturer assignments (FK → users, course_units)
+    const { count: deletedAssignments } = await tx.lecturerAssignment.deleteMany({})
+
+    // 6. Attendance alerts (FK → users, course_units)
+    const { count: deletedAlerts } = await tx.attendanceAlert.deleteMany({})
+
+    // 7. Curriculum units (FK → course_units, programmes)
+    const { count: deletedCurriculumUnits } = await tx.curriculumUnit.deleteMany({})
+
+    // 8. Course-unit ↔ faculty sharing links (FK → course_units, faculties)
+    const { count: deletedCourseUnitFaculties } = await tx.courseUnitFaculty.deleteMany({})
+
+    // 9. Course units (FK → faculties)
+    const { count: deletedCourseUnits } = await tx.courseUnit.deleteMany({})
+
+    // 10. Programmes (FK → faculties)
+    const { count: deletedProgrammes } = await tx.programme.deleteMany({})
+
+    // 11. Non-system-admin users — refresh tokens + audit logs first to free FKs
+    const nonAdminUserIds = await tx.user.findMany({
+      where: { role: { not: 'system_admin' } },
+      select: { id: true },
+    })
+    const ids = nonAdminUserIds.map((u) => u.id)
+
+    const { count: deletedRefreshTokens } = await tx.refreshToken.deleteMany({
+      where: { userId: { in: ids } },
+    })
+    const { count: deletedAuditLogs } = await tx.auditLog.deleteMany({
+      where: { userId: { in: ids } },
+    })
+    const { count: deletedUsers } = await tx.user.deleteMany({
+      where: { role: { not: 'system_admin' } },
+    })
+
+    // 12. Faculties (safe now — all FK children gone)
+    const { count: deletedFaculties } = await tx.faculty.deleteMany({})
+
+    return {
+      deletedAttendanceEdits,
+      deletedAttendanceRecords,
+      deletedSessions,
+      deletedEnrollments,
+      deletedAssignments,
+      deletedAlerts,
+      deletedCurriculumUnits,
+      deletedCourseUnitFaculties,
+      deletedCourseUnits,
+      deletedProgrammes,
+      deletedFaculties,
+      deletedUsers,
+      deletedRefreshTokens,
+      deletedAuditLogs,
+    }
+  }, { timeout: 60000 }) // allow up to 60 s for large datasets
+}

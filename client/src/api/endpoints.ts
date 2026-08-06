@@ -520,4 +520,6 @@ export const settingsApi = {
   },
   setDefaultUserPassword: (password: string) =>
     http.patch<{ message: string }>('/api/settings/default-user-password', { password }),
+  resetDatabase: () =>
+    http.post<{ message: string; result: Record<string, number> }>('/api/settings/reset-database'),
 }

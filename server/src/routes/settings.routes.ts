@@ -10,6 +10,7 @@ import {
   setSupportSettingsController,
   getDefaultUserPasswordController,
   setDefaultUserPasswordController,
+  resetDatabaseController,
 } from '../controllers/settings.controller'
 
 const router = Router()
@@ -25,5 +26,7 @@ router.patch('/support', authenticate, requireRole('system_admin'), setSupportSe
 
 router.get('/default-user-password', authenticate, requireRole('system_admin'), getDefaultUserPasswordController)
 router.patch('/default-user-password', authenticate, requireRole('system_admin'), setDefaultUserPasswordController)
+
+router.post('/reset-database', authenticate, requireRole('system_admin'), resetDatabaseController)
 
 export default router

@@ -14,6 +14,7 @@ export type AuditAction =
   | 'USER_CREATE'
   | 'USER_DELETE'
   | 'IMPORT'
+  | 'RESET_DATABASE'
 
 /**
  * Write a system-level audit log entry (audit_logs table).

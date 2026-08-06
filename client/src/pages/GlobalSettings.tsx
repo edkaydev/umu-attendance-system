@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { PasswordInput } from '../components/ui/PasswordInput'
+import { Modal } from '../components/ui/Modal'
 
 const PROFILE_SCOPES: { scope: ProfileEditingScope; label: string; description: string }[] = [
   { scope: 'students', label: 'Students', description: 'Allow students to edit their academic profile.' },
@@ -29,7 +30,12 @@ export default function GlobalSettings() {
   const [defaultPassword, setDefaultPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'session' | 'access'>('session')
+  const [activeTab, setActiveTab] = useState<'session' | 'access' | 'danger'>('session')
+
+  // Danger Zone state
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   useEffect(() => {
     settingsApi.currentPeriod().then((value) => {
@@ -79,6 +85,21 @@ export default function GlobalSettings() {
     } finally { setSaving(null) }
   }
 
+  async function handleReset() {
+    if (resetConfirmText !== 'RESET') return
+    setResetting(true)
+    try {
+      const { message } = await settingsApi.resetDatabase()
+      toast.success(message)
+      setShowResetModal(false)
+      setResetConfirmText('')
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : 'Reset failed')
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
@@ -98,6 +119,12 @@ export default function GlobalSettings() {
           className={`border-b-2 px-4 py-2 text-body-sm font-semibold ${activeTab === 'access' ? 'border-umu-red text-umu-red' : 'border-transparent text-text-secondary'}`}
         >
           Account Settings
+        </button>
+        <button
+          onClick={() => setActiveTab('danger')}
+          className={`border-b-2 px-4 py-2 text-body-sm font-semibold ${activeTab === 'danger' ? 'border-danger text-danger' : 'border-transparent text-text-secondary'}`}
+        >
+          Danger Zone
         </button>
       </div>
 
@@ -133,6 +160,99 @@ export default function GlobalSettings() {
         </div>
         <Button loading={saving === 'password'} onClick={saveDefaultPassword}>Save Default Password</Button>
       </Card></>}
+
+      {activeTab === 'danger' && (
+        <Card>
+          {/* Red warning banner */}
+          <div className="mb-6 flex items-start gap-3 rounded border border-danger-border bg-danger-light p-4">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div>
+              <p className="font-semibold text-danger">Danger Zone — actions here are irreversible</p>
+              <p className="mt-1 text-body-sm text-text-secondary">
+                These operations permanently delete data from the database. Use only at the end of an academic semester to prepare for the next one.
+              </p>
+            </div>
+          </div>
+
+          {/* Reset card */}
+          <div className="flex flex-col gap-2 rounded border border-danger-border bg-surface-0 p-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-semibold text-text-primary">End-of-Semester Database Reset</p>
+              <p className="mt-1 max-w-lg text-body-sm text-text-secondary">
+                Permanently deletes <strong>all</strong> students, lecturers, faculty admins, sessions, attendance records,
+                enrollments, assignments, faculties, programmes, course units, and curriculum entries.
+                System Admin accounts and system settings are kept so you can log back in and
+                set up the new semester.
+              </p>
+            </div>
+            <Button
+              variant="danger"
+              className="mt-3 shrink-0 sm:mt-0"
+              onClick={() => { setResetConfirmText(''); setShowResetModal(true) }}
+            >
+              Reset Database
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* ── Reset Database confirmation modal ── */}
+      <Modal
+        open={showResetModal}
+        onClose={() => !resetting && setShowResetModal(false)}
+        title="Reset Database"
+      >
+        <div className="space-y-5">
+          {/* Big red warning */}
+          <div className="flex items-start gap-3 rounded border border-danger-border bg-danger-light p-4">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div className="text-body-sm text-text-primary">
+              <p className="font-semibold text-danger">This will permanently delete:</p>
+              <ul className="mt-2 list-disc pl-4 text-text-secondary">
+                <li>All students, lecturers, and faculty admins</li>
+                <li>All attendance records and session history</li>
+                <li>All enrollments and lecturer assignments</li>
+                <li>All faculties, programmes, course units, and curriculum</li>
+              </ul>
+              <p className="mt-2 font-medium">System Admin accounts and system settings are kept.</p>
+              <p className="mt-1 text-danger font-semibold">This cannot be undone.</p>
+            </div>
+          </div>
+
+          {/* Typed confirmation */}
+          <div>
+            <label className="mb-1.5 block text-body-sm font-medium text-text-primary">
+              Type <span className="font-mono font-bold text-danger">RESET</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder="RESET"
+              disabled={resetting}
+              className="w-full rounded border border-border bg-surface-0 px-3 py-2 text-body font-mono text-text-primary placeholder:text-text-disabled focus:border-danger focus:outline-none disabled:opacity-50"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowResetModal(false)} disabled={resetting}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              loading={resetting}
+              disabled={resetConfirmText !== 'RESET'}
+              onClick={handleReset}
+            >
+              Reset Everything
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
