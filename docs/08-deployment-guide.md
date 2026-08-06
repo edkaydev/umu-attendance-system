@@ -1,10 +1,13 @@
 # 08 — Deployment Guide
 
 ## Target Environment
-- **Server OS:** Ubuntu Server 22.04 LTS
+- **Server OS:** Ubuntu Server 22.04 LTS or 24.04 LTS
 - **Deployment:** Docker + Docker Compose
-- **Domain:** e.g. `attendance.umu.ac.ug`
+- **Domain:** e.g. `attendance.umu.ac.ug` (or `YOUR-IP.sslip.io` while testing)
 - **SSL:** Certbot (Let's Encrypt)
+
+> These steps assume a **fresh** server. To redeploy to a new server/domain, see
+> [Deploying to a new server or a new domain](#deploying-to-a-new-server-or-a-new-domain).
 
 ---
 
@@ -49,7 +52,7 @@ newgrp docker
 sudo mkdir -p /var/www/umu-attendance
 sudo chown $USER:$USER /var/www/umu-attendance
 
-git clone https://github.com/umu/umu-attendance-system.git /var/www/umu-attendance
+git clone https://github.com/edkaydev/umu-attendance-system.git /var/www/umu-attendance
 cd /var/www/umu-attendance
 ```
 
@@ -87,7 +90,7 @@ SMTP_PORT=587
 SMTP_USER=attendance@umu.ac.ug
 SMTP_PASS=your-google-app-password
 
-UMU_BADGE_PATH=/app/assets/umu-badge.png
+UMU_LOGO_PATH=/app/assets/umu-logo.png
 ```
 
 Generate secure secrets:
@@ -95,20 +98,53 @@ Generate secure secrets:
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
+> The database password in `DATABASE_URL` must **match** `MYSQL_PASSWORD` in the root
+> `.env` file. If it contains special characters (like `#`, `@`, `%`), URL-encode it in
+> `DATABASE_URL` — e.g. `Console.log#75` becomes `Console.log%2375`.
+>
+> The logo (`umu-logo.png`) is already committed in `client/public/` and `server/assets/`,
+> so no asset step is needed after cloning.
+
 ---
 
-## Step 4 — Add UMU Badge Asset
+## Step 4 — SSL with Certbot (BEFORE starting containers)
+
+> **Important:** Nginx needs the certificate file to exist when it starts. Get the
+> certificate **before** the first `docker compose up` (Step 5). If Nginx starts first it
+> crash-loops with `cannot load certificate "...": No such file or directory`.
+
+Nginx runs inside Docker, so get the certificate with certbot's **standalone** mode. On a
+fresh server nothing is using port 80 yet, so it works directly:
 
 ```bash
-cp /path/to/umu-badge.png server/assets/umu-badge.png
+sudo apt install -y certbot
+
+sudo certbot certonly --standalone -d attendance.umu.ac.ug
 ```
+
+> No domain yet? Use the server IP with a free `sslip.io` subdomain, e.g. for IP
+> `41.210.100.50` use `-d 41.210.100.50.sslip.io` and that address everywhere below.
+>
+> If the containers are already running (e.g. you started early), stop nginx first:
+> `cd /var/www/umu-attendance && docker compose stop nginx`, run certbot, then
+> `docker compose start nginx`.
+
+Enable auto-renewal (certificates expire every 90 days):
+```bash
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+```
+
+Then point the Nginx config (`devops/nginx/umu-attendance.conf`) at your certificate:
+change the `ssl_certificate`/`ssl_certificate_key` paths and both `server_name` lines to
+your domain.
 
 ---
 
 ## Step 5 — Build and Start
 
 ```bash
-# Build React PWA
+# Build React PWA (needs Node.js on the server — see Steps 7–8 of the beginner guide)
 cd client && npm install && npm run build && cd ..
 
 # Start all Docker services
@@ -134,43 +170,8 @@ docker compose exec app npx prisma migrate deploy
 docker compose exec app npm run seed:admin
 ```
 
-Creates the first System Admin account. After this, log in and set the current period
-(`Settings → Current Period`) before any other setup.
-
----
-
-## Step 8 — SSL with Certbot
-
-> **Important:** Nginx needs the certificate file to exist before it starts. Get the
-> certificate **before** the first `docker compose up` (Step 5). If Nginx starts first it
-> crash-loops with `cannot load certificate "...": No such file or directory`.
-
-Nginx runs inside Docker, so get the certificate with certbot's **standalone** mode
-(stop nginx first so certbot can use port 80):
-
-```bash
-sudo apt install -y certbot
-
-cd /var/www/umu-attendance
-docker compose stop nginx
-
-sudo certbot certonly --standalone -d attendance.umu.ac.ug
-
-docker compose start nginx
-```
-
-> No domain yet? Use the server IP with a free `sslip.io` subdomain, e.g. for IP
-> `41.210.100.50` use `-d 41.210.100.50.sslip.io` and that address everywhere below.
-
-Enable auto-renewal (certificates expire every 90 days):
-```bash
-sudo systemctl enable certbot.timer
-sudo systemctl start certbot.timer
-```
-
-Then point the Nginx config (`devops/nginx/umu-attendance.conf`) at your certificate:
-change the `ssl_certificate`/`ssl_certificate_key` paths and both `server_name` lines to
-your domain.
+Creates the first System Admin account using `SEED_ADMIN_EMAIL` from `server/.env`. After
+this, log in and set the current period (`Settings → Current Period`) before any other setup.
 
 ---
 
@@ -231,9 +232,9 @@ volumes:
 
 ## Nginx Config
 
-The shipped config in `devops/nginx/umu-attendance.conf` is ready for `YOUR-IP.sslip.io`
-(works for the live test deployment at `102.133.161.8.sslip.io`). Replace the two
-`ssl_certificate` paths and both `server_name` values with your own domain.
+The config at `devops/nginx/umu-attendance.conf` currently targets the test deployment
+(`102.133.161.8.sslip.io`). For a new server, replace the two `ssl_certificate` paths and
+both `server_name` values with your own domain.
 
 ```nginx
 server {
@@ -285,6 +286,10 @@ server {
      with `http://` redirect URIs, so HTTPS is required first)
 7. Optionally restrict sign-ins in the app itself — it already rejects any email that
    isn't `@umu.ac.ug` or `@stud.umu.ac.ug` (`server/src/config/google-oauth.ts`)
+
+> A client can hold **several** origins and redirect URIs. When you deploy to a new
+> domain/IP, just **add** the new ones — keep the old ones so the previous deployment
+> keeps working.
 
 ---
 
@@ -345,6 +350,31 @@ crontab -e
 
 ---
 
+## Deploying to a new server or a new domain
+
+The project is designed to be redeployed. When you get the new server's IP and domain,
+change the domain in **four** places — missing one causes either a wrong address or a
+Google login failure.
+
+| # | Place | What to change |
+|---|---|---|
+| 1 | **DNS** | The domain's A record must point to the new server's IP. Check with `ping your-domain`. |
+| 2 | **SSL certificate** | On the new server, run `sudo certbot certonly --standalone -d YOUR-DOMAIN` (Step 4). Certificates are per-domain and cannot be copied between servers. |
+| 3 | **Nginx config** (`devops/nginx/umu-attendance.conf`) | `server_name` on both server blocks, and both `ssl_certificate`/`ssl_certificate_key` paths → `YOUR-DOMAIN`. |
+| 4 | **`server/.env`** | `CLIENT_URL=https://YOUR-DOMAIN` and `GOOGLE_CALLBACK_URL=https://YOUR-DOMAIN/api/auth/google/callback` |
+| 5 | **Google Cloud Console** | Add `https://YOUR-DOMAIN` to **Authorised JavaScript origins** and `https://YOUR-DOMAIN/api/auth/google/callback` to **Authorised redirect URIs** (old ones can stay). |
+| 6 | **Environment files** | On a new server, `.env` and `server/.env` are created fresh from the `.example` files — nothing is committed to GitHub. Set a new strong database password and new JWT secrets. |
+
+Quick search for leftover references to the old domain:
+```bash
+grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-dir=node_modules
+```
+
+> If the new server gets a **new IP** but keeps the **same domain**, only items 2, 4 and
+> the DNS record change — the Google Console entries and Nginx `server_name` stay the same.
+
+---
+
 ## After First Deploy — System Admin Checklist
 
 1. Log in with System Admin Google account
@@ -370,6 +400,9 @@ docker compose ps
 docker compose restart app
 ```
 
+> For `.env` changes use `docker compose up -d app` instead — `restart` keeps the old
+> environment variables, but `up -d` recreates the container and reads the new `.env`.
+
 ---
 
 ## Troubleshooting
@@ -378,10 +411,10 @@ docker compose restart app
 |---|---|
 | App not starting | `docker compose logs app` |
 | DB connection error | Verify `DATABASE_URL` in `server/.env` matches `MYSQL_PASSWORD` in root `.env` |
-| Nginx crash-looping "cannot load certificate" | Certificate doesn't exist yet — get the Let's Encrypt cert first (Step 8), then check `server_name`/cert paths in `devops/nginx/umu-attendance.conf` |
+| Nginx crash-looping "cannot load certificate" | Certificate doesn't exist yet — get the Let's Encrypt cert first (Step 4), then check `server_name`/cert paths in `devops/nginx/umu-attendance.conf` |
 | Google login failing | `GOOGLE_CALLBACK_URL` must be `https://` and match exactly in Google Console |
-| Google "Access Denied / Something went wrong during sign-in" | OAuth consent screen: User type must be **External**, Publishing status **In production**, redirect URIs **https** |
-| PDF not generating | Chromium must be available in Docker image; check `UMU_BADGE_PATH` |
+| Google "Access Denied / Something went wrong during sign-in" | OAuth consent screen: User type must be **External**, Publishing status **In production**, redirect URIs **https**. For UMU accounts this can also mean the Google Workspace admin hasn't allowed the app (admin.google.com → Security → Access and data control → API controls → Manage Third-Party App Access) |
+| PDF not generating | Puppeteer's bundled Chromium — rebuild the image with `docker compose up -d --build`; check `server/assets/umu-badge.svg` exists; see logs with `docker compose logs app \| grep -i -E "pdf\|puppeteer\|chromium"` |
 | Emails not sending | `SMTP_PASS` must be a Google App Password (not account password) |
 | 502 Bad Gateway | Node.js crashed — `docker compose logs app` |
 | PWA not installing | Check `/manifest.webmanifest` returns 200; check icons exist in `/public` |

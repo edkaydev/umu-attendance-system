@@ -17,7 +17,7 @@ By the end of this guide, the UMU Attendance System will be:
 
 | Thing | Where to get it |
 |---|---|
-| A Ubuntu Server 22.04 machine | VPS provider (Railway, DigitalOcean, Hetzner) or a physical server on campus |
+| An Ubuntu Server 22.04 or 24.04 machine | VPS provider (Railway, DigitalOcean, Hetzner) or a physical server on campus |
 | The server's IP address | Shown in your VPS dashboard, or run `ip addr` on the server |
 | A domain name pointed at the server | Ask UMU IT to add `attendance.umu.ac.ug → your IP` in DNS |
 | SSH access to the server | Your VPS provider gives you a username + password or SSH key |
@@ -160,8 +160,6 @@ nano server/.env
 
 Fill in each value in `server/.env`:
 
-Fill in each value:
-
 ```bash
 NODE_ENV=production
 PORT=4000
@@ -262,68 +260,19 @@ Gmail requires an "App Password" — a special password just for apps, not your 
 3. Scroll down → **App passwords**
 4. Select app: **Mail** → Select device: **Other** → type "UMU Attendance"
 5. Click **Generate** → copy the 16-character password
-6. Paste it as `SMTP_PASS` in your `.env` file
+6. Paste it as `SMTP_PASS` in your `server/.env` file
 
 ---
 
-## Step 10 — Start the containers
+## Step 10 — Set up SSL (HTTPS) FIRST
 
-```bash
-cd /var/www/umu-attendance
-docker compose up -d --build
-```
+Do this **before** starting the containers. Without HTTPS, browsers will show "Not Secure"
+and Google OAuth will not work in production.
 
-> `-d` means "detached" — runs in the background so you can keep using the terminal.
-> `--build` builds the Node.js Docker image from source.
-> First time takes 3–5 minutes (downloading images).
-
-**Check everything is running:**
-```bash
-docker compose ps
-```
-
-You should see three containers all with status `Up`:
-```
-NAME          STATUS
-umu-db        Up
-umu-app       Up
-umu-nginx     Up
-```
-
----
-
-## Step 11 — Run database migrations
-
-This creates all the database tables the app needs.
-
-```bash
-docker compose exec app npx prisma migrate deploy
-```
-
-> `exec app` means "run this command inside the app container".
-> `prisma migrate deploy` applies all the database schema changes.
-
----
-
-## Step 12 — Create the first System Admin account
-
-```bash
-docker compose exec app npm run seed:admin
-```
-
-This creates the System Admin account using the email you set in `SEED_ADMIN_EMAIL`.
-That person can now log in with their Google account.
-
----
-
-## Step 13 — Set up SSL (HTTPS)
-
-Without this, browsers will show "Not Secure" and Google OAuth will not work in production.
-
-> **Important:** Nginx needs the certificate file to already exist before it starts.
-> Get the certificate **first** (this section), then start the containers in Step 10.
-> If Nginx starts before the certificate exists it will crash-loop with:
+> **Important:** Nginx needs the certificate file to already exist when it starts.
+> If the containers start without it, Nginx crash-loops with:
 > `cannot load certificate "/etc/letsencrypt/live/...": No such file or directory`.
+> That is why this step comes before "Start the containers" (Step 11).
 
 **Option A — a real domain (e.g. `attendance.umu.ac.ug`)**
 
@@ -337,7 +286,6 @@ It should return your server's IP address. If not, DNS hasn't updated yet — wa
 
 You can use a free subdomain that automatically points to your IP. For IP `41.210.100.50`
 the address is `41.210.100.50.sslip.io` (replace with your real IP everywhere below).
-This is what the current test deployment (`102.133.161.8.sslip.io`) uses.
 
 ---
 
@@ -346,19 +294,16 @@ This is what the current test deployment (`102.133.161.8.sslip.io`) uses.
 ```bash
 sudo apt install -y certbot
 
-# Stop nginx temporarily (certbot needs port 80)
-cd /var/www/umu-attendance
-docker compose stop nginx
-
 # Get a certificate for your domain
 sudo certbot certonly --standalone -d attendance.umu.ac.ug
-
-# Start nginx again
-docker compose start nginx
 ```
 
 > Replace `attendance.umu.ac.ug` with `YOUR-IP.sslip.io` if using Option B.
 > Certbot asks for your email and to agree to terms — type `Y` and press Enter.
+> Certbot needs port 80. On a fresh server nothing is running yet, so it works directly.
+> If you already started the containers, stop nginx first:
+> `cd /var/www/umu-attendance && docker compose stop nginx`, run the certbot command,
+> then `docker compose start nginx`.
 
 The certificate is saved to `/etc/letsencrypt/live/YOUR-DOMAIN/fullchain.pem`.
 
@@ -385,6 +330,56 @@ Also update `server_name` on both server blocks. Save: **Ctrl+X → Y → Enter*
 
 ---
 
+## Step 11 — Start the containers
+
+```bash
+cd /var/www/umu-attendance
+docker compose up -d --build
+```
+
+> `-d` means "detached" — runs in the background so you can keep using the terminal.
+> `--build` builds the Node.js Docker image from source.
+> First time takes 3–5 minutes (downloading images).
+
+**Check everything is running:**
+```bash
+docker compose ps
+```
+
+You should see three containers all with status `Up`:
+```
+NAME                       STATUS
+umu-attendance-db-1        Up
+umu-attendance-app-1       Up
+umu-attendance-nginx-1     Up
+```
+
+---
+
+## Step 12 — Run database migrations
+
+This creates all the database tables the app needs.
+
+```bash
+docker compose exec app npx prisma migrate deploy
+```
+
+> `exec app` means "run this command inside the app container".
+> `prisma migrate deploy` applies all the database schema changes.
+
+---
+
+## Step 13 — Create the first System Admin account
+
+```bash
+docker compose exec app npm run seed:admin
+```
+
+This creates the System Admin account using the email you set in `SEED_ADMIN_EMAIL`.
+That person can now log in with their Google account.
+
+---
+
 ## Step 14 — Update Google OAuth for production
 
 Go back to Google Cloud Console → OAuth consent screen → Clients → edit your web client.
@@ -399,6 +394,10 @@ https://attendance.umu.ac.ug
 ```
 https://attendance.umu.ac.ug/api/auth/google/callback
 ```
+
+> Google lets a client have **several** origins and redirect URIs at once. If you deploy
+> to a new domain/IP, just **add** the new ones — keep the old ones so the previous
+> deployment keeps working.
 
 Then check the OAuth consent screen **Audience** page:
 - **User type** must be **External** (Internal only works for Google accounts inside the
@@ -470,6 +469,34 @@ bash devops/scripts/deploy.sh
 
 ---
 
+## Moving to a NEW server or a NEW domain
+
+The project is designed to be redeployed. When UMU gives you the new server's IP and
+domain, follow this checklist. The domain must be changed in **four** places — missing one
+causes either a wrong address or a Google login failure.
+
+> Use the same steps as a fresh install (Step 0 onwards). The only extra work is replacing
+> the old domain with the new one everywhere listed below.
+
+| # | Place | What to change |
+|---|---|---|
+| 1 | **DNS** | Your domain's A record must point to the new server's IP. Check with `ping your-domain`. |
+| 2 | **SSL certificate** | On the new server, run `sudo certbot certonly --standalone -d YOUR-DOMAIN` (Step 10). Certificates are per-domain and cannot be copied between servers. |
+| 3 | **Nginx config** (`devops/nginx/umu-attendance.conf`) | `server_name` on both server blocks, and both `ssl_certificate`/`ssl_certificate_key` paths → `YOUR-DOMAIN`. |
+| 4 | **`server/.env`** | `CLIENT_URL=https://YOUR-DOMAIN` and `GOOGLE_CALLBACK_URL=https://YOUR-DOMAIN/api/auth/google/callback` |
+| 5 | **Google Cloud Console** | Add `https://YOUR-DOMAIN` to **Authorised JavaScript origins** and `https://YOUR-DOMAIN/api/auth/google/callback` to **Authorised redirect URIs** (old ones can stay). |
+| 6 | **Environment files** | On a new server, `.env` and `server/.env` are created fresh from the `.example` files — nothing is committed to GitHub. Set a new strong database password and new JWT secrets. |
+
+Quick search to find every leftover reference to the old domain:
+```bash
+grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-dir=node_modules
+```
+
+> If the new server gets a **new IP** but keeps the **same domain**, only items 2, 4 and the
+> DNS record change — the Google Console entries and Nginx `server_name` stay the same.
+
+---
+
 ## Useful commands — day to day
 
 ```bash
@@ -482,7 +509,7 @@ docker compose logs -f app
 # Watch live logs from Nginx (web server)
 docker compose logs -f nginx
 
-# Restart just the app (after changing .env)
+# Restart the app (code change only — for .env changes use `docker compose up -d app`)
 docker compose restart app
 
 # Stop everything
@@ -511,9 +538,9 @@ Backups are saved to `/var/backups/umu-attendance/`. The last 30 are kept automa
 ```bash
 crontab -e
 ```
-Add this line at the bottom:
+Add this line at the bottom (it loads the database password from the root `.env` first):
 ```
-0 2 * * * /var/www/umu-attendance/devops/scripts/backup-db.sh
+0 2 * * * cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
 ```
 Save: **Ctrl+X → Y → Enter**
 
@@ -581,7 +608,7 @@ docker compose ps db
 # Check db logs
 docker compose logs db --tail=30
 ```
-Common cause: `DATABASE_URL` password doesn't match `MYSQL_PASSWORD` in docker-compose.yml.
+Common cause: `DATABASE_URL` password doesn't match `MYSQL_PASSWORD` in the root `.env` file.
 
 ---
 
@@ -598,13 +625,13 @@ Common causes:
 
 ### PDF download not working / shows error
 ```bash
-docker compose logs app | grep -i puppet
+docker compose logs app | grep -i -E "pdf|puppeteer|chromium"
 ```
-Common cause: Chromium not installed in the Docker image.
-Check your `Dockerfile` includes:
-```dockerfile
-RUN apt-get install -y chromium
-```
+The app generates PDFs with Puppeteer's **bundled Chromium**. The `Dockerfile` already
+installs the system libraries Chromium needs, but if the image is out of date (e.g. after
+an OS update on the server), Chromium can fail to launch. Fix: rebuild the image with
+`docker compose up -d --build`. Also check `server/assets/umu-badge.svg` exists (it is
+committed to the repo and must not be deleted).
 
 ---
 
