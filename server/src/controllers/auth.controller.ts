@@ -45,9 +45,10 @@ export async function postPassword(req: Request, res: Response, next: NextFuncti
   try {
     const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
     await changePassword(req.user!.id, currentPassword, newPassword)
-    // The change invalidates every refresh token, including this browser's.
-    // Issue a replacement session so the user remains signed in.
-    await finalizeLogin(req.user!, res)
+    // Re-fetch the user so mustChangePassword is now false — otherwise
+    // finalizeLogin would redirect back to /password/change again.
+    const updated = await getCurrentUser(req.user!.id)
+    await finalizeLogin(updated, res)
     ok(res, { message: 'Password changed successfully' })
   } catch (error) {
     next(error)
