@@ -390,7 +390,7 @@ grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-di
 3. **Settings → Profile Editing** — enable for students and lecturers
 4. **Academic Setup** — create Campus, Faculty, Programmes, Course Units, Curriculum mappings
 5. **Users → Add User** or **CSV Imports** — create Staff (`name,email,role,facultyCode,password`) and
-   Student (`name,email,regNumber,password`) accounts
+   Student (`name,email,password`) accounts. Students choose their own academic path on first login.
 6. Faculty Admins log in, complete their profiles, assign lecturers to units
 7. Students log in, complete profiles — auto-enrolled into course units
 

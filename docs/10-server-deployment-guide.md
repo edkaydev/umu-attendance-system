@@ -450,7 +450,7 @@ in `SEED_ADMIN_PASSWORD`.
 6. Students log in → complete their profiles → auto-enrolled
 
 > CSV templates: **Staff** = `name,email,role,facultyCode,password` (role: lecturer | faculty_admin; facultyCode required),
-> **Students** = `name,email,regNumber,password`. Download the template from the Import page.
+> **Students** = `name,email,password`. Students choose their faculty, programme and year on first login. Download templates from the Import page.
 
 ---
 
