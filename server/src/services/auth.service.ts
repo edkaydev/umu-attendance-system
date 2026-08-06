@@ -91,7 +91,10 @@ export async function logoutSession(userId: string, res: Response): Promise<void
 export async function loginWithPassword(email: string, password: string): Promise<AuthUser> {
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
 
-  if (!user?.password || !(await verifyPassword(password, user.password))) {
+  if (!user) {
+    throw new ApiError('This email is not registered. Please contact system support.', 404)
+  }
+  if (!user.password || !(await verifyPassword(password, user.password))) {
     throw new ApiError('Invalid email or password', 401)
   }
   if (!user.isActive) {

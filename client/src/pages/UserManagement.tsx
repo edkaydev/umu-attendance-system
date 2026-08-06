@@ -51,7 +51,6 @@ function CreateUserModal({
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('student')
-  const [password, setPassword] = useState('')
   const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
@@ -92,11 +91,9 @@ function CreateUserModal({
       fullName: fullName.trim(),
       email: email.trim(),
       role,
-      password,
     }
     if (!payload.fullName) return toast.error('Full name is required')
     if (!payload.email) return toast.error('Email is required')
-    if (payload.password.length < 6) return toast.error('Password must be at least 6 characters')
 
     if (isStudent) {
       if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
@@ -150,14 +147,9 @@ function CreateUserModal({
           }}
           options={ROLE_OPTIONS}
         />
-        <Input
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          placeholder="At least 6 characters"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
+          This account will receive the system default password and must change it on first sign-in.
+        </p>
 
         {isStudent && (
           <>

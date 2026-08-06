@@ -3,6 +3,7 @@ import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
+import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
 import { isValidCampusCode } from '../constants/campuses'
 
@@ -174,7 +175,7 @@ async function importCurriculumRow(row: Row): Promise<void> {
 /**
  * Import staff accounts from CSV (FR-03.6).
  * Columns: name, email, role (lecturer | faculty_admin), password (optional).
- * A missing password means the account can only sign in with Google.
+ * New rows without a password use the system default and must change it on login.
  */
 export async function importStaff(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -221,12 +222,14 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
           },
         })
       } else {
+        const password = plainPassword
+          ? await hashPassword(plainPassword)
+          : await getDefaultUserPasswordHash()
         await prisma.user.create({
           data: {
             email,
-            ...(plainPassword
-              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
-              : {}),
+            password,
+            mustChangePassword: true,
             fullName: name,
             role,
             profileComplete: false,
@@ -295,12 +298,14 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
           },
         })
       } else {
+        const password = plainPassword
+          ? await hashPassword(plainPassword)
+          : await getDefaultUserPasswordHash()
         await prisma.user.create({
           data: {
             email,
-            ...(plainPassword
-              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
-              : {}),
+            password,
+            mustChangePassword: true,
             fullName: name,
             role: Role.student,
             profileComplete: false,

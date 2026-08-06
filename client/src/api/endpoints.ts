@@ -411,7 +411,7 @@ export interface AdminUserUpdateInput {
 
 export interface CreateUserInput extends AdminUserUpdateInput {
   role: Role
-  password: string
+  password?: string
 }
 
 export const userApi = {
@@ -511,4 +511,10 @@ export const settingsApi = {
       '/api/settings/current-period',
       period
     ),
+  defaultUserPassword: async () => {
+    const res = await http.get<{ defaultUserPassword: { configured: boolean } }>('/api/settings/default-user-password')
+    return res.defaultUserPassword
+  },
+  setDefaultUserPassword: (password: string) =>
+    http.patch<{ message: string }>('/api/settings/default-user-password', { password }),
 }

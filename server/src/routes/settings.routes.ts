@@ -8,6 +8,8 @@ import {
   setCurrentPeriodController,
   getSupportSettingsController,
   setSupportSettingsController,
+  getDefaultUserPasswordController,
+  setDefaultUserPasswordController,
 } from '../controllers/settings.controller'
 
 const router = Router()
@@ -20,5 +22,8 @@ router.patch('/current-period', authenticate, requireRole('system_admin'), setCu
 
 router.get('/support', authenticate, getSupportSettingsController)
 router.patch('/support', authenticate, requireRole('system_admin'), setSupportSettingsController)
+
+router.get('/default-user-password', authenticate, requireRole('system_admin'), getDefaultUserPasswordController)
+router.patch('/default-user-password', authenticate, requireRole('system_admin'), setDefaultUserPasswordController)
 
 export default router

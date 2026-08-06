@@ -1,4 +1,5 @@
 import { prisma } from '../config/db'
+import { hashPassword } from '../utils/password'
 
 export const PROFILE_EDITING_KEYS = {
   students:  'profileEditing.students',
@@ -10,6 +11,10 @@ export const CURRENT_PERIOD_KEYS = {
   academicYear: 'currentPeriod.academicYear',
   semester:     'currentPeriod.semester',
 } as const
+
+/** New local accounts use this until a System Admin sets an organisation-specific one. */
+export const INITIAL_DEFAULT_USER_PASSWORD = 'Umu@2026'
+export const DEFAULT_USER_PASSWORD_KEY = 'auth.defaultUserPasswordHash'
 
 export type ProfileEditingScope = keyof typeof PROFILE_EDITING_KEYS
 
@@ -26,6 +31,24 @@ export async function setSetting(key: string, value: string): Promise<void> {
     create: { key, value },
     update: { value },
   })
+}
+
+/**
+ * Returns a bcrypt hash suitable for a newly-created account. The plaintext
+ * default is never stored in the database; only a configured bcrypt hash is.
+ */
+export async function getDefaultUserPasswordHash(): Promise<string> {
+  const hash = await getSetting(DEFAULT_USER_PASSWORD_KEY, '')
+  return hash || hashPassword(INITIAL_DEFAULT_USER_PASSWORD)
+}
+
+export async function getDefaultUserPasswordStatus(): Promise<{ configured: boolean }> {
+  const hash = await getSetting(DEFAULT_USER_PASSWORD_KEY, '')
+  return { configured: Boolean(hash) }
+}
+
+export async function setDefaultUserPassword(password: string): Promise<void> {
+  await setSetting(DEFAULT_USER_PASSWORD_KEY, await hashPassword(password))
 }
 
 export interface ProfileEditingSettings {

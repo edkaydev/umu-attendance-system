@@ -25,6 +25,7 @@ import AcademicSetup from './pages/AcademicSetup'
 import UserManagement from './pages/UserManagement'
 import ImportData from './pages/ImportData'
 import SystemLogPage from './pages/SystemLogPage'
+import GlobalSettings from './pages/GlobalSettings'
 import NotFound from './pages/NotFound'
 
 function HomeRedirect() {
@@ -313,6 +314,18 @@ export default function App() {
                   <RequireRole roles={['system_admin']}>
                     <AppLayout>
                       <SystemLogPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/settings"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <GlobalSettings />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

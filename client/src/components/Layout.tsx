@@ -142,6 +142,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: '/system-admin/academic',  label: 'Academic Setup', Icon: IconBuilding },
     { to: '/system-admin/users',     label: 'Users',          Icon: IconUsers },
     { to: '/system-admin/imports',   label: 'Imports',        Icon: IconUpload },
+    { to: '/system-admin/settings',  label: 'Global Settings', Icon: IconScroll },
     { to: '/system-admin/logs',      label: 'System Log',     Icon: IconScroll },
   ],
 }

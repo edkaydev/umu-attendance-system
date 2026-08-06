@@ -22,7 +22,7 @@ const createUserSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required').max(100),
   email: z.string().email('Invalid email').max(150),
   role: z.nativeEnum(Role),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128).optional(),
   facultyId: z.string().uuid().nullable().optional(),
   campusCode: z.string().min(1).max(20).optional(),
   programmeId: z.string().uuid().optional(),

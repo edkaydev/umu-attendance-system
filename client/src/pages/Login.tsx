@@ -16,6 +16,7 @@ export default function Login() {
   const { period } = usePeriod()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loggingIn, setLoggingIn] = useState(false)
   const [devError, setDevError] = useState<string | null>(null)
@@ -78,16 +79,31 @@ export default function Login() {
           <label className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
             Password
           </label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete="current-password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mb-2 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
-          />
+          <div className="relative mb-2">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              minLength={6}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="min-h-[44px] w-full rounded border border-border bg-white px-3 pr-12 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              className="absolute inset-y-0 right-0 px-3 text-text-secondary hover:text-text-primary"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5.5 0 9.3 5.3 9.8 6-.3.5-1.5 2.1-3.4 3.4"/><path d="M6.6 6.6C4.4 8.1 2.7 10.7 2.2 11.5c.7 1.1 4.3 6.5 9.8 6.5 1.4 0 2.7-.3 3.8-.9"/></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2.2 12S5.8 6 12 6s9.8 6 9.8 6-3.6 6-9.8 6S2.2 12 2.2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              )}
+            </button>
+          </div>
 
           {error && <p className="mb-2 text-center text-body-sm text-danger">{error}</p>}
 

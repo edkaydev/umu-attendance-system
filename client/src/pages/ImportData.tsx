@@ -182,7 +182,7 @@ export default function ImportData() {
         <Card title="Staff Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
             Creates or updates lecturer / faculty admin accounts. Emails must end in
-            @umu.ac.ug. The password column is the password staff use to sign in.
+            @umu.ac.ug. Leave the password column blank to use the system default password; users must change it on first sign-in.
           </p>
           <input
             ref={staffRef}
@@ -211,7 +211,7 @@ export default function ImportData() {
 
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates student accounts with the given password. Emails must end in
+            Creates student accounts with the given password, or the system default when blank. Users must change it on first sign-in. Emails must end in
             @stud.umu.ac.ug. Students complete their academic profile on first login.
           </p>
           <input

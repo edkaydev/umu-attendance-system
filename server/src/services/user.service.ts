@@ -2,6 +2,7 @@ import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
+import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
 import { validateStudentPath, recalculateEnrollments } from './profile.service'
 
@@ -64,7 +65,7 @@ export interface CreateUserInput {
   fullName: string
   email: string
   role: Role
-  password: string
+  password?: string
   facultyId?: string | null
   campusCode?: string
   programmeId?: string
@@ -93,7 +94,9 @@ export async function createUser(input: CreateUserInput) {
     )
   }
 
-  const password = await hashPassword(input.password)
+  const password = input.password
+    ? await hashPassword(input.password)
+    : await getDefaultUserPasswordHash()
 
   const data: {
     email: string
