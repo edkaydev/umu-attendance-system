@@ -27,6 +27,7 @@ import UserManagement from './pages/UserManagement'
 import ImportData from './pages/ImportData'
 import SystemLogPage from './pages/SystemLogPage'
 import GlobalSettings from './pages/GlobalSettings'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import NotFound from './pages/NotFound'
 
 function HomeRedirect() {
@@ -291,6 +292,18 @@ export default function App() {
                   <RequireRole roles={['system_admin']}>
                     <AppLayout>
                       <UserManagement />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/reset-password"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <ResetPasswordPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

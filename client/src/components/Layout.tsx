@@ -97,6 +97,16 @@ function IconScroll() {
   )
 }
 
+function IconKey() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="7.5" cy="15.5" r="4.5"/>
+      <path d="M21 2l-9.6 9.6"/>
+      <path d="M15.5 7.5l3 3L22 7l-3-3"/>
+    </svg>
+  )
+}
+
 function IconLogOut() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -138,12 +148,13 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: '/faculty-admin/reports',  label: 'Reports',   Icon: IconBarChart },
   ],
   system_admin: [
-    { to: '/system-admin',           label: 'Dashboard',      Icon: IconHome },
-    { to: '/system-admin/academic',  label: 'Academic Setup', Icon: IconBuilding },
-    { to: '/system-admin/users',     label: 'Users',          Icon: IconUsers },
-    { to: '/system-admin/imports',   label: 'Imports',        Icon: IconUpload },
-    { to: '/system-admin/settings',  label: 'Global Settings', Icon: IconScroll },
-    { to: '/system-admin/logs',      label: 'System Log',     Icon: IconScroll },
+    { to: '/system-admin',                  label: 'Dashboard',       Icon: IconHome },
+    { to: '/system-admin/academic',         label: 'Academic Setup',  Icon: IconBuilding },
+    { to: '/system-admin/users',            label: 'Users',           Icon: IconUsers },
+    { to: '/system-admin/reset-password',   label: 'Reset Password',  Icon: IconKey },
+    { to: '/system-admin/imports',          label: 'Imports',         Icon: IconUpload },
+    { to: '/system-admin/settings',         label: 'Global Settings', Icon: IconScroll },
+    { to: '/system-admin/logs',             label: 'System Log',      Icon: IconScroll },
   ],
 }
 
