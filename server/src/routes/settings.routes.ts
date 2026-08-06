@@ -13,7 +13,7 @@ const router = Router()
 router.get('/profile-editing', authenticate, getProfileEditing)
 router.patch('/profile-editing', authenticate, requireRole('system_admin'), setProfileEditing)
 
-router.get('/current-period', authenticate, getCurrentPeriodController)
+router.get('/current-period', getCurrentPeriodController)
 router.patch('/current-period', authenticate, requireRole('system_admin'), setCurrentPeriodController)
 
 export default router
