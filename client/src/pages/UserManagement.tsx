@@ -110,7 +110,8 @@ function CreateUserModal({
       payload.academicYear = globalPeriod.academicYear
       payload.regNumber = regNumber.trim()
     } else if (isStaff) {
-      payload.facultyId = facultyId || null
+      if (!facultyId) return toast.error('Select a faculty')
+      payload.facultyId = facultyId
     }
 
     setSaving(true)
@@ -214,7 +215,6 @@ function CreateUserModal({
               value={facultyId}
               onChange={(e) => setFacultyId(e.target.value)}
               options={[
-                { value: '', label: 'No faculty (unassigned)' },
                 ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
               ]}
             />
@@ -330,7 +330,8 @@ function EditUserModal({
       payload.academicYear = globalPeriod.academicYear
       payload.regNumber = regNumber.trim()
     } else if (isStaff) {
-      payload.facultyId = facultyId || null
+      if (!facultyId) return toast.error('Select a faculty')
+      payload.facultyId = facultyId
     }
 
     setSaving(true)
@@ -414,7 +415,6 @@ function EditUserModal({
               value={facultyId}
               onChange={(e) => setFacultyId(e.target.value)}
               options={[
-                { value: '', label: 'No faculty (unassigned)' },
                 ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
               ]}
             />
@@ -445,6 +445,8 @@ export default function UserManagement() {
   const [role,     setRole]     = useState('')
   const [search,   setSearch]   = useState('')
   const [page,     setPage]     = useState(1)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleting, setDeleting] = useState(false)
 
   // Assign-faculty modal state
   const [assignTarget, setAssignTarget] = useState<ManagedUser | null>(null)
@@ -499,6 +501,75 @@ export default function UserManagement() {
     }
   }
 
+  function toggleSelected(userId: string) {
+    setSelectedIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    )
+  }
+
+  function togglePageSelection() {
+    const pageIds = data?.users.map((user) => user.id) ?? []
+    const everyPageUserSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
+    setSelectedIds((current) =>
+      everyPageUserSelected
+        ? current.filter((id) => !pageIds.includes(id))
+        : [...new Set([...current, ...pageIds])]
+    )
+  }
+
+  async function handleDeleteOne(user: ManagedUser) {
+    if (!window.confirm(`Permanently delete ${user.fullName}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      await userApi.remove(user.id)
+      toast.success(`${user.fullName} deleted`)
+      setSelectedIds((ids) => ids.filter((id) => id !== user.id))
+      await reload()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete user')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedIds.length === 0) return
+    if (!window.confirm(`Permanently delete ${selectedIds.length} selected user(s)? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const { result } = await userApi.removeMany({ userIds: selectedIds })
+      setSelectedIds([])
+      toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
+      if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
+      await reload()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete selected users')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleDeleteAllMatching() {
+    const scope = role || search ? 'all users matching the current filters' : 'all users except your own account'
+    if (!window.confirm(`Permanently delete ${scope}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const { result } = await userApi.removeMany({
+        allMatching: true,
+        ...(role ? { role: role as Role } : {}),
+        ...(search ? { search } : {}),
+      })
+      setSelectedIds([])
+      toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
+      if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
+      await reload()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete users')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function changeRole(user: ManagedUser, newRole: Role) {
     if (newRole === user.role) return
     try {
@@ -546,7 +617,10 @@ export default function UserManagement() {
             and password (or Google).
           </p>
         </div>
-        <Button onClick={() => setCreating(true)}>Add User</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" loading={deleting} onClick={handleDeleteAllMatching}>Delete All</Button>
+          <Button onClick={() => setCreating(true)}>Add User</Button>
+        </div>
       </div>
 
       {/* ── Filters ── */}
@@ -576,6 +650,13 @@ export default function UserManagement() {
         </div>
       </Card>
 
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between rounded border border-danger-border bg-danger-light px-4 py-3">
+          <p className="text-body-sm text-text-primary">{selectedIds.length} user(s) selected</p>
+          <Button variant="danger" loading={deleting} onClick={handleDeleteSelected}>Delete Selected</Button>
+        </div>
+      )}
+
       {/* ── Users table ── */}
       <Card noPadding>
         {!data ? (
@@ -587,6 +668,14 @@ export default function UserManagement() {
             <table className="w-full min-w-[900px] text-left">
               <thead>
                 <tr className="border-b border-border bg-surface-1">
+                  <th className="w-12 px-5 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all users on this page"
+                      checked={data.users.length > 0 && data.users.every((user) => selectedIds.includes(user.id))}
+                      onChange={togglePageSelection}
+                    />
+                  </th>
                   <th className="px-5 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">User</th>
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Faculty</th>
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Role</th>
@@ -598,6 +687,15 @@ export default function UserManagement() {
               <tbody className="divide-y divide-border">
                 {data.users.map((u) => (
                   <tr key={u.id} className="transition-colors hover:bg-surface-1">
+
+                    <td className="px-5 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${u.fullName}`}
+                        checked={selectedIds.includes(u.id)}
+                        onChange={() => toggleSelected(u.id)}
+                      />
+                    </td>
 
                     {/* User */}
                     <td className="px-5 py-3">
@@ -680,6 +778,14 @@ export default function UserManagement() {
                         >
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </Button>
+                        <Button
+                          variant="danger"
+                          className="min-h-[32px] px-3 py-1 text-body-sm"
+                          loading={deleting}
+                          onClick={() => handleDeleteOne(u)}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -718,16 +824,10 @@ export default function UserManagement() {
             value={selectedFacultyId}
             onChange={(e) => setSelectedFacultyId(e.target.value)}
             options={[
-              { value: '', label: 'No faculty (unassign)' },
               ...faculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
             ]}
           />
 
-          {!selectedFacultyId && (
-            <p className="text-body-sm text-warning">
-              Leaving this unassigned means the user cannot access their dashboard.
-            </p>
-          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={() => setAssignTarget(null)}>

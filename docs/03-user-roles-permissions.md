@@ -111,7 +111,7 @@ Does NOT:
 ### Lecturer
 Academic staff who teach one or more course units.
 
-On first login, selects their Faculty. Faculty Admin then assigns units.
+Is linked to their faculty when their account is created or imported. Faculty Admin then assigns units.
 
 Can:
 - Open and close sessions for assigned units

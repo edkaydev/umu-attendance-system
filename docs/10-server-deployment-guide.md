@@ -449,7 +449,7 @@ in `SEED_ADMIN_PASSWORD`.
 5. Faculty Admins log in → assign lecturers to units
 6. Students log in → complete their profiles → auto-enrolled
 
-> CSV templates: **Staff** = `name,email,role,password` (role: lecturer | faculty_admin),
+> CSV templates: **Staff** = `name,email,role,facultyCode,password` (role: lecturer | faculty_admin; facultyCode required),
 > **Students** = `name,email,regNumber,password`. Download the template from the Import page.
 
 ---

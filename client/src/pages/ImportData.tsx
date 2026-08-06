@@ -20,8 +20,8 @@ const TEMPLATES: Record<string, string> = {
   curriculum: 'courseUnitCode,programmeCode,year,semester,academicYear',
 }
 
-const STAFF_TEMPLATE = 'name,email,role,password'
-const STUDENT_TEMPLATE = 'name,email,regNumber,password'
+const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
+const STUDENT_TEMPLATE = 'name,email,regNumber,facultyCode,programmeCode,year,semester,academicYear,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -181,8 +181,10 @@ export default function ImportData() {
 
         <Card title="Staff Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates or updates lecturer / faculty admin accounts. Emails must end in
-            @umu.ac.ug. Leave the password column blank to use the system default password; users must change it on first sign-in.
+            Creates or updates lecturer / faculty admin accounts and links each person to the
+            faculty identified by its code. Lecturers are not assigned to course units during import.
+            Each faculty can have one Faculty Admin. Emails must end in @umu.ac.ug. Leave the password
+            column blank to use the system default password; users must change it on first sign-in.
           </p>
           <input
             ref={staffRef}
@@ -205,14 +207,14 @@ export default function ImportData() {
           {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STAFF_TEMPLATE}</code>{' '}
-            (role: lecturer | faculty_admin)
+            (role: lecturer | faculty_admin; facultyCode is required)
           </p>
         </Card>
 
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
             Creates student accounts with the given password, or the system default when blank. Users must change it on first sign-in. Emails must end in
-            @stud.umu.ac.ug. Students complete their academic profile on first login.
+            @stud.umu.ac.ug. Include the academic columns to create profiles and curriculum enrolments during import.
           </p>
           <input
             ref={studentRef}
@@ -234,7 +236,7 @@ export default function ImportData() {
           </div>
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
-            Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code> (regNumber optional)
+            Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>
           </p>
         </Card>
       </div>

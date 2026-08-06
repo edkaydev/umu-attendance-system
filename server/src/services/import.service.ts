@@ -6,6 +6,7 @@ import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
 import { isValidCampusCode } from '../constants/campuses'
+import { recalculateEnrollments, validateStudentPath } from './profile.service'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 
@@ -174,8 +175,10 @@ async function importCurriculumRow(row: Row): Promise<void> {
 
 /**
  * Import staff accounts from CSV (FR-03.6).
- * Columns: name, email, role (lecturer | faculty_admin), password (optional).
- * New rows without a password use the system default and must change it on login.
+ * Columns: name, email, role (lecturer | faculty_admin), facultyCode, password (optional).
+ * Staff are linked to the faculty named by facultyCode. Lecturers receive no
+ * course-unit assignments during import; those remain the Faculty Admin's job.
+ * Each faculty may have only one Faculty Admin.
  */
 export async function importStaff(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -194,9 +197,10 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
       const name = row['name']
       const email = row['email']?.trim().toLowerCase()
       const roleRaw = normalizeCode(row['role'])
+      const facultyCode = normalizeCode(row['facultyCode'])
       const plainPassword = row['password']?.trim()
 
-      if (!name || !email) throw new Error('Missing name or email')
+      if (!name || !email || !facultyCode) throw new Error('Missing name, email or facultyCode')
       if (!email.endsWith('@umu.ac.ug')) {
         throw new Error(`Email must be @umu.ac.ug`)
       }
@@ -207,7 +211,24 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
       const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
       if (!role) throw new Error('Role must be "lecturer" or "faculty_admin"')
 
+      const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
+      if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
+
       const existing = await prisma.user.findUnique({ where: { email } })
+
+      if (role === Role.faculty_admin) {
+        const facultyAdmin = await prisma.user.findFirst({
+          where: {
+            role: Role.faculty_admin,
+            facultyId: faculty.id,
+            ...(existing ? { id: { not: existing.id } } : {}),
+          },
+          select: { fullName: true },
+        })
+        if (facultyAdmin) {
+          throw new Error(`Faculty "${facultyCode}" already has a Faculty Admin (${facultyAdmin.fullName})`)
+        }
+      }
 
       if (existing) {
         await prisma.user.update({
@@ -215,6 +236,8 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
           data: {
             fullName: name,
             role,
+            facultyId: faculty.id,
+            profileComplete: true,
             isActive: true,
             ...(plainPassword
               ? { password: await hashPassword(plainPassword), mustChangePassword: true }
@@ -232,7 +255,8 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
             mustChangePassword: true,
             fullName: name,
             role,
-            profileComplete: false,
+            facultyId: faculty.id,
+            profileComplete: true,
             isActive: true,
           },
         })
@@ -249,9 +273,10 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 
 /**
  * Import student accounts from CSV.
- * Columns: name, email, regNumber (optional), password (optional).
- * Emails must end in @stud.umu.ac.ug. Students complete their academic
- * profile (campus/faculty/programme) on first login.
+ * Columns: name, email, regNumber, facultyCode, programmeCode, year, semester,
+ * academicYear, password (optional). The academic fields are optional as a
+ * group for backwards compatibility; when supplied, the student profile and
+ * curriculum enrolments are created during the import.
  */
 export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -270,6 +295,11 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       const name = row['name']
       const email = row['email']?.trim().toLowerCase()
       const regNumber = row['regNumber']?.trim()
+      const facultyCode = normalizeCode(row['facultyCode'])
+      const programmeCode = normalizeCode(row['programmeCode'])
+      const year = Number(row['year'])
+      const semester = Number(row['semester'])
+      const academicYear = row['academicYear']?.trim()
       const plainPassword = row['password']?.trim()
 
       if (!name || !email) throw new Error('Missing name or email')
@@ -280,40 +310,102 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
         throw new Error('Password must be at least 6 characters')
       }
 
+      const profileFields = [facultyCode, programmeCode, row['year'], row['semester'], academicYear]
+      const hasProfile = profileFields.some(Boolean)
+      let profile: {
+        campusCode: string
+        facultyId: string
+        programmeId: string
+        year: number
+        semester: number
+        academicYear: string
+        regNumber: string
+      } | null = null
+
+      if (hasProfile) {
+        if (!regNumber || !facultyCode || !programmeCode || !Number.isInteger(year) || !Number.isInteger(semester) || !academicYear) {
+          throw new Error('Student profile requires regNumber, facultyCode, programmeCode, year, semester and academicYear')
+        }
+        if (!/^\d{4}\/\d{4}$/.test(academicYear)) {
+          throw new Error(`Invalid academicYear "${academicYear}"`)
+        }
+        const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
+        if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
+        const programme = await prisma.programme.findFirst({
+          where: { code: programmeCode, facultyId: faculty.id, isActive: true },
+        })
+        if (!programme) throw new Error(`Active programme "${programmeCode}" not found in faculty "${facultyCode}"`)
+        profile = {
+          campusCode: faculty.campusCode,
+          facultyId: faculty.id,
+          programmeId: programme.id,
+          year,
+          semester,
+          academicYear,
+          regNumber,
+        }
+        await validateStudentPath(profile)
+      }
+
       const existing = await prisma.user.findUnique({ where: { email } })
+      let userId: string
 
       if (existing) {
         if (!roleMatchesEmail(existing.role, email)) {
           throw new Error('Email is already used by a non-student account')
         }
-        await prisma.user.update({
+        const user = await prisma.user.update({
           where: { email },
           data: {
             fullName: name,
             ...(regNumber ? { regNumber } : {}),
+            ...(profile
+              ? {
+                  facultyId: profile.facultyId,
+                  programmeId: profile.programmeId,
+                  year: profile.year,
+                  semester: profile.semester,
+                  academicYear: profile.academicYear,
+                  regNumber: profile.regNumber,
+                  profileComplete: true,
+                }
+              : {}),
             isActive: true,
             ...(plainPassword
               ? { password: await hashPassword(plainPassword), mustChangePassword: true }
               : {}),
           },
         })
+        userId = user.id
       } else {
         const password = plainPassword
           ? await hashPassword(plainPassword)
           : await getDefaultUserPasswordHash()
-        await prisma.user.create({
+        const user = await prisma.user.create({
           data: {
             email,
             password,
             mustChangePassword: true,
             fullName: name,
             role: Role.student,
-            profileComplete: false,
+            profileComplete: Boolean(profile),
             isActive: true,
             ...(regNumber ? { regNumber } : {}),
+            ...(profile
+              ? {
+                  facultyId: profile.facultyId,
+                  programmeId: profile.programmeId,
+                  year: profile.year,
+                  semester: profile.semester,
+                  academicYear: profile.academicYear,
+                  regNumber: profile.regNumber,
+                }
+              : {}),
           },
         })
+        userId = user.id
       }
+      if (profile) await recalculateEnrollments(userId, profile)
       result.imported++
     } catch (error) {
       result.failed++

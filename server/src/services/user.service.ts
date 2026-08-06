@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client'
+import { Prisma, Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
@@ -30,6 +30,20 @@ const managedUserSelect = {
   academicYear: true,
   createdAt: true,
 } as const
+
+async function assertFacultyAvailableForAdmin(facultyId: string, excludeUserId?: string) {
+  const existingAdmin = await prisma.user.findFirst({
+    where: {
+      role: Role.faculty_admin,
+      facultyId,
+      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+    },
+    select: { fullName: true },
+  })
+  if (existingAdmin) {
+    throw new ApiError(`This faculty already has a Faculty Admin (${existingAdmin.fullName})`, 409)
+  }
+}
 
 export async function listUsers({ role, search, page = 1, limit = 20 }: ListUsersParams) {
   const skip = (page - 1) * limit
@@ -145,10 +159,14 @@ export async function createUser(input: CreateUserInput) {
     data.profileComplete = true
   } else if (input.role === Role.lecturer || input.role === Role.faculty_admin) {
     const facultyId = input.facultyId ?? null
+    if (facultyId === null) {
+      throw new ApiError(`${input.role === Role.faculty_admin ? 'Faculty Admin' : 'Lecturer'} must be assigned to a faculty`, 400)
+    }
     if (facultyId !== null) {
       const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
       if (!faculty) throw new ApiError('Faculty not found', 404)
       if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+      if (input.role === Role.faculty_admin) await assertFacultyAvailableForAdmin(facultyId)
     }
     data.facultyId = facultyId
     data.profileComplete = facultyId !== null
@@ -201,9 +219,76 @@ export async function setUserActive(id: string, isActive: boolean) {
   return prisma.user.update({ where: { id }, data: { isActive } })
 }
 
+/** Permanently remove an account that has no attendance or other linked records. */
+export async function deleteUser(id: string, actorId: string) {
+  if (id === actorId) {
+    throw new ApiError('You cannot delete your own account', 400)
+  }
+
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, fullName: true, email: true } })
+  if (!user) throw new ApiError('User not found', 404)
+
+  try {
+    await prisma.user.delete({ where: { id } })
+    return user
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      throw new ApiError('This user has linked records and cannot be deleted. Deactivate the account instead.', 409)
+    }
+    throw error
+  }
+}
+
+export async function deleteUsers(
+  ids: string[],
+  actorId: string
+): Promise<{ deleted: number; skipped: number; errors: { id: string; message: string }[] }> {
+  const uniqueIds = [...new Set(ids)]
+  const result = { deleted: 0, skipped: 0, errors: [] as { id: string; message: string }[] }
+
+  for (const id of uniqueIds) {
+    if (id === actorId) {
+      result.skipped++
+      continue
+    }
+    try {
+      await deleteUser(id, actorId)
+      result.deleted++
+    } catch (error) {
+      result.errors.push({ id, message: error instanceof Error ? error.message : 'Could not delete user' })
+    }
+  }
+
+  return result
+}
+
+export async function listUserIds({ role, search }: Pick<ListUsersParams, 'role' | 'search'>) {
+  const users = await prisma.user.findMany({
+    where: {
+      ...(role ? { role } : {}),
+      ...(search
+        ? {
+            OR: [
+              { fullName: { contains: search } },
+              { email: { contains: search } },
+              { regNumber: { contains: search } },
+            ],
+          }
+        : {}),
+    },
+    select: { id: true },
+  })
+  return users.map((user) => user.id)
+}
+
 export async function changeUserRole(id: string, role: Role) {
   const user = await prisma.user.findUnique({ where: { id } })
   if (!user) throw new ApiError('User not found', 404)
+
+  if (role === Role.faculty_admin) {
+    if (!user.facultyId) throw new ApiError('Assign a faculty before making this user a Faculty Admin', 400)
+    await assertFacultyAvailableForAdmin(user.facultyId, user.id)
+  }
 
   // Changing a student's role: clear student-only fields
   const data: { role: Role; programmeId?: null; year?: null; semester?: null; regNumber?: null } = {
@@ -231,10 +316,15 @@ export async function assignFaculty(userId: string, facultyId: string | null) {
     throw new ApiError('Faculty can only be assigned to Faculty Admin or Lecturer accounts', 400)
   }
 
+  if (facultyId === null) {
+    throw new ApiError(`${user.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} must remain assigned to a faculty`, 400)
+  }
+
   if (facultyId !== null) {
     const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
     if (!faculty) throw new ApiError('Faculty not found', 404)
     if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+    if (user.role === 'faculty_admin') await assertFacultyAvailableForAdmin(facultyId, user.id)
   }
 
   return prisma.user.update({
@@ -315,10 +405,14 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
     data.profileComplete = true
   } else if (user.role === 'lecturer' || user.role === 'faculty_admin') {
     const facultyId = input.facultyId ?? null
+    if (facultyId === null) {
+      throw new ApiError(`${user.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} must be assigned to a faculty`, 400)
+    }
     if (facultyId !== null) {
       const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
       if (!faculty) throw new ApiError('Faculty not found', 404)
       if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+      if (user.role === 'faculty_admin') await assertFacultyAvailableForAdmin(facultyId, user.id)
     }
     data.facultyId = facultyId
   }

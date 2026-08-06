@@ -28,6 +28,7 @@ export default function GlobalSettings() {
   const [defaultPassword, setDefaultPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'session' | 'access'>('session')
 
   useEffect(() => {
     settingsApi.currentPeriod().then((value) => {
@@ -84,7 +85,22 @@ export default function GlobalSettings() {
         <p className="mt-1 text-body text-text-secondary">Configure rules and defaults that apply across the attendance system.</p>
       </div>
 
-      <Card title="Current Academic Period">
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => setActiveTab('session')}
+          className={`border-b-2 px-4 py-2 text-body-sm font-semibold ${activeTab === 'session' ? 'border-umu-red text-umu-red' : 'border-transparent text-text-secondary'}`}
+        >
+          Global Session
+        </button>
+        <button
+          onClick={() => setActiveTab('access')}
+          className={`border-b-2 px-4 py-2 text-body-sm font-semibold ${activeTab === 'access' ? 'border-umu-red text-umu-red' : 'border-transparent text-text-secondary'}`}
+        >
+          Account Settings
+        </button>
+      </div>
+
+      {activeTab === 'session' && <Card title="Current Academic Session">
         <p className="mb-4 text-body-sm text-text-secondary">Used for profile setup, unit assignments and attendance check-ins.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Academic Year" placeholder="e.g. 2026/2027" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} />
@@ -92,9 +108,9 @@ export default function GlobalSettings() {
         </div>
         <Button loading={saving === 'period'} onClick={savePeriod}>Save Academic Period</Button>
         {period && <p className="mt-3 text-body-sm text-text-disabled">Currently: {period.academicYear}, Semester {period.semester}</p>}
-      </Card>
+      </Card>}
 
-      <Card title="Profile Editing Access" noPadding>
+      {activeTab === 'access' && <><Card title="Profile Editing Access" noPadding>
         {PROFILE_SCOPES.map(({ scope, label, description }) => {
           const enabled = profileEditing?.[scope] ?? false
           return <div key={scope} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 last:border-b-0">
@@ -115,7 +131,7 @@ export default function GlobalSettings() {
           <Input label="Confirm Default Password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </div>
         <Button loading={saving === 'password'} onClick={saveDefaultPassword}>Save Default Password</Button>
-      </Card>
+      </Card></>}
     </div>
   )
 }

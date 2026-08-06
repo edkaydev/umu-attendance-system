@@ -12,6 +12,7 @@ export type AuditAction =
   | 'PROFILE_COMPLETE'
   | 'USER_UPDATE'
   | 'USER_CREATE'
+  | 'USER_DELETE'
   | 'IMPORT'
 
 /**

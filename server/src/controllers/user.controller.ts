@@ -12,6 +12,9 @@ import {
   changeUserRole,
   assignFaculty,
   updateUser,
+  deleteUser,
+  deleteUsers,
+  listUserIds,
 } from '../services/user.service'
 
 const roleSchema = z.object({
@@ -107,6 +110,46 @@ export async function deactivateUser(req: Request, res: Response, next: NextFunc
 export async function activateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     ok(res, { user: await setUserActive(req.params.id, true) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function deleteUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = await deleteUser(req.params.id, req.user!.id)
+    await writeAuditLog(req.user!.id, 'USER_DELETE', 'user', user.id, { fullName: user.fullName, email: user.email })
+    ok(res, { deleted: 1 })
+  } catch (e) {
+    next(e)
+  }
+}
+
+const bulkDeleteSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(500).optional(),
+  allMatching: z.boolean().optional(),
+  role: z.nativeEnum(Role).optional(),
+  search: z.string().trim().max(150).optional(),
+}).refine((data) => Boolean(data.allMatching) !== Boolean(data.userIds), {
+  message: 'Provide userIds or set allMatching to true',
+})
+
+export async function bulkDeleteUsersController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const input = bulkDeleteSchema.parse(req.body)
+    const ids = input.allMatching
+      ? await listUserIds({ role: input.role, search: input.search })
+      : input.userIds!
+    const result = await deleteUsers(ids, req.user!.id)
+
+    if (result.deleted > 0) {
+      await writeAuditLog(req.user!.id, 'USER_DELETE', 'user_batch', 'bulk', {
+        deleted: result.deleted,
+        skipped: result.skipped,
+        failed: result.errors.length,
+      })
+    }
+    ok(res, { result })
   } catch (e) {
     next(e)
   }
