@@ -4,6 +4,7 @@ import { ToastProvider } from './context/ToastContext'
 import { RequireAuth, RequireRole, DASHBOARD_BY_ROLE } from './components/RouteGuards'
 import { AppLayout } from './components/Layout'
 import { InstallPrompt } from './components/InstallPrompt'
+import { CookieBanner } from './components/CookieBanner'
 
 import Login from './pages/Login'
 import AccessDenied from './pages/AccessDenied'
@@ -335,6 +336,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
           <InstallPrompt />
+          <CookieBanner />
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -184,3 +184,18 @@ export async function resetDatabaseController(
     next(e)
   }
 }
+
+/** POST /api/settings/clear-cache — System Admin only.
+ *  Signals the server is fresh; the client clears its own PWA/browser caches. */
+export async function clearCacheController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    await writeAuditLog(req.user!.id, 'USER_UPDATE', 'system', 'cache', { action: 'clear_cache' })
+    ok(res, { message: 'Cache cleared successfully.' })
+  } catch (e) {
+    next(e)
+  }
+}

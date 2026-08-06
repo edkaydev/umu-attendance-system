@@ -524,4 +524,6 @@ export const settingsApi = {
     http.patch<{ message: string }>('/api/settings/default-user-password', { password }),
   resetDatabase: () =>
     http.post<{ message: string; result: Record<string, number> }>('/api/settings/reset-database'),
+  clearCache: () =>
+    http.post<{ message: string }>('/api/settings/clear-cache'),
 }

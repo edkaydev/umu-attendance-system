@@ -57,7 +57,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           }
         }
       })
-      .catch((e) => toast.error(e.message))
+      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load profile options. Please refresh the page.'))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit])
@@ -205,7 +205,25 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
                 onChange={(e) => setRegNumber(e.target.value)}
               />
             </>
+          ) : edit ? (
+            /* Lecturer edit mode — faculty is assigned by System Admin, read-only */
+            <>
+              <div className="mb-4">
+                <p className="mb-1 text-body-sm font-medium text-text-secondary">Faculty</p>
+                <div className="rounded border border-border bg-surface-1 px-3 py-2 text-body text-text-primary">
+                  {(options?.campuses ?? [])
+                    .flatMap((c) => c.faculties)
+                    .find((f) => f.id === facultyId)?.name ?? (
+                    <span className="text-text-disabled">Not yet assigned</span>
+                  )}
+                </div>
+                <p className="mt-1 text-body-sm text-text-disabled">
+                  Your faculty is assigned by the System Admin and cannot be changed here.
+                </p>
+              </div>
+            </>
           ) : (
+            /* Lecturer first-time profile setup — choose faculty */
             <>
               <Select
                 label="Faculty"
@@ -222,9 +240,12 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
             </>
           )}
 
-          <Button fullWidth loading={saving} disabled={editingDisabled} onClick={handleSubmit}>
-            Save &amp; Continue
-          </Button>
+          {/* Lecturer in edit mode has nothing to save — faculty is read-only */}
+          {!(!isStudent && edit) && (
+            <Button fullWidth loading={saving} disabled={editingDisabled} onClick={handleSubmit}>
+              Save &amp; Continue
+            </Button>
+          )}
         </Card>
       </div>
     </div>

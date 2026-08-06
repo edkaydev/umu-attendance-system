@@ -36,6 +36,7 @@ export default function GlobalSettings() {
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
   const [resetting, setResetting] = useState(false)
+  const [clearingCache, setClearingCache] = useState(false)
 
   useEffect(() => {
     settingsApi.currentPeriod().then((value) => {
@@ -83,6 +84,23 @@ export default function GlobalSettings() {
     } catch (error) {
       toast.error(error instanceof ApiClientError ? error.message : 'Failed to update default password')
     } finally { setSaving(null) }
+  }
+
+  async function handleClearCache() {
+    setClearingCache(true)
+    try {
+      await settingsApi.clearCache()
+      // Clear browser caches (PWA / service worker caches)
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+      toast.success('Cache cleared — all users will get fresh data on next load.')
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : 'Failed to clear cache')
+    } finally {
+      setClearingCache(false)
+    }
   }
 
   async function handleReset() {
@@ -174,6 +192,25 @@ export default function GlobalSettings() {
                 These operations permanently delete data from the database. Use only at the end of an academic semester to prepare for the next one.
               </p>
             </div>
+          </div>
+
+          {/* Clear Cache card */}
+          <div className="mb-4 flex flex-col gap-2 rounded border border-border bg-surface-0 p-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-semibold text-text-primary">Clear Application Cache</p>
+              <p className="mt-1 max-w-lg text-body-sm text-text-secondary">
+                Clears the browser's cached assets (PWA / service worker). Use this if users are
+                seeing stale pages or outdated content after a deployment. No data is deleted.
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              className="mt-3 shrink-0 sm:mt-0"
+              loading={clearingCache}
+              onClick={handleClearCache}
+            >
+              Clear Cache
+            </Button>
           </div>
 
           {/* Reset card */}
