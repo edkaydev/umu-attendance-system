@@ -19,7 +19,7 @@ const adminOnly = requireRole('system_admin')
 
 router.get('/',                     authenticate, adminOnly, getUsers)
 router.post('/',                    authenticate, adminOnly, createUserController)
-router.delete('/',                  authenticate, adminOnly, bulkDeleteUsersController)
+router.post('/bulk-delete',         authenticate, adminOnly, bulkDeleteUsersController)
 router.get('/:id',                  authenticate, adminOnly, getUserById)
 router.patch('/:id',                authenticate, adminOnly, updateUserController)
 router.delete('/:id',               authenticate, adminOnly, deleteUserController)

@@ -7,13 +7,13 @@ import {
   AdminUserUpdateInput,
   CreateUserInput,
 } from '../api/endpoints'
-import { usePeriod } from '../hooks/usePeriod'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { ApiClientError } from '../api/client'
 import type { Role, ManagedUser, Faculty } from '../types'
 
@@ -25,8 +25,6 @@ const ROLE_LABEL: Record<Role, string> = {
   faculty_admin: 'Faculty Admin',
   system_admin:  'System Admin',
 }
-
-const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
 
 const ROLE_OPTIONS = [
   { value: 'student',       label: 'Student' },
@@ -43,7 +41,6 @@ function CreateUserModal({
   onCreated: () => void
 }) {
   const toast = useToast()
-  const { period: globalPeriod } = usePeriod()
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [saving, setSaving] = useState(false)
@@ -51,13 +48,8 @@ function CreateUserModal({
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('student')
-  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
-  const [programmeId, setProgrammeId] = useState('')
-  const [year, setYear] = useState('')
-  const [regNumber, setRegNumber] = useState('')
 
-  const isStudent = role === 'student'
   const isStaff = role === 'lecturer' || role === 'faculty_admin'
 
   useEffect(() => {
@@ -66,21 +58,6 @@ function CreateUserModal({
       .then(setOptions)
       .catch(() => setOptions(null))
   }, [])
-
-  const campusFaculties = useMemo(() => {
-    if (!options) return []
-    return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
-  }, [options, campusCode])
-
-  const programmes = useMemo(() => {
-    if (!options) return []
-    for (const c of options.campuses) {
-      for (const f of c.faculties) {
-        if (f.id === facultyId) return f.programmes
-      }
-    }
-    return []
-  }, [options, facultyId])
 
   const staffFaculties = useMemo(() => {
     return options?.campuses.flatMap((c) => c.faculties) ?? []
@@ -95,21 +72,7 @@ function CreateUserModal({
     if (!payload.fullName) return toast.error('Full name is required')
     if (!payload.email) return toast.error('Email is required')
 
-    if (isStudent) {
-      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
-        return toast.error('Please complete all academic fields')
-      }
-      if (!globalPeriod) {
-        return toast.error('System period not loaded yet, please wait')
-      }
-      payload.campusCode = campusCode
-      payload.facultyId = facultyId
-      payload.programmeId = programmeId
-      payload.year = Number(year)
-      payload.semester = globalPeriod.semester
-      payload.academicYear = globalPeriod.academicYear
-      payload.regNumber = regNumber.trim()
-    } else if (isStaff) {
+    if (isStaff) {
       if (!facultyId) return toast.error('Select a faculty')
       payload.facultyId = facultyId
     }
@@ -142,70 +105,14 @@ function CreateUserModal({
           value={role}
           onChange={(e) => {
             setRole(e.target.value as Role)
-            setCampusCode('')
             setFacultyId('')
-            setProgrammeId('')
           }}
           options={ROLE_OPTIONS}
         />
         <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
           This account will receive the system default password and must change it on first sign-in.
+          {role === 'student' && ' The student will choose their faculty, programme and year on first login.'}
         </p>
-
-        {isStudent && (
-          <>
-            {globalPeriod && (
-              <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
-                Academic period:{' '}
-                <span className="font-semibold text-text-primary">
-                  {globalPeriod.academicYear} · Semester {globalPeriod.semester}
-                </span>
-                <span className="ml-1 text-text-disabled">(from global setting)</span>
-              </div>
-            )}
-            <Select
-              label="Campus"
-              placeholder="Select campus"
-              value={campusCode}
-              onChange={(e) => {
-                setCampusCode(e.target.value)
-                setFacultyId('')
-                setProgrammeId('')
-              }}
-              options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
-            />
-            <Select
-              label="Faculty"
-              placeholder="Select faculty"
-              value={facultyId}
-              onChange={(e) => {
-                setFacultyId(e.target.value)
-                setProgrammeId('')
-              }}
-              options={campusFaculties.map((f) => ({ value: f.id, label: f.name }))}
-            />
-            <Select
-              label="Programme"
-              placeholder="Select programme"
-              value={programmeId}
-              onChange={(e) => setProgrammeId(e.target.value)}
-              options={programmes.map((p) => ({ value: p.id, label: p.name }))}
-            />
-            <Select
-              label="Year of Study"
-              placeholder="Select"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              options={YEAR_OPTIONS}
-            />
-            <Input
-              label="Reg Number"
-              placeholder="e.g. BSCS/2024/0123"
-              value={regNumber}
-              onChange={(e) => setRegNumber(e.target.value)}
-            />
-          </>
-        )}
 
         {isStaff && (
           <>
@@ -247,18 +154,13 @@ function EditUserModal({
   onSaved: () => void
 }) {
   const toast = useToast()
-  const { period: globalPeriod } = usePeriod()
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [saving, setSaving] = useState(false)
 
   const [fullName, setFullName] = useState(user.fullName)
   const [email, setEmail] = useState(user.email)
-  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
-  const [programmeId, setProgrammeId] = useState('')
-  const [year, setYear] = useState('')
-  const [regNumber, setRegNumber] = useState('')
 
   const isStudent = user.role === 'student'
   const isStaff = user.role === 'lecturer' || user.role === 'faculty_admin'
@@ -266,42 +168,13 @@ function EditUserModal({
   useEffect(() => {
     setFullName(user.fullName)
     setEmail(user.email)
-    setRegNumber(user.regNumber ?? '')
-    setYear(user.year ? String(user.year) : '')
     setFacultyId(user.facultyId ?? '')
-    setProgrammeId(user.programmeId ?? '')
-    setCampusCode('')
     profileApi
       .options()
-      .then((opts) => {
-        setOptions(opts)
-        if (user.facultyId) {
-          for (const c of opts.campuses) {
-            if (c.faculties.some((f) => f.id === user.facultyId)) {
-              setCampusCode(c.code)
-              break
-            }
-          }
-        }
-      })
+      .then((opts) => { setOptions(opts) })
       .catch(() => setOptions(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
-
-  const campusFaculties = useMemo(() => {
-    if (!options) return []
-    return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
-  }, [options, campusCode])
-
-  const programmes = useMemo(() => {
-    if (!options) return []
-    for (const c of options.campuses) {
-      for (const f of c.faculties) {
-        if (f.id === facultyId) return f.programmes
-      }
-    }
-    return []
-  }, [options, facultyId])
 
   const staffFaculties = useMemo(() => {
     return options?.campuses.flatMap((c) => c.faculties) ?? []
@@ -315,21 +188,7 @@ function EditUserModal({
     if (!payload.fullName) return toast.error('Full name is required')
     if (!payload.email) return toast.error('Email is required')
 
-    if (isStudent) {
-      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
-        return toast.error('Please complete all academic fields')
-      }
-      if (!globalPeriod) {
-        return toast.error('System period not loaded yet, please wait')
-      }
-      payload.campusCode = campusCode
-      payload.facultyId = facultyId
-      payload.programmeId = programmeId
-      payload.year = Number(year)
-      payload.semester = globalPeriod.semester
-      payload.academicYear = globalPeriod.academicYear
-      payload.regNumber = regNumber.trim()
-    } else if (isStaff) {
+    if (isStaff) {
       if (!facultyId) return toast.error('Select a faculty')
       payload.facultyId = facultyId
     }
@@ -353,58 +212,9 @@ function EditUserModal({
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 
         {isStudent && (
-          <>
-            {globalPeriod && (
-              <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
-                Academic period:{' '}
-                <span className="font-semibold text-text-primary">
-                  {globalPeriod.academicYear} · Semester {globalPeriod.semester}
-                </span>
-                <span className="ml-1 text-text-disabled">(from global setting)</span>
-              </div>
-            )}
-            <Select
-              label="Campus"
-              placeholder="Select campus"
-              value={campusCode}
-              onChange={(e) => {
-                setCampusCode(e.target.value)
-                setFacultyId('')
-                setProgrammeId('')
-              }}
-              options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
-            />
-            <Select
-              label="Faculty"
-              placeholder="Select faculty"
-              value={facultyId}
-              onChange={(e) => {
-                setFacultyId(e.target.value)
-                setProgrammeId('')
-              }}
-              options={campusFaculties.map((f) => ({ value: f.id, label: f.name }))}
-            />
-            <Select
-              label="Programme"
-              placeholder="Select programme"
-              value={programmeId}
-              onChange={(e) => setProgrammeId(e.target.value)}
-              options={programmes.map((p) => ({ value: p.id, label: p.name }))}
-            />
-            <Select
-              label="Year of Study"
-              placeholder="Select"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              options={YEAR_OPTIONS}
-            />
-            <Input
-              label="Reg Number"
-              placeholder="e.g. BSCS/2024/0123"
-              value={regNumber}
-              onChange={(e) => setRegNumber(e.target.value)}
-            />
-          </>
+          <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
+            This student will manage their own academic profile (faculty, programme, year) from their profile page.
+          </p>
         )}
 
         {isStaff && (
@@ -447,6 +257,13 @@ export default function UserManagement() {
   const [page,     setPage]     = useState(1)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
+
+  // Confirm modal state
+  const [confirm, setConfirm] = useState<{
+    title: string
+    message: string
+    onConfirm: () => Promise<void>
+  } | null>(null)
 
   // Assign-faculty modal state
   const [assignTarget, setAssignTarget] = useState<ManagedUser | null>(null)
@@ -518,56 +335,74 @@ export default function UserManagement() {
   }
 
   async function handleDeleteOne(user: ManagedUser) {
-    if (!window.confirm(`Permanently delete ${user.fullName}? This cannot be undone.`)) return
-    setDeleting(true)
-    try {
-      await userApi.remove(user.id)
-      toast.success(`${user.fullName} deleted`)
-      setSelectedIds((ids) => ids.filter((id) => id !== user.id))
-      await reload()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete user')
-    } finally {
-      setDeleting(false)
-    }
+    setConfirm({
+      title: 'Delete User',
+      message: `Permanently delete ${user.fullName}? This cannot be undone.`,
+      onConfirm: async () => {
+        setDeleting(true)
+        try {
+          await userApi.remove(user.id)
+          toast.success(`${user.fullName} deleted`)
+          setSelectedIds((ids) => ids.filter((id) => id !== user.id))
+          await reload()
+        } catch (e) {
+          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete user')
+        } finally {
+          setDeleting(false)
+          setConfirm(null)
+        }
+      },
+    })
   }
 
   async function handleDeleteSelected() {
     if (selectedIds.length === 0) return
-    if (!window.confirm(`Permanently delete ${selectedIds.length} selected user(s)? This cannot be undone.`)) return
-    setDeleting(true)
-    try {
-      const { result } = await userApi.removeMany({ userIds: selectedIds })
-      setSelectedIds([])
-      toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
-      if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
-      await reload()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete selected users')
-    } finally {
-      setDeleting(false)
-    }
+    setConfirm({
+      title: 'Delete Selected Users',
+      message: `Permanently delete ${selectedIds.length} selected user(s)? This cannot be undone.`,
+      onConfirm: async () => {
+        setDeleting(true)
+        try {
+          const { result } = await userApi.removeMany({ userIds: selectedIds })
+          setSelectedIds([])
+          toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
+          if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
+          await reload()
+        } catch (e) {
+          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete selected users')
+        } finally {
+          setDeleting(false)
+          setConfirm(null)
+        }
+      },
+    })
   }
 
   async function handleDeleteAllMatching() {
     const scope = role || search ? 'all users matching the current filters' : 'all users except your own account'
-    if (!window.confirm(`Permanently delete ${scope}? This cannot be undone.`)) return
-    setDeleting(true)
-    try {
-      const { result } = await userApi.removeMany({
-        allMatching: true,
-        ...(role ? { role: role as Role } : {}),
-        ...(search ? { search } : {}),
-      })
-      setSelectedIds([])
-      toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
-      if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
-      await reload()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Could not delete users')
-    } finally {
-      setDeleting(false)
-    }
+    setConfirm({
+      title: 'Delete All Users',
+      message: `Permanently delete ${scope}? This cannot be undone.`,
+      onConfirm: async () => {
+        setDeleting(true)
+        try {
+          const { result } = await userApi.removeMany({
+            allMatching: true,
+            ...(role ? { role: role as Role } : {}),
+            ...(search ? { search } : {}),
+          })
+          setSelectedIds([])
+          toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
+          if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
+          await reload()
+        } catch (e) {
+          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete users')
+        } finally {
+          setDeleting(false)
+          setConfirm(null)
+        }
+      },
+    })
   }
 
   async function changeRole(user: ManagedUser, newRole: Role) {
@@ -862,6 +697,17 @@ export default function UserManagement() {
           }}
         />
       )}
+
+      {/* ── Confirm destructive action modal ── */}
+      <ConfirmModal
+        open={Boolean(confirm)}
+        title={confirm?.title ?? ''}
+        message={confirm?.message ?? ''}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={() => confirm?.onConfirm()}
+        onCancel={() => !deleting && setConfirm(null)}
+      />
     </div>
   )
 }

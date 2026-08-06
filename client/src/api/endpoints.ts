@@ -429,7 +429,7 @@ export const userApi = {
     http.patch<{ user: ManagedUser }>(`/api/users/${id}`, data),
   remove:       (id: string) => http.del<{ deleted: number }>(`/api/users/${id}`),
   removeMany: (data: { userIds?: string[]; allMatching?: boolean; role?: Role; search?: string }) =>
-    http.del<{ result: { deleted: number; skipped: number; errors: { id: string; message: string }[] } }>('/api/users', data),
+    http.post<{ result: { deleted: number; skipped: number; errors: { id: string; message: string }[] } }>('/api/users/bulk-delete', data),
 }
 
 // ─── Imports (System Admin) ───

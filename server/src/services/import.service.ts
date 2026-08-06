@@ -6,7 +6,6 @@ import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
 import { isValidCampusCode } from '../constants/campuses'
-import { recalculateEnrollments, validateStudentPath } from './profile.service'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 
@@ -273,10 +272,10 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 
 /**
  * Import student accounts from CSV.
- * Columns: name, email, regNumber, facultyCode, programmeCode, year, semester,
- * academicYear, password (optional). The academic fields are optional as a
- * group for backwards compatibility; when supplied, the student profile and
- * curriculum enrolments are created during the import.
+ * Columns: name, email, password (optional).
+ * Students complete their academic profile (campus → faculty → programme → year)
+ * on first login. profileComplete is set to false so they are forced to the
+ * profile-setup screen before accessing their dashboard.
  */
 export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -292,120 +291,50 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
     const row = rows[i]
     const line = i + 2
     try {
-      const name = row['name']
+      const name = row['name']?.trim()
       const email = row['email']?.trim().toLowerCase()
-      const regNumber = row['regNumber']?.trim()
-      const facultyCode = normalizeCode(row['facultyCode'])
-      const programmeCode = normalizeCode(row['programmeCode'])
-      const year = Number(row['year'])
-      const semester = Number(row['semester'])
-      const academicYear = row['academicYear']?.trim()
       const plainPassword = row['password']?.trim()
 
       if (!name || !email) throw new Error('Missing name or email')
       if (!email.endsWith('@stud.umu.ac.ug')) {
-        throw new Error(`Email must be @stud.umu.ac.ug`)
+        throw new Error('Email must end in @stud.umu.ac.ug')
       }
       if (plainPassword && plainPassword.length < 6) {
         throw new Error('Password must be at least 6 characters')
       }
 
-      const profileFields = [facultyCode, programmeCode, row['year'], row['semester'], academicYear]
-      const hasProfile = profileFields.some(Boolean)
-      let profile: {
-        campusCode: string
-        facultyId: string
-        programmeId: string
-        year: number
-        semester: number
-        academicYear: string
-        regNumber: string
-      } | null = null
-
-      if (hasProfile) {
-        if (!regNumber || !facultyCode || !programmeCode || !Number.isInteger(year) || !Number.isInteger(semester) || !academicYear) {
-          throw new Error('Student profile requires regNumber, facultyCode, programmeCode, year, semester and academicYear')
-        }
-        if (!/^\d{4}\/\d{4}$/.test(academicYear)) {
-          throw new Error(`Invalid academicYear "${academicYear}"`)
-        }
-        const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
-        if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
-        const programme = await prisma.programme.findFirst({
-          where: { code: programmeCode, facultyId: faculty.id, isActive: true },
-        })
-        if (!programme) throw new Error(`Active programme "${programmeCode}" not found in faculty "${facultyCode}"`)
-        profile = {
-          campusCode: faculty.campusCode,
-          facultyId: faculty.id,
-          programmeId: programme.id,
-          year,
-          semester,
-          academicYear,
-          regNumber,
-        }
-        await validateStudentPath(profile)
-      }
-
       const existing = await prisma.user.findUnique({ where: { email } })
-      let userId: string
 
       if (existing) {
         if (!roleMatchesEmail(existing.role, email)) {
           throw new Error('Email is already used by a non-student account')
         }
-        const user = await prisma.user.update({
+        await prisma.user.update({
           where: { email },
           data: {
             fullName: name,
-            ...(regNumber ? { regNumber } : {}),
-            ...(profile
-              ? {
-                  facultyId: profile.facultyId,
-                  programmeId: profile.programmeId,
-                  year: profile.year,
-                  semester: profile.semester,
-                  academicYear: profile.academicYear,
-                  regNumber: profile.regNumber,
-                  profileComplete: true,
-                }
-              : {}),
             isActive: true,
             ...(plainPassword
               ? { password: await hashPassword(plainPassword), mustChangePassword: true }
               : {}),
           },
         })
-        userId = user.id
       } else {
         const password = plainPassword
           ? await hashPassword(plainPassword)
           : await getDefaultUserPasswordHash()
-        const user = await prisma.user.create({
+        await prisma.user.create({
           data: {
             email,
             password,
             mustChangePassword: true,
             fullName: name,
             role: Role.student,
-            profileComplete: Boolean(profile),
+            profileComplete: false,
             isActive: true,
-            ...(regNumber ? { regNumber } : {}),
-            ...(profile
-              ? {
-                  facultyId: profile.facultyId,
-                  programmeId: profile.programmeId,
-                  year: profile.year,
-                  semester: profile.semester,
-                  academicYear: profile.academicYear,
-                  regNumber: profile.regNumber,
-                }
-              : {}),
           },
         })
-        userId = user.id
       }
-      if (profile) await recalculateEnrollments(userId, profile)
       result.imported++
     } catch (error) {
       result.failed++

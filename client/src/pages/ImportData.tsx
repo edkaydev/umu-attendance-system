@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,regNumber,facultyCode,programmeCode,year,semester,academicYear,password'
+const STUDENT_TEMPLATE = 'name,email,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -213,8 +213,9 @@ export default function ImportData() {
 
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates student accounts with the given password, or the system default when blank. Users must change it on first sign-in. Emails must end in
-            @stud.umu.ac.ug. Include the academic columns to create profiles and curriculum enrolments during import.
+            Creates student accounts. Students must change their password on first sign-in, then choose their
+            campus, faculty, programme and year to get their course units automatically.
+            Emails must end in @stud.umu.ac.ug. Leave password blank to use the system default.
           </p>
           <input
             ref={studentRef}
