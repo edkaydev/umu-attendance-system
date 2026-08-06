@@ -28,6 +28,7 @@ import ImportData from './pages/ImportData'
 import SystemLogPage from './pages/SystemLogPage'
 import GlobalSettings from './pages/GlobalSettings'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import UpdateSystemPage from './pages/UpdateSystemPage'
 import NotFound from './pages/NotFound'
 
 function HomeRedirect() {
@@ -340,6 +341,18 @@ export default function App() {
                   <RequireRole roles={['system_admin']}>
                     <AppLayout>
                       <GlobalSettings />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/system-admin/update"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['system_admin']}>
+                    <AppLayout>
+                      <UpdateSystemPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

@@ -39,15 +39,7 @@ export function CookieBanner() {
         <p className="text-body-sm text-text-secondary">
           <span className="font-semibold text-text-primary">We use cookies.</span>{' '}
           UMU Attendance System uses strictly-necessary cookies to keep you signed in securely.
-          No tracking or advertising cookies are used.{' '}
-          <a
-            href="https://www.umu.ac.ug/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-umu-red underline hover:no-underline"
-          >
-            Privacy policy
-          </a>
+          No tracking or advertising cookies are used.
         </p>
 
         {/* Actions */}

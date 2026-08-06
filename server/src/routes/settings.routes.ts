@@ -12,6 +12,8 @@ import {
   setDefaultUserPasswordController,
   resetDatabaseController,
   clearCacheController,
+  updateSystemController,
+  updateLogController,
 } from '../controllers/settings.controller'
 
 const router = Router()
@@ -30,5 +32,7 @@ router.patch('/default-user-password', authenticate, requireRole('system_admin')
 
 router.post('/reset-database', authenticate, requireRole('system_admin'), resetDatabaseController)
 router.post('/clear-cache', authenticate, requireRole('system_admin'), clearCacheController)
+router.post('/update-system', authenticate, requireRole('system_admin'), updateSystemController)
+router.get('/update-log', authenticate, requireRole('system_admin'), updateLogController)
 
 export default router

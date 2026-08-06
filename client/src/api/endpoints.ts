@@ -526,4 +526,8 @@ export const settingsApi = {
     http.post<{ message: string; result: Record<string, number> }>('/api/settings/reset-database'),
   clearCache: () =>
     http.post<{ message: string }>('/api/settings/clear-cache'),
+  updateSystem: () =>
+    http.post<{ message: string }>('/api/settings/update-system'),
+  updateLog: () =>
+    http.get<{ log: string; done: boolean }>('/api/settings/update-log'),
 }
