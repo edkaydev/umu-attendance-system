@@ -15,6 +15,7 @@ import {
   deleteUser,
   deleteUsers,
   listUserIds,
+  resetUserPassword,
 } from '../services/user.service'
 
 const roleSchema = z.object({
@@ -205,6 +206,20 @@ export async function updateUserController(
     })
 
     ok(res, { user })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function resetPasswordController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = await resetUserPassword(req.params.id, req.user!.id)
+    await writeAuditLog(req.user!.id, 'USER_UPDATE', 'user', user.id, {
+      action: 'reset_password',
+      fullName: user.fullName,
+      email: user.email,
+    })
+    ok(res, { message: `Password reset to default for ${user.fullName}. They will be prompted to change it on next login.` })
   } catch (e) {
     next(e)
   }

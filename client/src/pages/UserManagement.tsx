@@ -157,6 +157,8 @@ function EditUserModal({
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [saving, setSaving] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   const [fullName, setFullName] = useState(user.fullName)
   const [email, setEmail] = useState(user.email)
@@ -205,6 +207,19 @@ function EditUserModal({
     }
   }
 
+  async function handleResetPassword() {
+    setResettingPassword(true)
+    try {
+      const { message } = await userApi.resetPassword(user.id)
+      toast.success(message)
+      setShowResetConfirm(false)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reset password')
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
   return (
     <Modal open onClose={onClose} title={`Edit User — ${user.fullName}`}>
       <div className="space-y-4">
@@ -238,11 +253,28 @@ function EditUserModal({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
+          <Button
+            variant="secondary"
+            loading={resettingPassword}
+            onClick={() => setShowResetConfirm(true)}
+          >
+            Reset Password
+          </Button>
           <Button loading={saving} onClick={handleSave}>
             Save Changes
           </Button>
         </div>
       </div>
+
+      <ConfirmModal
+        open={showResetConfirm}
+        title="Reset Password to Default"
+        message={`Reset ${user.fullName}'s password to the system default? They will be forced to change it on next login. All their data is untouched.`}
+        confirmLabel="Reset Password"
+        loading={resettingPassword}
+        onConfirm={handleResetPassword}
+        onCancel={() => !resettingPassword && setShowResetConfirm(false)}
+      />
     </Modal>
   )
 }

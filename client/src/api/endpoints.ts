@@ -430,6 +430,8 @@ export const userApi = {
   remove:       (id: string) => http.del<{ deleted: number }>(`/api/users/${id}`),
   removeMany: (data: { userIds?: string[]; allMatching?: boolean; role?: Role; search?: string }) =>
     http.post<{ result: { deleted: number; skipped: number; errors: { id: string; message: string }[] } }>('/api/users/bulk-delete', data),
+  resetPassword: (id: string) =>
+    http.patch<{ message: string }>(`/api/users/${id}/reset-password`),
 }
 
 // ─── Imports (System Admin) ───

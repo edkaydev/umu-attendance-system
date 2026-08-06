@@ -433,3 +433,27 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
 
   return prisma.user.findUnique({ where: { id: updated.id }, select: managedUserSelect })
 }
+
+/**
+ * Reset a user's password to the system default and force them to change it
+ * on next login. All their data is untouched.
+ */
+export async function resetUserPassword(id: string, actorId: string) {
+  if (id === actorId) {
+    throw new ApiError('You cannot reset your own password this way — use Change Password instead', 400)
+  }
+
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, fullName: true, email: true } })
+  if (!user) throw new ApiError('User not found', 404)
+
+  const passwordHash = await getDefaultUserPasswordHash()
+  await prisma.user.update({
+    where: { id },
+    data: {
+      password: passwordHash,
+      mustChangePassword: true,
+    },
+  })
+
+  return user
+}
