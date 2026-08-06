@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "seed:admin": "tsx src/utils/seed-admin.ts",
+    "passwords:apply-default": "tsx src/utils/apply-default-password.ts",
     "test": "vitest run"
   },
   "dependencies": {
