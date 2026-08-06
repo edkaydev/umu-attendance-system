@@ -171,7 +171,7 @@ docker compose exec app npm run seed:admin
 ```
 
 Creates the first System Admin account using `SEED_ADMIN_EMAIL` /
-`SEED_ADMIN_PASSWORD` from `server/.env` (default `edwardadmin@umu.ac.ug`). The
+`SEED_ADMIN_PASSWORD` from `server/.env` (default `edward@umu.ac.ug`). The
 login page has an email + password form, so the admin signs in without Google.
 After logging in, set the current period (`Settings → Current Period`) before any
 other setup.
@@ -385,7 +385,7 @@ grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-di
 
 ## After First Deploy — System Admin Checklist
 
-1. Log in with the System Admin account (`edwardadmin@umu.ac.ug` + `SEED_ADMIN_PASSWORD`)
+1. Log in with the System Admin account (`edward@umu.ac.ug` + `SEED_ADMIN_PASSWORD`)
 2. **Settings → Current Period** — set academic year and semester
 3. **Settings → Profile Editing** — enable for students and lecturers
 4. **Academic Setup** — create Campus, Faculty, Programmes, Course Units, Curriculum mappings

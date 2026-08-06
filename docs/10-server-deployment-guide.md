@@ -191,7 +191,7 @@ ALERT_FROM_NAME=UMU Attendance System
 UMU_LOGO_PATH=/app/assets/umu-logo.png
 
 # First system admin account
-SEED_ADMIN_EMAIL=edwardadmin@umu.ac.ug
+SEED_ADMIN_EMAIL=edward@umu.ac.ug
 SEED_ADMIN_PASSWORD=choose-a-strong-password
 SEED_ADMIN_NAME=System Administrator
 ```
@@ -377,7 +377,7 @@ docker compose exec app npm run seed:admin
 ```
 
 This creates the System Admin account using the email and password you set in
-`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (default `edwardadmin@umu.ac.ug`).
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (default `edward@umu.ac.ug`).
 That person signs in on the login page with that email + password, or with Google once
 UMU Workspace has allowed the app. They can then add every other user (staff and
 students) from **User Management → Add User** or by CSV import.
@@ -438,7 +438,7 @@ docker compose up -d app
 Go to `https://attendance.umu.ac.ug` in your browser.
 
 You should see the UMU Attendance login page with an email + password form (and a Google
-button). Sign in as the System Admin with `edwardadmin@umu.ac.ug` + the password you set
+button). Sign in as the System Admin with `edward@umu.ac.ug` + the password you set
 in `SEED_ADMIN_PASSWORD`.
 
 **First things to do after logging in:**
