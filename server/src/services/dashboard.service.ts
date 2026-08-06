@@ -149,7 +149,7 @@ export async function getLecturerDashboard(lecturerId: string) {
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
       _count: {
-        select: { attendanceRecords: { where: { status: 'present' } } },
+        select: { attendanceRecords: true },
       },
     },
     orderBy: { openedAt: 'desc' },

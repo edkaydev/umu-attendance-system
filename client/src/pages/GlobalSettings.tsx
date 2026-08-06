@@ -11,6 +11,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { PasswordInput } from '../components/ui/PasswordInput'
 
 const PROFILE_SCOPES: { scope: ProfileEditingScope; label: string; description: string }[] = [
   { scope: 'students', label: 'Students', description: 'Allow students to edit their academic profile.' },
@@ -127,8 +128,8 @@ export default function GlobalSettings() {
           {defaultPasswordConfigured ? 'A custom default is active.' : 'The initial default is Umu@2026.'} This affects only future accounts; every new user must change it at first sign-in.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="New Default Password" type="password" autoComplete="new-password" value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} />
-          <Input label="Confirm Default Password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+          <PasswordInput label="New Default Password" autoComplete="new-password" value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} showStrength />
+          <PasswordInput label="Confirm Default Password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </div>
         <Button loading={saving === 'password'} onClick={saveDefaultPassword}>Save Default Password</Button>
       </Card></>}

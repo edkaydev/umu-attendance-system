@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext'
 import { authApi } from '../api/endpoints'
 import { ApiClientError } from '../api/client'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { PasswordInput } from '../components/ui/PasswordInput'
 import { Card } from '../components/ui/Card'
 
 export default function ChangePassword() {
@@ -53,25 +53,23 @@ export default function ChangePassword() {
 
         <Card>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
+            <PasswordInput
               label="Current Password"
-              type="password"
               autoComplete="current-password"
               placeholder="Your temporary password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
-            <Input
+            <PasswordInput
               label="New Password"
-              type="password"
               autoComplete="new-password"
               placeholder="At least 6 characters"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              showStrength
             />
-            <Input
+            <PasswordInput
               label="Confirm New Password"
-              type="password"
               autoComplete="new-password"
               placeholder="Repeat new password"
               value={confirmPassword}

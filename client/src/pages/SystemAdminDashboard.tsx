@@ -14,6 +14,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
+import { PasswordInput } from '../components/ui/PasswordInput'
 import { ApiClientError } from '../api/client'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.systemAdmin>>
@@ -465,16 +466,15 @@ export default function SystemAdminDashboard() {
             This applies only to accounts created after you save it. Existing users keep their current passwords.
             New users must change this password at their first sign-in.
           </p>
-          <Input
+          <PasswordInput
             label="New Default Password"
-            type="password"
             autoComplete="new-password"
             value={defaultPassword}
             onChange={(e) => setDefaultPassword(e.target.value)}
+            showStrength
           />
-          <Input
+          <PasswordInput
             label="Confirm Default Password"
-            type="password"
             autoComplete="new-password"
             value={defaultPasswordConfirm}
             onChange={(e) => setDefaultPasswordConfirm(e.target.value)}
