@@ -26,16 +26,25 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (loading) return <FullScreenLoader />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
 
+  // Must change password — only the change-password screen is allowed
   if (user.mustChangePassword && location.pathname !== '/password/change') {
     return <Navigate to="/password/change" replace />
   }
+
+  // Password is fine — leave the change-password screen, go to the right place
   if (!user.mustChangePassword && location.pathname === '/password/change') {
-    return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
+    const next = !user.profileComplete
+      ? '/profile/setup'
+      : DASHBOARD_BY_ROLE[user.role]
+    return <Navigate to={next} replace />
   }
 
-  if (!user.profileComplete && location.pathname !== '/profile/setup') {
+  // Profile not yet complete — only the setup screen is allowed
+  if (!user.mustChangePassword && !user.profileComplete && location.pathname !== '/profile/setup') {
     return <Navigate to="/profile/setup" replace />
   }
+
+  // Profile already complete — don't go back to setup
   if (user.profileComplete && location.pathname === '/profile/setup') {
     return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
   }

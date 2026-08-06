@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { authApi } from '../api/endpoints'
-import { DASHBOARD_BY_ROLE } from '../components/RouteGuards'
 import { ApiClientError } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -12,7 +10,6 @@ import { Card } from '../components/ui/Card'
 export default function ChangePassword() {
   const { user, refresh } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -34,9 +31,10 @@ export default function ChangePassword() {
     setSaving(true)
     try {
       await authApi.changePassword(currentPassword, newPassword)
-      await refresh()
       toast.success('Password changed successfully')
-      navigate(user.profileComplete ? DASHBOARD_BY_ROLE[user.role] : '/profile/setup')
+      // Refresh auth state — RequireAuth will redirect to the right place
+      // (dashboard if profileComplete, /profile/setup if not).
+      await refresh()
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to change password')
     } finally {
