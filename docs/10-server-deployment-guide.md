@@ -139,18 +139,26 @@ cd /var/www/umu-attendance
 
 ---
 
-## Step 5 — Create the environment file
+## Step 5 — Create the environment files
 
-The `.env` file holds all your secret settings (database password, Google keys, etc.).
-It is never uploaded to GitHub — you create it fresh on each server.
+The `.env` files hold all your secret settings (database password, Google keys, etc.).
+They are never uploaded to GitHub — you create them fresh on each server.
+
+There are **two** env files:
+
+1. **`server/.env`** — settings for the Node.js app.
+2. **`.env`** (repo root) — the database passwords that Docker Compose reads.
 
 ```bash
 cp server/.env.example server/.env
+cp .env.example .env
 nano server/.env
 ```
 
 > `nano` is a simple text editor in the terminal.
 > Use arrow keys to move. Edit the values. When done: **Ctrl+X → Y → Enter** to save.
+
+Fill in each value in `server/.env`:
 
 Fill in each value:
 
@@ -197,22 +205,20 @@ Copy the output and paste it as your `JWT_ACCESS_SECRET`, run again for `JWT_REF
 
 ---
 
-## Step 6 — Update the Docker Compose database password
+## Step 6 — Match the database password in both env files
 
-Open the docker-compose file and match the password you chose in `.env`:
+The database password must be the **same** in both files:
+
+- In `server/.env`, inside the `DATABASE_URL` value: `mysql://umu_user:ChooseAStrongPassword@db:3306/umu_attendance`
+- In `.env` (root), the `MYSQL_PASSWORD=ChooseAStrongPassword` value
 
 ```bash
-nano devops/docker-compose.yml
+nano .env
 ```
 
-Find this section and change `StrongPassword123` to match what you put in `DATABASE_URL`:
-```yaml
-MYSQL_PASSWORD: ChooseAStrongPassword
-```
-
-Save: **Ctrl+X → Y → Enter**
-
----
+> If these don't match, the app container won't be able to connect to the database.
+> If a password contains special characters (like `#`, `@`, `%`), URL-encode it in
+> `DATABASE_URL` — e.g. `Console.log#75` becomes `Console.log%2375`.
 
 ## Step 7 — Install Node.js (to build the frontend)
 
@@ -264,7 +270,7 @@ Gmail requires an "App Password" — a special password just for apps, not your 
 
 ```bash
 cd /var/www/umu-attendance
-docker compose -f devops/docker-compose.yml up -d --build
+docker compose up -d --build
 ```
 
 > `-d` means "detached" — runs in the background so you can keep using the terminal.
@@ -273,7 +279,7 @@ docker compose -f devops/docker-compose.yml up -d --build
 
 **Check everything is running:**
 ```bash
-docker compose -f devops/docker-compose.yml ps
+docker compose ps
 ```
 
 You should see three containers all with status `Up`:
@@ -291,7 +297,7 @@ umu-nginx     Up
 This creates all the database tables the app needs.
 
 ```bash
-docker compose -f devops/docker-compose.yml exec app npx prisma migrate deploy
+docker compose exec app npx prisma migrate deploy
 ```
 
 > `exec app` means "run this command inside the app container".
@@ -302,7 +308,7 @@ docker compose -f devops/docker-compose.yml exec app npx prisma migrate deploy
 ## Step 12 — Create the first System Admin account
 
 ```bash
-docker compose -f devops/docker-compose.yml exec app npm run seed:admin
+docker compose exec app npm run seed:admin
 ```
 
 This creates the System Admin account using the email you set in `SEED_ADMIN_EMAIL`.
@@ -314,21 +320,47 @@ That person can now log in with their Google account.
 
 Without this, browsers will show "Not Secure" and Google OAuth will not work in production.
 
-First, make sure your domain (`attendance.umu.ac.ug`) is pointing to this server's IP.
-You can check with:
+> **Important:** Nginx needs the certificate file to already exist before it starts.
+> Get the certificate **first** (this section), then start the containers in Step 10.
+> If Nginx starts before the certificate exists it will crash-loop with:
+> `cannot load certificate "/etc/letsencrypt/live/...": No such file or directory`.
+
+**Option A — a real domain (e.g. `attendance.umu.ac.ug`)**
+
+First make sure the domain points to this server's IP:
 ```bash
 ping attendance.umu.ac.ug
 ```
 It should return your server's IP address. If not, DNS hasn't updated yet — wait 10–30 minutes and try again.
 
-Once DNS works:
+**Option B — no domain yet (use the server IP)**
+
+You can use a free subdomain that automatically points to your IP. For IP `41.210.100.50`
+the address is `41.210.100.50.sslip.io` (replace with your real IP everywhere below).
+This is what the current test deployment (`102.133.161.8.sslip.io`) uses.
+
+---
+
+**Get the certificate** (works for both options — pick your domain):
+
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d attendance.umu.ac.ug
+sudo apt install -y certbot
+
+# Stop nginx temporarily (certbot needs port 80)
+cd /var/www/umu-attendance
+docker compose stop nginx
+
+# Get a certificate for your domain
+sudo certbot certonly --standalone -d attendance.umu.ac.ug
+
+# Start nginx again
+docker compose start nginx
 ```
 
-Certbot will ask for your email and ask you to agree to terms. Type `Y` and press Enter.
-It automatically gets a free SSL certificate and configures Nginx.
+> Replace `attendance.umu.ac.ug` with `YOUR-IP.sslip.io` if using Option B.
+> Certbot asks for your email and to agree to terms — type `Y` and press Enter.
+
+The certificate is saved to `/etc/letsencrypt/live/YOUR-DOMAIN/fullchain.pem`.
 
 **Auto-renewal** (certificates expire every 90 days — this renews them automatically):
 ```bash
@@ -336,11 +368,27 @@ sudo systemctl enable certbot.timer
 sudo systemctl start certbot.timer
 ```
 
+**Make Nginx use your certificate.** The Nginx config at
+`devops/nginx/umu-attendance.conf` must reference your domain's certificate paths:
+
+```bash
+nano devops/nginx/umu-attendance.conf
+```
+
+Change these two lines to your domain:
+```nginx
+ssl_certificate     /etc/letsencrypt/live/YOUR-DOMAIN/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/YOUR-DOMAIN/privkey.pem;
+```
+
+Also update `server_name` on both server blocks. Save: **Ctrl+X → Y → Enter**.
+
 ---
 
 ## Step 14 — Update Google OAuth for production
 
-Go back to Google Cloud Console → your OAuth client → add the production URLs:
+Go back to Google Cloud Console → OAuth consent screen → Clients → edit your web client.
+The redirect URI must use **https** and match your domain exactly:
 
 **Authorised JavaScript origins:**
 ```
@@ -352,7 +400,13 @@ https://attendance.umu.ac.ug
 https://attendance.umu.ac.ug/api/auth/google/callback
 ```
 
-Also update your `.env`:
+Then check the OAuth consent screen **Audience** page:
+- **User type** must be **External** (Internal only works for Google accounts inside the
+  same Google Workspace that owns the Cloud project — this blocks everyone else).
+- **Publishing status** must be **In production**. Google refuses to publish apps whose
+  redirect URIs use plain `http://` — HTTPS is mandatory.
+
+Also update your `server/.env`:
 ```bash
 nano server/.env
 ```
@@ -364,8 +418,12 @@ GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
 
 Then restart the app container to pick up the new `.env`:
 ```bash
-docker compose -f devops/docker-compose.yml restart app
+cd /var/www/umu-attendance
+docker compose up -d app
 ```
+
+> Use `docker compose up -d app`, not `docker compose restart app` — `restart` keeps the
+> old environment variables, but `up -d` recreates the container and reads the new `.env`.
 
 ---
 
@@ -399,10 +457,10 @@ git pull origin main
 cd client && npm install && npm run build && cd ..
 
 # Restart the containers with the new code
-docker compose -f devops/docker-compose.yml up -d --build
+docker compose up -d --build
 
 # Apply any new database changes
-docker compose -f devops/docker-compose.yml exec app npx prisma migrate deploy
+docker compose exec app npx prisma migrate deploy
 ```
 
 Or use the deploy script:
@@ -416,25 +474,25 @@ bash devops/scripts/deploy.sh
 
 ```bash
 # See if all containers are running
-docker compose -f devops/docker-compose.yml ps
+docker compose ps
 
 # Watch live logs from the app (Ctrl+C to stop)
-docker compose -f devops/docker-compose.yml logs -f app
+docker compose logs -f app
 
 # Watch live logs from Nginx (web server)
-docker compose -f devops/docker-compose.yml logs -f nginx
+docker compose logs -f nginx
 
 # Restart just the app (after changing .env)
-docker compose -f devops/docker-compose.yml restart app
+docker compose restart app
 
 # Stop everything
-docker compose -f devops/docker-compose.yml down
+docker compose down
 
 # Start everything again
-docker compose -f devops/docker-compose.yml up -d
+docker compose up -d
 
 # Get inside the app container (like SSH but into Docker)
-docker compose -f devops/docker-compose.yml exec app sh
+docker compose exec app sh
 ```
 
 ---
@@ -466,10 +524,10 @@ Save: **Ctrl+X → Y → Enter**
 ### "Cannot connect to server" / site not loading
 ```bash
 # Check all containers are up
-docker compose -f devops/docker-compose.yml ps
+docker compose ps
 
 # Check for errors in the app
-docker compose -f devops/docker-compose.yml logs app --tail=50
+docker compose logs app --tail=50
 ```
 
 ---
@@ -477,12 +535,12 @@ docker compose -f devops/docker-compose.yml logs app --tail=50
 ### "502 Bad Gateway" in the browser
 The Node.js app crashed. Check why:
 ```bash
-docker compose -f devops/docker-compose.yml logs app --tail=100
+docker compose logs app --tail=100
 ```
 Common causes: wrong `DATABASE_URL`, missing `.env` values, bad JWT secret.
 Fix the `.env` then restart:
 ```bash
-docker compose -f devops/docker-compose.yml restart app
+docker compose restart app
 ```
 
 ---
@@ -518,10 +576,10 @@ It must be `https://` not `http://` in production, and must match the exact doma
 ### Database connection error
 ```bash
 # Check the database container is healthy
-docker compose -f devops/docker-compose.yml ps db
+docker compose ps db
 
 # Check db logs
-docker compose -f devops/docker-compose.yml logs db --tail=30
+docker compose logs db --tail=30
 ```
 Common cause: `DATABASE_URL` password doesn't match `MYSQL_PASSWORD` in docker-compose.yml.
 
@@ -529,7 +587,7 @@ Common cause: `DATABASE_URL` password doesn't match `MYSQL_PASSWORD` in docker-c
 
 ### Emails not sending
 ```bash
-docker compose -f devops/docker-compose.yml logs app | grep -i smtp
+docker compose logs app | grep -i smtp
 ```
 Common causes:
 - `SMTP_PASS` is your real Gmail password instead of an App Password
@@ -540,7 +598,7 @@ Common causes:
 
 ### PDF download not working / shows error
 ```bash
-docker compose -f devops/docker-compose.yml logs app | grep -i puppet
+docker compose logs app | grep -i puppet
 ```
 Common cause: Chromium not installed in the Docker image.
 Check your `Dockerfile` includes:
@@ -564,7 +622,7 @@ df -h
 
 ### Container keeps restarting
 ```bash
-docker compose -f devops/docker-compose.yml logs app --tail=20
+docker compose logs app --tail=20
 ```
 Look for the error on the last line before it crashed. Usually a missing `.env` variable or database not ready yet.
 
@@ -592,9 +650,9 @@ top
 |---|---|
 | Connect to server | `ssh ubuntu@your-ip` |
 | Go to project folder | `cd /var/www/umu-attendance` |
-| Check containers | `docker compose -f devops/docker-compose.yml ps` |
-| View app logs | `docker compose -f devops/docker-compose.yml logs -f app` |
-| Restart app | `docker compose -f devops/docker-compose.yml restart app` |
+| Check containers | `docker compose ps` |
+| View app logs | `docker compose logs -f app` |
+| Restart app | `docker compose restart app` |
 | Deploy update | `bash devops/scripts/deploy.sh` |
 | Backup database | `bash devops/scripts/backup-db.sh` |
 | Check disk space | `df -h` |

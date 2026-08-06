@@ -57,8 +57,14 @@ cd /var/www/umu-attendance
 
 ## Step 3 — Configure Environment Variables
 
+Two env files are needed:
+
+- **`server/.env`** — settings for the Node.js app.
+- **`.env`** (repo root) — database passwords for Docker Compose.
+
 ```bash
 cp server/.env.example server/.env
+cp .env.example .env
 nano server/.env
 ```
 
@@ -135,40 +141,71 @@ Creates the first System Admin account. After this, log in and set the current p
 
 ## Step 8 — SSL with Certbot
 
+> **Important:** Nginx needs the certificate file to exist before it starts. Get the
+> certificate **before** the first `docker compose up` (Step 5). If Nginx starts first it
+> crash-loops with `cannot load certificate "...": No such file or directory`.
+
+Nginx runs inside Docker, so get the certificate with certbot's **standalone** mode
+(stop nginx first so certbot can use port 80):
+
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d attendance.umu.ac.ug
-sudo systemctl enable certbot.timer
+sudo apt install -y certbot
+
+cd /var/www/umu-attendance
+docker compose stop nginx
+
+sudo certbot certonly --standalone -d attendance.umu.ac.ug
+
+docker compose start nginx
 ```
+
+> No domain yet? Use the server IP with a free `sslip.io` subdomain, e.g. for IP
+> `41.210.100.50` use `-d 41.210.100.50.sslip.io` and that address everywhere below.
+
+Enable auto-renewal (certificates expire every 90 days):
+```bash
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+```
+
+Then point the Nginx config (`devops/nginx/umu-attendance.conf`) at your certificate:
+change the `ssl_certificate`/`ssl_certificate_key` paths and both `server_name` lines to
+your domain.
 
 ---
 
 ## docker-compose.yml
 
 ```yaml
-version: '3.9'
-
 services:
   db:
     image: mysql:8
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: umu_attendance
       MYSQL_USER: umu_user
-      MYSQL_PASSWORD: StrongPassword123
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   app:
     build: .
     restart: always
     env_file: ./server/.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
-      - ./client/dist:/app/client/dist
       - ./server/assets:/app/assets
+    expose:
+      - "4000"
 
   nginx:
     image: nginx:alpine
@@ -187,23 +224,33 @@ volumes:
   db_data:
 ```
 
+> `${MYSQL_ROOT_PASSWORD}` and `${MYSQL_PASSWORD}` come from the root `.env` file
+> (Step 3). They must match the database password in `server/.env`'s `DATABASE_URL`.
+
 ---
 
 ## Nginx Config
 
+The shipped config in `devops/nginx/umu-attendance.conf` is ready for `YOUR-IP.sslip.io`
+(works for the live test deployment at `102.133.161.8.sslip.io`). Replace the two
+`ssl_certificate` paths and both `server_name` values with your own domain.
+
 ```nginx
 server {
     listen 80;
-    server_name attendance.umu.ac.ug;
+    server_name YOUR-DOMAIN;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name attendance.umu.ac.ug;
+    http2 on;
+    server_name YOUR-DOMAIN;
 
-    ssl_certificate     /etc/letsencrypt/live/attendance.umu.ac.ug/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/attendance.umu.ac.ug/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/YOUR-DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOUR-DOMAIN/privkey.pem;
+
+    client_max_body_size 10m;
 
     # React PWA — SPA routing
     root /usr/share/nginx/html;
@@ -219,12 +266,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # PWA service worker — no cache
-    location /sw.js {
-        add_header Cache-Control "no-cache";
-        proxy_cache_bypass $http_pragma;
-    }
 }
 ```
 
@@ -235,9 +276,15 @@ server {
 1. [console.cloud.google.com](https://console.cloud.google.com) → Create project "UMU Attendance System"
 2. Enable **Google OAuth2 API**
 3. Create **OAuth 2.0 credentials** (Web Application type)
-4. Authorised redirect URI: `https://attendance.umu.ac.ug/api/auth/google/callback`
+4. Authorised redirect URI: `https://attendance.umu.ac.ug/api/auth/google/callback` (must be **https**)
 5. Copy Client ID + Secret → `server/.env`
-6. In Google Workspace Admin: restrict OAuth app to `@umu.ac.ug` and `@stud.umu.ac.ug` domains
+6. On the **OAuth consent screen → Audience** page:
+   - Set **User type** to **External** (Internal only allows accounts inside the Google
+     Workspace that owns the project — it blocks everyone else)
+   - Set **Publishing status** to **In production** (Google refuses production for clients
+     with `http://` redirect URIs, so HTTPS is required first)
+7. Optionally restrict sign-ins in the app itself — it already rejects any email that
+   isn't `@umu.ac.ug` or `@stud.umu.ac.ug` (`server/src/config/google-oauth.ts`)
 
 ---
 
@@ -273,23 +320,27 @@ chmod +x devops/scripts/deploy.sh
 
 ```bash
 #!/bin/bash
+# Requires MYSQL_PASSWORD to be set (matching server/.env DATABASE_URL).
+set -e
 DATE=$(date +%Y-%m-%d_%H-%M)
 BACKUP_DIR=/var/backups/umu-attendance
-mkdir -p $BACKUP_DIR
+mkdir -p "$BACKUP_DIR"
 
-docker compose exec db mysqldump \
-  -u umu_user -pStrongPassword123 umu_attendance \
-  > $BACKUP_DIR/backup_$DATE.sql
+docker compose exec -T db mysqldump \
+  -u umu_user -p"${MYSQL_PASSWORD:?set MYSQL_PASSWORD in the environment}" umu_attendance \
+  > "$BACKUP_DIR/backup_$DATE.sql"
 
-# Keep last 30 backups
-ls -t $BACKUP_DIR/*.sql | tail -n +31 | xargs -r rm
-echo "Backup: $BACKUP_DIR/backup_$DATE.sql"
+echo "Backup saved: $BACKUP_DIR/backup_$DATE.sql"
+
+# Keep only last 30 backups
+ls -t "$BACKUP_DIR"/*.sql | tail -n +31 | xargs -r rm
 ```
 
-Schedule via cron:
+Set `MYSQL_PASSWORD` from the root `.env` (or run with `set -a; source .env; set +a`),
+then schedule via cron:
 ```bash
 crontab -e
-# 0 2 * * * /var/www/umu-attendance/devops/scripts/backup-db.sh
+# 0 2 * * * cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
 ```
 
 ---
@@ -326,8 +377,10 @@ docker compose restart app
 | Problem | Check |
 |---|---|
 | App not starting | `docker compose logs app` |
-| DB connection error | Verify `DATABASE_URL` in `.env`, check `db` container is healthy |
-| Google login failing | `GOOGLE_CALLBACK_URL` must match exactly in Google Console |
+| DB connection error | Verify `DATABASE_URL` in `server/.env` matches `MYSQL_PASSWORD` in root `.env` |
+| Nginx crash-looping "cannot load certificate" | Certificate doesn't exist yet — get the Let's Encrypt cert first (Step 8), then check `server_name`/cert paths in `devops/nginx/umu-attendance.conf` |
+| Google login failing | `GOOGLE_CALLBACK_URL` must be `https://` and match exactly in Google Console |
+| Google "Access Denied / Something went wrong during sign-in" | OAuth consent screen: User type must be **External**, Publishing status **In production**, redirect URIs **https** |
 | PDF not generating | Chromium must be available in Docker image; check `UMU_BADGE_PATH` |
 | Emails not sending | `SMTP_PASS` must be a Google App Password (not account password) |
 | 502 Bad Gateway | Node.js crashed — `docker compose logs app` |
