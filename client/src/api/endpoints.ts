@@ -45,7 +45,7 @@ export interface ProfileOptions {
 }
 
 export interface StudentProfileInput {
-  campusId: string
+  campusCode: string
   facultyId: string
   programmeId: string
   year: number
@@ -267,23 +267,15 @@ export const academicApi = {
     const res = await http.get<{ campuses: Campus[] }>('/api/academic/campuses')
     return res.campuses
   },
-  createCampus: async (data: { name: string; code: string }) => {
-    const res = await http.post<{ campus: Campus }>('/api/academic/campuses', data)
-    return res.campus
-  },
-  updateCampus: async (id: string, data: { name: string; code: string }) => {
-    const res = await http.put<{ campus: Campus }>(`/api/academic/campuses/${id}`, data)
-    return res.campus
-  },
   faculties: async () => {
     const res = await http.get<{ faculties: Faculty[] }>('/api/academic/faculties')
     return res.faculties
   },
-  createFaculty: async (data: { campusId: string; name: string; code: string }) => {
+  createFaculty: async (data: { campusCode: string; name: string; code: string }) => {
     const res = await http.post<{ faculty: Faculty }>('/api/academic/faculties', data)
     return res.faculty
   },
-  updateFaculty: async (id: string, data: { campusId: string; name: string; code: string }) => {
+  updateFaculty: async (id: string, data: { campusCode: string; name: string; code: string }) => {
     const res = await http.put<{ faculty: Faculty }>(`/api/academic/faculties/${id}`, data)
     return res.faculty
   },
@@ -407,7 +399,7 @@ export interface AdminUserUpdateInput {
   fullName: string
   email: string
   facultyId?: string | null
-  campusId?: string
+  campusCode?: string
   programmeId?: string
   year?: number
   semester?: number

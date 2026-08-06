@@ -23,7 +23,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [saving, setSaving] = useState(false)
   const [editingDisabled, setEditingDisabled] = useState(false)
 
-  const [campusId, setCampusId] = useState('')
+  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
@@ -52,7 +52,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           if (user.facultyId) {
             for (const c of opts.campuses) {
               if (c.faculties.some((f) => f.id === user.facultyId)) {
-                setCampusId(c.id)
+                setCampusCode(c.code)
                 break
               }
             }
@@ -68,8 +68,8 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
 
   const faculties = useMemo(() => {
     if (!options) return []
-    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
-  }, [options, campusId])
+    return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
+  }, [options, campusCode])
 
   const programmes = useMemo(() => {
     if (!options || !facultyId) return []
@@ -95,7 +95,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       return
     }
     if (isStudent) {
-      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
+      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
         toast.error('Please complete all fields')
         return
       }
@@ -104,7 +104,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         return
       }
       const data: StudentProfileInput = {
-        campusId,
+        campusCode,
         facultyId,
         programmeId,
         year: Number(year),
@@ -175,9 +175,9 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
               <Select
                 label="Campus"
                 placeholder="Select campus"
-                value={campusId}
-                onChange={(e) => { setCampusId(e.target.value); setFacultyId(''); setProgrammeId('') }}
-                options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                value={campusCode}
+                onChange={(e) => { setCampusCode(e.target.value); setFacultyId(''); setProgrammeId('') }}
+                options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
               />
               <Select
                 label="Faculty"

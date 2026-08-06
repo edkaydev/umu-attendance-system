@@ -4,6 +4,7 @@ import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
 import { roleMatchesEmail } from '../utils/domain'
+import { isValidCampusCode } from '../constants/campuses'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 
@@ -86,12 +87,13 @@ async function importFacultyRow(row: Row): Promise<void> {
   if (!name || !code || !campusCode) {
     throw new Error('Missing name, code or campusCode')
   }
-  const campus = await prisma.campus.findUnique({ where: { code: campusCode } })
-  if (!campus) throw new Error(`Campus "${campusCode}" not found`)
+  if (!isValidCampusCode(campusCode)) {
+    throw new Error(`Campus "${campusCode}" not found`)
+  }
 
   await prisma.faculty.upsert({
-    where: { campusId_code: { campusId: campus.id, code } },
-    create: { campusId: campus.id, name, code },
+    where: { campusCode_code: { campusCode, code } },
+    create: { campusCode, name, code },
     update: { name },
   })
 }

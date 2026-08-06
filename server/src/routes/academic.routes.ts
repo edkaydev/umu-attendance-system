@@ -5,8 +5,6 @@ import { requireRole } from '../middleware/role'
 import { validate } from '../middleware/validate'
 import {
   getCampuses,
-  postCampus,
-  putCampus,
   getFaculties,
   postFaculty,
   putFaculty,
@@ -25,12 +23,10 @@ import {
   importStructure,
   importStaff,
   importStudents,
-  campusSchema,
   facultySchema,
   programmeSchema,
   courseUnitSchema,
   curriculumSchema,
-  updateCampusSchema,
   updateFacultySchema,
   updateProgrammeSchema,
   updateCourseUnitSchema,
@@ -47,10 +43,8 @@ const upload = multer({
 // Profile cascade options — any authenticated user (profile setup)
 router.get('/options', authenticate, getOptions)
 
-// Campus
+// Campus (fixed list — read-only)
 router.get('/campuses', authenticate, adminOnly, getCampuses)
-router.post('/campuses', authenticate, adminOnly, validate(campusSchema), postCampus)
-router.put('/campuses/:id', authenticate, adminOnly, validate(updateCampusSchema), putCampus)
 
 // Faculty
 router.get('/faculties', authenticate, adminOnly, getFaculties)

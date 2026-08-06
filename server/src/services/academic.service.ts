@@ -1,63 +1,53 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { CAMPUSES, isValidCampusCode, campusName } from '../constants/campuses'
 
 // ─────────────────────────────────────────────
-// CAMPUS (task 25)
+// CAMPUS (fixed locations, defined in code)
 // ─────────────────────────────────────────────
 
-export function listCampuses(includeInactive = false) {
-  return prisma.campus.findMany({
-    where: includeInactive ? {} : { isActive: true },
-    include: { _count: { select: { faculties: true } } },
-    orderBy: { name: 'asc' },
-  })
-}
-
-export async function createCampus(data: { name: string; code: string }) {
-  return prisma.campus.create({ data })
-}
-
-export async function updateCampus(
-  id: string,
-  data: { name?: string; code?: string; isActive?: boolean }
-) {
-  const existing = await prisma.campus.findUnique({ where: { id } })
-  if (!existing) throw new ApiError('Campus not found', 404)
-  return prisma.campus.update({ where: { id }, data })
+export function listCampuses() {
+  return CAMPUSES.map((c) => ({ ...c, isActive: true }))
 }
 
 // ─────────────────────────────────────────────
 // FACULTY (task 26)
 // ─────────────────────────────────────────────
 
-export function listFaculties(campusId?: string, includeInactive = false) {
-  return prisma.faculty.findMany({
+export async function listFaculties(campusCode?: string, includeInactive = false) {
+  const faculties = await prisma.faculty.findMany({
     where: {
-      ...(campusId ? { campusId } : {}),
+      ...(campusCode ? { campusCode: campusCode.toUpperCase() } : {}),
       ...(includeInactive ? {} : { isActive: true }),
     },
-    include: { campus: { select: { id: true, name: true } } },
     orderBy: { name: 'asc' },
   })
+  return faculties.map((f) => ({ ...f, campusName: campusName(f.campusCode) }))
 }
 
-export async function createFaculty(data: { campusId: string; name: string; code: string }) {
-  const campus = await prisma.campus.findUnique({ where: { id: data.campusId } })
-  if (!campus) throw new ApiError('Campus not found', 404)
-  return prisma.faculty.create({ data })
+export async function createFaculty(data: { campusCode: string; name: string; code: string }) {
+  if (!isValidCampusCode(data.campusCode)) {
+    throw new ApiError(`Campus "${data.campusCode}" not found`, 404)
+  }
+  return prisma.faculty.create({ data: { ...data, campusCode: data.campusCode.toUpperCase() } })
 }
 
 export async function updateFaculty(
   id: string,
-  data: { campusId?: string; name?: string; code?: string; isActive?: boolean }
+  data: { campusCode?: string; name?: string; code?: string; isActive?: boolean }
 ) {
   const existing = await prisma.faculty.findUnique({ where: { id } })
   if (!existing) throw new ApiError('Faculty not found', 404)
-  if (data.campusId) {
-    const campus = await prisma.campus.findUnique({ where: { id: data.campusId } })
-    if (!campus) throw new ApiError('Campus not found', 404)
+  if (data.campusCode && !isValidCampusCode(data.campusCode)) {
+    throw new ApiError(`Campus "${data.campusCode}" not found`, 404)
   }
-  return prisma.faculty.update({ where: { id }, data })
+  return prisma.faculty.update({
+    where: { id },
+    data: {
+      ...data,
+      ...(data.campusCode ? { campusCode: data.campusCode.toUpperCase() } : {}),
+    },
+  })
 }
 
 // ─────────────────────────────────────────────
@@ -261,21 +251,24 @@ export function listCurriculum(filters?: { programmeId?: string; academicYear?: 
 // ─────────────────────────────────────────────
 
 export async function getProfileOptions() {
-  const campuses = await prisma.campus.findMany({
+  const faculties = await prisma.faculty.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
     include: {
-      faculties: {
+      programmes: {
         where: { isActive: true },
         orderBy: { name: 'asc' },
-        include: {
-          programmes: {
-            where: { isActive: true },
-            orderBy: { name: 'asc' },
-          },
-        },
       },
     },
   })
-  return campuses
+
+  return CAMPUSES.map((c) => ({
+    id: c.code,
+    code: c.code,
+    name: c.name,
+    isActive: true,
+    faculties: faculties
+      .filter((f) => f.campusCode === c.code)
+      .map(({ campusCode, ...f }) => f),
+  }))
 }

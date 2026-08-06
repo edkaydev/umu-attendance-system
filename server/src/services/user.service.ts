@@ -66,7 +66,7 @@ export interface CreateUserInput {
   role: Role
   password: string
   facultyId?: string | null
-  campusId?: string
+  campusCode?: string
   programmeId?: string
   year?: number
   semester?: number
@@ -117,13 +117,13 @@ export async function createUser(input: CreateUserInput) {
 
   if (input.role === Role.student) {
     if (
-      !input.campusId || !input.facultyId || !input.programmeId ||
+      !input.campusCode || !input.facultyId || !input.programmeId ||
       !input.year || !input.semester || !input.academicYear || !input.regNumber
     ) {
       throw new ApiError('Student academic details are required', 400)
     }
     await validateStudentPath({
-      campusId: input.campusId,
+      campusCode: input.campusCode,
       facultyId: input.facultyId,
       programmeId: input.programmeId,
       year: input.year,
@@ -153,7 +153,7 @@ export async function createUser(input: CreateUserInput) {
 
   if (input.role === Role.student) {
     await recalculateEnrollments(user.id, {
-      campusId: input.campusId!,
+      campusCode: input.campusCode!,
       facultyId: input.facultyId!,
       programmeId: input.programmeId!,
       year: input.year!,
@@ -249,7 +249,7 @@ export interface AdminUserUpdateInput {
   fullName: string
   email: string
   facultyId?: string | null
-  campusId?: string
+  campusCode?: string
   programmeId?: string
   year?: number
   semester?: number
@@ -287,13 +287,13 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
 
   if (user.role === 'student') {
     if (
-      !input.campusId || !input.facultyId || !input.programmeId ||
+      !input.campusCode || !input.facultyId || !input.programmeId ||
       !input.year || !input.semester || !input.academicYear || !input.regNumber
     ) {
       throw new ApiError('Student academic details are required', 400)
     }
     await validateStudentPath({
-      campusId: input.campusId,
+      campusCode: input.campusCode,
       facultyId: input.facultyId,
       programmeId: input.programmeId,
       year: input.year,
@@ -322,7 +322,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
 
   if (user.role === 'student') {
     await recalculateEnrollments(id, {
-      campusId: input.campusId!,
+      campusCode: input.campusCode!,
       facultyId: input.facultyId!,
       programmeId: input.programmeId!,
       year: input.year!,

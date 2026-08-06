@@ -10,7 +10,7 @@ import {
 } from '../services/profile.service'
 
 export const studentProfileSchema = z.object({
-  campusId: z.string().uuid(),
+  campusCode: z.string().min(1).max(20),
   facultyId: z.string().uuid(),
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),

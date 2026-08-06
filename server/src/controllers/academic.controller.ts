@@ -3,8 +3,6 @@ import { z } from 'zod'
 import { ok, created, noContent } from '../utils/apiResponse'
 import {
   listCampuses,
-  createCampus,
-  updateCampus,
   listFaculties,
   createFaculty,
   updateFaculty,
@@ -29,13 +27,8 @@ import {
 } from '../services/import.service'
 import { writeAuditLog } from '../utils/audit'
 
-export const campusSchema = z.object({
-  name: z.string().min(1).max(100),
-  code: z.string().min(1).max(20),
-})
-
 export const facultySchema = z.object({
-  campusId: z.string().uuid(),
+  campusCode: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   code: z.string().min(1).max(20),
 })
@@ -60,33 +53,15 @@ export const curriculumSchema = z.object({
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
 })
 
-export const updateCampusSchema = campusSchema.partial().extend({ isActive: z.boolean().optional() })
 export const updateFacultySchema = facultySchema.partial().extend({ isActive: z.boolean().optional() })
 export const updateProgrammeSchema = programmeSchema.partial().extend({ isActive: z.boolean().optional() })
 export const updateCourseUnitSchema = courseUnitSchema.partial().extend({ isActive: z.boolean().optional() })
 
-// ─── Campuses ───
+// ─── Campuses (fixed list) ───
 
 export async function getCampuses(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const includeInactive = req.query.includeInactive === 'true'
-    ok(res, { campuses: await listCampuses(includeInactive) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function postCampus(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    created(res, { campus: await createCampus(req.body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function putCampus(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    ok(res, { campus: await updateCampus(req.params.id, req.body) })
+    ok(res, { campuses: listCampuses() })
   } catch (e) {
     next(e)
   }
@@ -96,9 +71,9 @@ export async function putCampus(req: Request, res: Response, next: NextFunction)
 
 export async function getFaculties(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const campusId = (req.query.campusId as string) || undefined
+    const campusCode = (req.query.campusCode as string) || undefined
     const includeInactive = req.query.includeInactive === 'true'
-    ok(res, { faculties: await listFaculties(campusId, includeInactive) })
+    ok(res, { faculties: await listFaculties(campusCode, includeInactive) })
   } catch (e) {
     next(e)
   }

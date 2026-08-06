@@ -52,7 +52,7 @@ function CreateUserModal({
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('student')
   const [password, setPassword] = useState('')
-  const [campusId, setCampusId] = useState('')
+  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
@@ -70,8 +70,8 @@ function CreateUserModal({
 
   const campusFaculties = useMemo(() => {
     if (!options) return []
-    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
-  }, [options, campusId])
+    return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
+  }, [options, campusCode])
 
   const programmes = useMemo(() => {
     if (!options) return []
@@ -99,13 +99,13 @@ function CreateUserModal({
     if (payload.password.length < 6) return toast.error('Password must be at least 6 characters')
 
     if (isStudent) {
-      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
+      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
         return toast.error('Please complete all academic fields')
       }
       if (!globalPeriod) {
         return toast.error('System period not loaded yet, please wait')
       }
-      payload.campusId = campusId
+      payload.campusCode = campusCode
       payload.facultyId = facultyId
       payload.programmeId = programmeId
       payload.year = Number(year)
@@ -144,7 +144,7 @@ function CreateUserModal({
           value={role}
           onChange={(e) => {
             setRole(e.target.value as Role)
-            setCampusId('')
+            setCampusCode('')
             setFacultyId('')
             setProgrammeId('')
           }}
@@ -173,13 +173,13 @@ function CreateUserModal({
             <Select
               label="Campus"
               placeholder="Select campus"
-              value={campusId}
+              value={campusCode}
               onChange={(e) => {
-                setCampusId(e.target.value)
+                setCampusCode(e.target.value)
                 setFacultyId('')
                 setProgrammeId('')
               }}
-              options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
             />
             <Select
               label="Faculty"
@@ -262,7 +262,7 @@ function EditUserModal({
 
   const [fullName, setFullName] = useState(user.fullName)
   const [email, setEmail] = useState(user.email)
-  const [campusId, setCampusId] = useState('')
+  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
@@ -278,7 +278,7 @@ function EditUserModal({
     setYear(user.year ? String(user.year) : '')
     setFacultyId(user.facultyId ?? '')
     setProgrammeId(user.programmeId ?? '')
-    setCampusId('')
+    setCampusCode('')
     profileApi
       .options()
       .then((opts) => {
@@ -286,7 +286,7 @@ function EditUserModal({
         if (user.facultyId) {
           for (const c of opts.campuses) {
             if (c.faculties.some((f) => f.id === user.facultyId)) {
-              setCampusId(c.id)
+              setCampusCode(c.code)
               break
             }
           }
@@ -298,8 +298,8 @@ function EditUserModal({
 
   const campusFaculties = useMemo(() => {
     if (!options) return []
-    return options.campuses.find((c) => c.id === campusId)?.faculties ?? []
-  }, [options, campusId])
+    return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
+  }, [options, campusCode])
 
   const programmes = useMemo(() => {
     if (!options) return []
@@ -324,13 +324,13 @@ function EditUserModal({
     if (!payload.email) return toast.error('Email is required')
 
     if (isStudent) {
-      if (!campusId || !facultyId || !programmeId || !year || !regNumber.trim()) {
+      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
         return toast.error('Please complete all academic fields')
       }
       if (!globalPeriod) {
         return toast.error('System period not loaded yet, please wait')
       }
-      payload.campusId = campusId
+      payload.campusCode = campusCode
       payload.facultyId = facultyId
       payload.programmeId = programmeId
       payload.year = Number(year)
@@ -373,13 +373,13 @@ function EditUserModal({
             <Select
               label="Campus"
               placeholder="Select campus"
-              value={campusId}
+              value={campusCode}
               onChange={(e) => {
-                setCampusId(e.target.value)
+                setCampusCode(e.target.value)
                 setFacultyId('')
                 setProgrammeId('')
               }}
-              options={(options?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
             />
             <Select
               label="Faculty"

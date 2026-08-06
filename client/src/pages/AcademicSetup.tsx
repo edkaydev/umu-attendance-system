@@ -10,10 +10,9 @@ import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
 import type { Campus, Faculty, Programme, CourseUnit, CurriculumUnitEntry } from '../types'
 
-type Tab = 'campuses' | 'faculties' | 'programmes' | 'course-units' | 'curriculum'
+type Tab = 'faculties' | 'programmes' | 'course-units' | 'curriculum'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'campuses', label: 'Campuses' },
   { id: 'faculties', label: 'Faculties' },
   { id: 'programmes', label: 'Programmes' },
   { id: 'course-units', label: 'Course Units' },
@@ -60,7 +59,7 @@ function FormModal({
 export default function AcademicSetup() {
   const toast = useToast()
   const { period: globalPeriod } = usePeriod()
-  const [tab, setTab] = useState<Tab>('campuses')
+  const [tab, setTab] = useState<Tab>('faculties')
 
   const [campuses, setCampuses] = useState<Campus[]>([])
   const [faculties, setFaculties] = useState<Faculty[]>([])
@@ -74,7 +73,7 @@ export default function AcademicSetup() {
 
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [campusId, setCampusId] = useState('')
+  const [campusCode, setCampusCode] = useState('')
   const [facultyId, setFacultyId] = useState('')
   const [programmeId, setProgrammeId] = useState('')
   const [courseUnitId, setCourseUnitId] = useState('')
@@ -112,7 +111,7 @@ export default function AcademicSetup() {
     setEditingId(null)
     setName('')
     setCode('')
-    setCampusId('')
+    setCampusCode('')
     setFacultyId('')
     setProgrammeId('')
     setCourseUnitId('')
@@ -128,7 +127,7 @@ export default function AcademicSetup() {
     setEditingId(item.id)
     setName(item.name ?? '')
     setCode(item.code ?? '')
-    setCampusId(item.campusId ?? '')
+    setCampusCode(item.campusCode ?? '')
     setFacultyId(item.facultyId ?? '')
     const shared = (item.sharedFaculties ?? []).map((sf) => sf.facultyId)
     setSharedFacultyIds(shared)
@@ -140,12 +139,8 @@ export default function AcademicSetup() {
     if (!modal) return
     setSaving(true)
     try {
-      if (modal === 'campuses') {
-        const data = { name: name.trim(), code: code.trim() }
-        if (editingId) await academicApi.updateCampus(editingId, data)
-        else await academicApi.createCampus(data)
-      } else if (modal === 'faculties') {
-        const data = { campusId, name: name.trim(), code: code.trim() }
+      if (modal === 'faculties') {
+        const data = { campusCode, name: name.trim(), code: code.trim() }
         if (editingId) await academicApi.updateFaculty(editingId, data)
         else await academicApi.createFaculty(data)
       } else if (modal === 'programmes') {
@@ -224,18 +219,10 @@ export default function AcademicSetup() {
       </div>
 
       <Card>
-        {tab === 'campuses' && (
-          <EntityTable
-            headers={['Campus', 'Code']}
-            rows={campuses.map((c) => [c.name, c.code])}
-            onEdit={(i) => openEdit('campuses', campuses[i])}
-          />
-        )}
-
         {tab === 'faculties' && (
           <EntityTable
             headers={['Faculty', 'Code', 'Campus']}
-            rows={faculties.map((f) => [f.name, f.code, campuses.find((c) => c.id === f.campusId)?.name ?? '—'])}
+            rows={faculties.map((f) => [f.name, f.code, f.campusName ?? '—'])}
             onEdit={(i) => openEdit('faculties', faculties[i])}
           />
         )}
@@ -353,15 +340,9 @@ export default function AcademicSetup() {
         onSave={handleSave}
         saving={saving}
       >
-        {modal === 'campuses' && (
-          <>
-            <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nkozi Campus" />
-            <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. NKZ" />
-          </>
-        )}
         {modal === 'faculties' && (
           <>
-            <Select label="Campus" value={campusId} onChange={(e) => setCampusId(e.target.value)} options={campuses.map((c) => ({ value: c.id, label: c.name }))} />
+            <Select label="Campus" value={campusCode} onChange={(e) => setCampusCode(e.target.value)} options={campuses.map((c) => ({ value: c.code, label: c.name }))} />
             <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Faculty of Science" />
             <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. FOS" />
           </>

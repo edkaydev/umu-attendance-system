@@ -1,8 +1,9 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { isValidCampusCode } from '../constants/campuses'
 import { isProfileEditingEnabled } from './settings.service'
 export interface StudentPathInput {
-  campusId: string
+  campusCode: string
   facultyId: string
   programmeId: string
   year: number
@@ -12,6 +13,9 @@ export interface StudentPathInput {
 }
 
 export async function validateStudentPath(input: StudentPathInput): Promise<void> {
+  if (!isValidCampusCode(input.campusCode)) {
+    throw new ApiError('Campus not found', 404)
+  }
   const programme = await prisma.programme.findUnique({
     where: { id: input.programmeId },
     include: { faculty: true },
@@ -20,7 +24,7 @@ export async function validateStudentPath(input: StudentPathInput): Promise<void
   if (programme.facultyId !== input.facultyId) {
     throw new ApiError('Programme does not belong to the selected faculty', 400)
   }
-  if (programme.faculty.campusId !== input.campusId) {
+  if (programme.faculty.campusCode.toUpperCase() !== input.campusCode.toUpperCase()) {
     throw new ApiError('Faculty does not belong to the selected campus', 400)
   }
 }

@@ -13,22 +13,11 @@ datasource db {
 // ACADEMIC STRUCTURE
 // ─────────────────────────────────────────────
 
-model Campus {
-  id        String    @id @default(uuid())
-  name      String    @db.VarChar(100)
-  code      String    @unique @db.VarChar(20)
-  isActive  Boolean   @default(true)
-  faculties Faculty[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  @@map("campuses")
-}
-
+// Campuses are FIXED university locations and live in code (constants/campuses.ts),
+// not in the database. Faculties reference a campus by its code.
 model Faculty {
   id                  String              @id @default(uuid())
-  campusId            String
-  campus              Campus              @relation(fields: [campusId], references: [id])
+  campusCode          String              @db.VarChar(20)
   name                String              @db.VarChar(100)
   code                String              @db.VarChar(20)
   isActive            Boolean             @default(true)
@@ -39,7 +28,7 @@ model Faculty {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
-  @@unique([campusId, code])
+  @@unique([campusCode, code])
   @@map("faculties")
 }
 

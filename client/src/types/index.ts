@@ -43,7 +43,8 @@ export interface Faculty {
   id: string
   name: string
   code: string
-  campusId?: string
+  campusCode?: string
+  campusName?: string
   isActive?: boolean
 }
 
@@ -56,9 +57,8 @@ export interface Programme {
 }
 
 export interface Campus {
-  id: string
-  name: string
   code: string
+  name: string
   isActive?: boolean
 }
 

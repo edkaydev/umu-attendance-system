@@ -24,7 +24,7 @@ const createUserSchema = z.object({
   role: z.nativeEnum(Role),
   password: z.string().min(6, 'Password must be at least 6 characters').max(128),
   facultyId: z.string().uuid().nullable().optional(),
-  campusId: z.string().uuid().optional(),
+  campusCode: z.string().min(1).max(20).optional(),
   programmeId: z.string().uuid().optional(),
   year: z.number().int().min(1).max(6).optional(),
   semester: z.number().int().min(1).max(2).optional(),
@@ -38,7 +38,7 @@ const commonProfileFields = {
 }
 
 const studentAcademicFields = {
-  campusId: z.string().uuid(),
+  campusCode: z.string().min(1).max(20),
   facultyId: z.string().uuid(),
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
