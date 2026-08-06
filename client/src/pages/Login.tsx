@@ -139,9 +139,7 @@ export default function Login() {
           </div>
         )}
 
-        <p className="mt-10 text-body-sm text-text-disabled">
-          Nkozi Campus · {period?.academicYear ?? '—'}
-        </p>
+        <p className="mt-10 text-body-sm text-text-disabled">{period?.academicYear ?? '—'}</p>
       </div>
     </GuestOnly>
   )
