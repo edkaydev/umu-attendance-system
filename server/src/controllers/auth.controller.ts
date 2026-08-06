@@ -10,6 +10,7 @@ import {
   logoutSession,
   getCurrentUser,
   loginWithPassword,
+  changePassword,
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
@@ -22,6 +23,11 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters').max(128),
 })
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required').max(128),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(128),
+})
+
 /** POST /api/auth/login — sign in with email + password. */
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -29,6 +35,20 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     const user = await loginWithPassword(email, password)
     const redirect = await finalizeLogin(user, res)
     ok(res, { user: await getCurrentUser(user.id), redirect })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/** POST /api/auth/password — change the current password (forced or voluntary). */
+export async function postPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
+    await changePassword(req.user!.id, currentPassword, newPassword)
+    // The change invalidates every refresh token, including this browser's.
+    // Issue a replacement session so the user remains signed in.
+    await finalizeLogin(req.user!, res)
+    ok(res, { message: 'Password changed successfully' })
   } catch (error) {
     next(error)
   }
@@ -49,7 +69,16 @@ export function googleCallback(req: Request, res: Response, next: NextFunction):
       return
     }
 
-    finalizeLogin(user as { id: string; email: string; role: Role; profileComplete: boolean }, res)
+    finalizeLogin(
+      user as {
+        id: string
+        email: string
+        role: Role
+        profileComplete: boolean
+        mustChangePassword: boolean
+      },
+      res
+    )
       .then((redirectUrl) => res.redirect(redirectUrl))
       .catch(next)
   })(req, res, next)
@@ -141,7 +170,13 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
     }
 
     const redirect = await finalizeLogin(
-      { id: user.id, email: user.email, role: user.role, profileComplete: user.profileComplete },
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        profileComplete: user.profileComplete,
+        mustChangePassword: user.mustChangePassword,
+      },
       res
     )
     ok(res, { user: await getCurrentUser(user.id), redirect })

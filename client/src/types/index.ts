@@ -27,6 +27,7 @@ export interface User {
   academicYear: string | null
   regNumber: string | null
   isActive: boolean
+  mustChangePassword: boolean
 }
 
 export interface CourseUnit {

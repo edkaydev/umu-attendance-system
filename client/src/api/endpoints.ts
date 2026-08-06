@@ -31,6 +31,8 @@ export const authApi = {
   login: (email: string, password: string) =>
     http.post<LoginResponse>('/api/auth/login', { email, password }),
   logout: () => http.post<{ message: string }>('/api/auth/logout'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    http.post<{ message: string }>('/api/auth/password', { currentPassword, newPassword }),
   devLogin: (role: Role) =>
     http.post<{ user: User; redirect: string }>('/api/auth/dev-login', { role }),
 }

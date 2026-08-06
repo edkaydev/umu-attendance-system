@@ -215,14 +215,18 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
             fullName: name,
             role,
             isActive: true,
-            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            ...(plainPassword
+              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
+              : {}),
           },
         })
       } else {
         await prisma.user.create({
           data: {
             email,
-            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            ...(plainPassword
+              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
+              : {}),
             fullName: name,
             role,
             profileComplete: false,
@@ -285,14 +289,18 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
             fullName: name,
             ...(regNumber ? { regNumber } : {}),
             isActive: true,
-            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            ...(plainPassword
+              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
+              : {}),
           },
         })
       } else {
         await prisma.user.create({
           data: {
             email,
-            ...(plainPassword ? { password: await hashPassword(plainPassword) } : {}),
+            ...(plainPassword
+              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
+              : {}),
             fullName: name,
             role: Role.student,
             profileComplete: false,

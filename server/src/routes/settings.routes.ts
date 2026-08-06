@@ -6,6 +6,8 @@ import {
   setProfileEditing,
   getCurrentPeriodController,
   setCurrentPeriodController,
+  getSupportSettingsController,
+  setSupportSettingsController,
 } from '../controllers/settings.controller'
 
 const router = Router()
@@ -15,5 +17,8 @@ router.patch('/profile-editing', authenticate, requireRole('system_admin'), setP
 
 router.get('/current-period', getCurrentPeriodController)
 router.patch('/current-period', authenticate, requireRole('system_admin'), setCurrentPeriodController)
+
+router.get('/support', authenticate, getSupportSettingsController)
+router.patch('/support', authenticate, requireRole('system_admin'), setSupportSettingsController)
 
 export default router

@@ -83,3 +83,57 @@ export async function setCurrentPeriod(academicYear: string, semester: number): 
   ])
   return { academicYear, semester }
 }
+
+// ─── Support & user guide ────────────────────────────────────────────────────
+
+export const SUPPORT_KEYS = {
+  email: 'support.email',
+  phone: 'support.phone',
+  guide: 'userGuide.content',
+} as const
+
+export interface SupportSettings {
+  email: string
+  phone: string
+  guide: string
+}
+
+const DEFAULT_GUIDE = `UMU ATTENDANCE SYSTEM — USER GUIDE
+
+RULES
+• Check in for every class you attend — attendance is recorded per session.
+• You can only check in while a session is open and your code is still valid.
+• Sharing check-in codes or checking in on behalf of someone else is a serious offence.
+• Only your own attendance may ever be recorded under your name.
+• Attendance below 80% triggers a warning alert; below 75% a critical alert.
+
+BEST PRACTICES
+• Keep your login details private and change your password regularly.
+• Make sure your profile (campus, faculty, programme and year) is complete and up to date.
+• Confirm your enrolled units each semester and report any mistakes to your Faculty Admin.
+• Report missing or incorrect attendance records to your lecturer as soon as possible.
+
+ADVICE
+• Bookmark the system URL and use a stable internet connection.
+• Use a supported, up-to-date browser for the best experience.
+• For any issue, contact support using the details below.`
+
+/** Read support contact details + the user guide (defaults provided). */
+export async function getSupportSettings(): Promise<SupportSettings> {
+  const [email, phone, guide] = await Promise.all([
+    getSetting(SUPPORT_KEYS.email, 'support@umu.ac.ug'),
+    getSetting(SUPPORT_KEYS.phone, ''),
+    getSetting(SUPPORT_KEYS.guide, DEFAULT_GUIDE),
+  ])
+  return { email, phone, guide }
+}
+
+/** Upsert support contact details + the user guide (System Admin only). */
+export async function setSupportSettings(
+  data: { email?: string; phone?: string; guide?: string }
+): Promise<SupportSettings> {
+  if (data.email !== undefined) await setSetting(SUPPORT_KEYS.email, data.email)
+  if (data.phone !== undefined) await setSetting(SUPPORT_KEYS.phone, data.phone)
+  if (data.guide !== undefined) await setSetting(SUPPORT_KEYS.guide, data.guide)
+  return getSupportSettings()
+}

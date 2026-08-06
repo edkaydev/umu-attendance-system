@@ -18,13 +18,20 @@ function FullScreenLoader() {
   )
 }
 
-/** Requires an authenticated user. If profile is incomplete, force profile setup. */
+/** Requires an authenticated user. If password change is pending, force it; otherwise profile setup. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
   if (loading) return <FullScreenLoader />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
+
+  if (user.mustChangePassword && location.pathname !== '/password/change') {
+    return <Navigate to="/password/change" replace />
+  }
+  if (!user.mustChangePassword && location.pathname === '/password/change') {
+    return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
+  }
 
   if (!user.profileComplete && location.pathname !== '/profile/setup') {
     return <Navigate to="/profile/setup" replace />
@@ -48,6 +55,13 @@ export function RequireRole({ roles, children }: { roles: Role[]; children: Reac
 export function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <FullScreenLoader />
-  if (user) return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
+  if (user) {
+    const target = user.mustChangePassword
+      ? '/password/change'
+      : user.profileComplete
+        ? DASHBOARD_BY_ROLE[user.role]
+        : '/profile/setup'
+    return <Navigate to={target} replace />
+  }
   return <>{children}</>
 }

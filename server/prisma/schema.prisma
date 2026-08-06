@@ -122,6 +122,8 @@ model User {
   // Profile state
   profileComplete Boolean  @default(false)
   isActive        Boolean  @default(true)
+  // Security: accounts created with a temporary password must change it on first login
+  mustChangePassword Boolean @default(false)
   // Relations
   enrollments          Enrollment[]
   lecturerAssignments  LecturerAssignment[] @relation("LecturerAssignments")
@@ -314,7 +316,7 @@ model AuditLog {
 
 model SystemSetting {
   key       String   @id @db.VarChar(50)
-  value     String   @db.VarChar(100)
+  value     String   @db.Text
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")

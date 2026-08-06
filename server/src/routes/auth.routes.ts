@@ -7,6 +7,7 @@ import {
   refresh,
   logout,
   me,
+  postPassword,
   devLogin,
 } from '../controllers/auth.controller'
 
@@ -19,5 +20,6 @@ router.post('/dev-login', devLogin)
 router.post('/refresh', refresh)
 router.post('/logout', authenticate, logout)
 router.get('/me', authenticate, me)
+router.post('/password', authenticate, postPassword)
 
 export default router

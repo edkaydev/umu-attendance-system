@@ -7,6 +7,7 @@ import { InstallPrompt } from './components/InstallPrompt'
 
 import Login from './pages/Login'
 import AccessDenied from './pages/AccessDenied'
+import ChangePassword from './pages/ChangePassword'
 import ProfileSetup from './pages/ProfileSetup'
 import StudentDashboard from './pages/StudentDashboard'
 import StudentAttendance from './pages/StudentAttendance'
@@ -37,6 +38,7 @@ function HomeRedirect() {
     )
   }
   if (!user) return <Navigate to="/login" replace />
+  if (user.mustChangePassword) return <Navigate to="/password/change" replace />
   if (!user.profileComplete) return <Navigate to="/profile/setup" replace />
   return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace state={{ from: location.pathname }} />
 }
@@ -55,6 +57,16 @@ export default function App() {
               element={
                 <RequireAuth>
                   <ProfileSetup />
+                </RequireAuth>
+              }
+            />
+
+            {/* Force password change on first login */}
+            <Route
+              path="/password/change"
+              element={
+                <RequireAuth>
+                  <ChangePassword />
                 </RequireAuth>
               }
             />

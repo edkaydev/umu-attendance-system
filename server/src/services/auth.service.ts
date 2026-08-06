@@ -4,7 +4,7 @@ import { prisma } from '../config/db'
 import { signAccessToken, setAuthCookies, clearAuthCookies } from './jwt.service'
 import { createRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from './refresh-token.service'
 import { ApiError } from '../utils/apiResponse'
-import { verifyPassword } from '../utils/password'
+import { hashPassword, verifyPassword } from '../utils/password'
 import { roleMatchesEmail } from '../utils/domain'
 
 const DASHBOARD_BY_ROLE: Record<Role, string> = {
@@ -43,19 +43,24 @@ interface AuthUser {
   email: string
   role: Role
   profileComplete: boolean
+  mustChangePassword: boolean
 }
 
 /**
  * Issue access + refresh tokens, set HttpOnly cookies, and return the
- * redirect URL for the browser (profile setup on first login, otherwise
- * the role dashboard).
+ * redirect URL for the browser (password change on first login, profile
+ * setup on first login, otherwise the role dashboard).
  */
 export async function finalizeLogin(user: AuthUser, res: Response): Promise<string> {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role })
   const refreshToken = await createRefreshToken(user.id)
   setAuthCookies(res, { accessToken, refreshToken })
 
-  const target = user.profileComplete ? dashboardUrlForRole(user.role) : '/profile/setup'
+  const target = user.mustChangePassword
+    ? '/password/change'
+    : user.profileComplete
+      ? dashboardUrlForRole(user.role)
+      : '/profile/setup'
   return `${clientUrl()}${target}`
 }
 
@@ -96,7 +101,45 @@ export async function loginWithPassword(email: string, password: string): Promis
     throw new ApiError('This email cannot sign in to this account type', 403)
   }
 
-  return { id: user.id, email: user.email, role: user.role, profileComplete: user.profileComplete }
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    profileComplete: user.profileComplete,
+    mustChangePassword: user.mustChangePassword,
+  }
+}
+
+/**
+ * Change the user's password. Requires the current password; once changed
+ * the "must change password" flag is cleared and all other sessions are
+ * revoked so the new password takes effect everywhere.
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  if (newPassword.length < 6) {
+    throw new ApiError('Password must be at least 6 characters', 400)
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) {
+    throw new ApiError('Account not found', 404)
+  }
+  if (!user.password || !(await verifyPassword(currentPassword, user.password))) {
+    throw new ApiError('Current password is incorrect', 400)
+  }
+  if (await verifyPassword(newPassword, user.password)) {
+    throw new ApiError('New password must be different from the current one', 400)
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: await hashPassword(newPassword), mustChangePassword: false },
+  })
+  await revokeAllRefreshTokens(userId)
 }
 
 /** Full profile for the /auth/me endpoint. */
@@ -106,6 +149,7 @@ export async function getCurrentUser(userId: string): Promise<{
   fullName: string
   role: Role
   profileComplete: boolean
+  mustChangePassword: boolean
   facultyId: string | null
   faculty: { id: string; name: string; code: string } | null
   programmeId: string | null
@@ -124,6 +168,7 @@ export async function getCurrentUser(userId: string): Promise<{
       fullName: true,
       role: true,
       profileComplete: true,
+      mustChangePassword: true,
       facultyId: true,
       faculty: { select: { id: true, name: true, code: true } },
       programmeId: true,

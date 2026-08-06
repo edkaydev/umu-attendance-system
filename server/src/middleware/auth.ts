@@ -11,6 +11,7 @@ declare global {
       email: string
       role: Role
       profileComplete: boolean
+      mustChangePassword: boolean
       facultyId: string | null
     }
   }
@@ -21,6 +22,9 @@ interface JwtPayload {
   email: string
   role: Role
 }
+
+/** Paths a user can still reach while their password change is pending. */
+const PASSWORD_CHANGE_EXEMPT = ['/api/auth/me', '/api/auth/logout', '/api/auth/password']
 
 /**
  * Verifies the JWT access token from the HttpOnly cookie.
@@ -50,6 +54,7 @@ export async function authenticate(
         role: true,
         profileComplete: true,
         isActive: true,
+        mustChangePassword: true,
         facultyId: true,
       },
     })
@@ -59,11 +64,21 @@ export async function authenticate(
       return
     }
 
+    // Force a password change before the account can do anything else.
+    if (user.mustChangePassword && !PASSWORD_CHANGE_EXEMPT.includes(req.originalUrl)) {
+      res.status(403).json({
+        error: 'You must change your password before continuing',
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      })
+      return
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
       profileComplete: user.profileComplete,
+      mustChangePassword: user.mustChangePassword,
       facultyId: user.facultyId,
     }
 

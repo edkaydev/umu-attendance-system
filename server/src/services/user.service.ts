@@ -107,12 +107,14 @@ export async function createUser(input: CreateUserInput) {
     academicYear?: string | null
     regNumber?: string | null
     profileComplete: boolean
+    mustChangePassword: boolean
   } = {
     email,
     password,
     fullName: input.fullName.trim(),
     role: input.role,
     profileComplete: input.role === Role.system_admin,
+    mustChangePassword: true,
   }
 
   if (input.role === Role.student) {

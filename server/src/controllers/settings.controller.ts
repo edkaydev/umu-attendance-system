@@ -10,6 +10,8 @@ import {
   ProfileEditingSettings,
   getCurrentPeriod,
   setCurrentPeriod,
+  getSupportSettings,
+  setSupportSettings,
 } from '../services/settings.service'
 
 export const profileEditingSchema = z.object({
@@ -90,6 +92,40 @@ export async function setCurrentPeriodController(
     const { academicYear, semester } = currentPeriodSchema.parse(req.body)
     const period = await setCurrentPeriod(academicYear, semester)
     ok(res, { period, message: `Current period set to ${academicYear} Semester ${semester}` })
+  } catch (e) {
+    next(e)
+  }
+}
+
+const supportSettingsSchema = z.object({
+  email: z.string().email('Invalid email').max(150).optional(),
+  phone: z.string().max(30).optional(),
+  guide: z.string().max(10000).optional(),
+})
+
+/** GET /api/settings/support — support contacts + user guide (any authenticated user). */
+export async function getSupportSettingsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    ok(res, { support: await getSupportSettings() })
+  } catch (e) {
+    next(e)
+  }
+}
+
+/** PATCH /api/settings/support — System Admin edits support contacts + user guide. */
+export async function setSupportSettingsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const data = supportSettingsSchema.parse(req.body)
+    const support = await setSupportSettings(data)
+    ok(res, { support, message: 'Support details updated' })
   } catch (e) {
     next(e)
   }
