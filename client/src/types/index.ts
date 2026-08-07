@@ -66,7 +66,7 @@ export interface Campus {
 export type AttendanceStatus = 'present' | 'absent' | 'excused'
 export type SessionStatus = 'open' | 'closed'
 export type SessionMode = 'physical' | 'online'
-export type UnitStatus = 'good' | 'warning' | 'not_eligible'
+export type UnitStatus = 'good' | 'warning' | 'not_eligible' | 'none'
 export type AlertType = 'warning' | 'critical'
 
 export interface Session {

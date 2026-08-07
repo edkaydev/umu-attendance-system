@@ -64,6 +64,7 @@ export function buildPdfHtml(header: PdfHeader, tables: PdfTable[]): string {
     .good { background: #e7f6ec; color: #166534; }
     .warning { background: #fef3c7; color: #92400e; }
     .not-eligible { background: #fde8e8; color: #991b1b; }
+    .none { background: #f1f5f9; color: #475569; }
   </style>
 </head>
 <body>
@@ -107,12 +108,17 @@ export async function reportToPdf(header: PdfHeader, tables: PdfTable[]): Promis
   return renderPdf(buildPdfHtml(header, tables))
 }
 
-/** Status pill cell (good / warning / not-eligible). */
+/** Status pill cell (good / warning / not-eligible / none). */
 export function statusPill(status: string): string {
-  const cls = status === 'good' ? 'good' : status === 'warning' ? 'warning' : 'not-eligible'
+  const cls =
+    status === 'good' ? 'good' :
+    status === 'warning' ? 'warning' :
+    status === 'none' ? 'none' :
+    'not-eligible'
   const label =
     status === 'good' ? 'Good' :
     status === 'warning' ? 'Warning' :
+    status === 'none' ? 'No sessions' :
     'Not Eligible'
   return `<span class="pill ${cls}">${label}</span>`
 }

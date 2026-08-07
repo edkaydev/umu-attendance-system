@@ -24,7 +24,7 @@ interface StudentRow {
   courseUnit: { id: string; code: string; name: string }
   sessionsHeld: number
   attended: number
-  percentage: number
+  percentage: number | null
   status: UnitStatus
 }
 
@@ -191,7 +191,7 @@ function CourseUnitReport({ data }: { data: unknown }) {
       student: { id: string; regNumber: string | null; fullName: string }
       sessionsHeld: number
       attended: number
-      percentage: number
+      percentage: number | null
       status: UnitStatus
     }[]
   }
@@ -216,14 +216,16 @@ function CourseUnitReport({ data }: { data: unknown }) {
             <td className="px-4 py-3">
               <span
                 className={`text-body font-semibold ${
-                  s.percentage < 75
+                  s.percentage === null
+                    ? 'text-text-disabled'
+                    : s.percentage < 75
                     ? 'text-danger'
                     : s.percentage < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
               >
-                {s.percentage}%
+                {s.percentage === null ? '—' : `${s.percentage}%`}
               </span>
             </td>
             <td className="px-4 py-3">
@@ -262,14 +264,16 @@ function StudentReport({ data }: { data: unknown }) {
             <td className="px-4 py-3">
               <span
                 className={`text-body font-semibold ${
-                  u.percentage < 75
+                  u.percentage === null
+                    ? 'text-text-disabled'
+                    : u.percentage < 75
                     ? 'text-danger'
                     : u.percentage < 80
                     ? 'text-warning'
                     : 'text-success'
                 }`}
               >
-                {u.percentage}%
+                {u.percentage === null ? '—' : `${u.percentage}%`}
               </span>
             </td>
             <td className="px-4 py-3">

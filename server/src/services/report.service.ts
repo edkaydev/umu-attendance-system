@@ -233,8 +233,8 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
       student: e.student,
       sessionsHeld: closedIds.size,
       attended,
-      percentage: Number(pct.toFixed(2)),
-      status: attendanceStatus(pct),
+      percentage: closedIds.size > 0 ? Number(pct.toFixed(2)) : null,
+      status: closedIds.size > 0 ? attendanceStatus(pct) : 'none',
     }
   })
 
@@ -317,8 +317,8 @@ export async function getStudentReport(actor: ReportActor, studentId: string, pe
       courseUnit: e.courseUnit,
       sessionsHeld: total,
       attended,
-      percentage: Number(pct.toFixed(2)),
-      status: attendanceStatus(pct),
+      percentage: total > 0 ? Number(pct.toFixed(2)) : null,
+      status: total > 0 ? attendanceStatus(pct) : 'none',
     }
   })
 
