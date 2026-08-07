@@ -34,12 +34,24 @@ interface UnitStudent {
   status: UnitStatus
 }
 
-// ─── InfoPill ────────────────────────────────────────────────────────────────
-function InfoPill({ label, value }: { label: string; value: string | number }) {
+// ─── StatCard — big number, small label below ────────────────────────────────
+function StatCard({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string
+  value: string | number
+  valueClass?: string
+}) {
   return (
-    <div className="rounded-md border border-border bg-surface-1 px-4 py-2">
-      <span className="text-h4 font-bold text-text-primary">{value}</span>
-      <span className="ml-1.5 text-body-sm text-text-secondary">{label}</span>
+    <div className="flex flex-col rounded-lg border border-border bg-white px-5 py-4 shadow-sm">
+      <span className={`text-3xl font-extrabold leading-none ${valueClass ?? 'text-text-primary'}`}>
+        {value}
+      </span>
+      <span className="mt-1.5 text-xs font-medium uppercase tracking-wide text-text-secondary">
+        {label}
+      </span>
     </div>
   )
 }
@@ -73,6 +85,14 @@ function ReportTable({
   )
 }
 
+// ─── pctClass helper ─────────────────────────────────────────────────────────
+function pctClass(pct: number | null): string {
+  if (pct === null) return 'text-text-disabled'
+  if (pct < 75) return 'text-danger'
+  if (pct < 80) return 'text-warning'
+  return 'text-success'
+}
+
 // ─── Report renderers ────────────────────────────────────────────────────────
 
 function ProgrammeReport({ data }: { data: unknown }) {
@@ -90,46 +110,51 @@ function ProgrammeReport({ data }: { data: unknown }) {
       belowThreshold: boolean
     }[]
   }
+
+  // Only show units that have had at least one session — units with 0 sessions add no signal
+  const activeUnits = r.units.filter((u) => u.sessionsHeld > 0)
+
   return (
-    <div className="space-y-4">
-      <p className="text-body text-text-secondary">
-        {r.programme.name} ({r.programme.code}) &middot; {r.period.academicYear} &middot; Semester {r.period.semester}
-      </p>
-      <div className="flex flex-wrap gap-3">
-        <InfoPill label="Enrolled students" value={r.enrolledStudents} />
-        <InfoPill label="Faculty average"   value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
-        <InfoPill label="Units below 75%"   value={r.unitsBelowThreshold} />
+    <div className="space-y-6 pb-2">
+      {/* Hero stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatCard label="Enrolled Students" value={r.enrolledStudents} />
+        <StatCard
+          label="Programme Average"
+          value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`}
+          valueClass={pctClass(r.avgAttendance)}
+        />
+        <StatCard
+          label="Units Below 75%"
+          value={r.unitsBelowThreshold}
+          valueClass={r.unitsBelowThreshold > 0 ? 'text-danger' : 'text-success'}
+        />
       </div>
-      <ReportTable headers={['Unit', 'Year', 'Sessions', 'Avg Attendance', 'Status']}>
-        {r.units.map((u) => (
-          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
-            <td className="px-4 py-3 pl-5">
-              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
-              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
-            </td>
-            <td className="px-4 py-3 text-body text-text-secondary">Year {u.year}</td>
-            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
-            <td className="px-4 py-3">
-              <span
-                className={`text-body font-semibold ${
-                  u.avgAttendance === null
-                    ? 'text-text-disabled'
-                    : u.avgAttendance < 75
-                    ? 'text-danger'
-                    : u.avgAttendance < 80
-                    ? 'text-warning'
-                    : 'text-success'
-                }`}
-              >
-                {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
-              </span>
-            </td>
-            <td className="px-4 py-3">
-              {u.belowThreshold ? <Badge status="critical" /> : <Badge status="good" />}
-            </td>
-          </tr>
-        ))}
-      </ReportTable>
+
+      {/* Units table — only units with sessions */}
+      {activeUnits.length === 0 ? (
+        <p className="py-6 text-center text-body-sm text-text-secondary">
+          No sessions have been held yet this semester.
+        </p>
+      ) : (
+        <ReportTable headers={['Course Unit', 'Year', 'Sessions', 'Avg Attendance']}>
+          {activeUnits.map((u) => (
+            <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+              <td className="px-4 py-3 pl-5">
+                <span className="text-body font-semibold text-text-primary">{u.courseUnit.name}</span>
+                <span className="ml-2 text-body-sm text-text-secondary">{u.courseUnit.code}</span>
+              </td>
+              <td className="px-4 py-3 text-body text-text-secondary">Year {u.year}</td>
+              <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
+              <td className="px-4 py-3">
+                <span className={`text-lg font-bold ${pctClass(u.avgAttendance)}`}>
+                  {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </ReportTable>
+      )}
     </div>
   )
 }
@@ -145,38 +170,48 @@ function LecturerReport({ data }: { data: unknown }) {
       avgAttendance: number | null
     }[]
   }
+
+  const activeUnits = r.units.filter((u) => u.sessionsHeld > 0)
+  const overallAvg =
+    activeUnits.length > 0
+      ? activeUnits.reduce((sum, u) => sum + (u.avgAttendance ?? 0), 0) / activeUnits.length
+      : null
+
   return (
-    <div className="space-y-4">
-      <p className="text-body text-text-secondary">
-        {r.lecturer.fullName} &middot; {r.lecturer.email}
-      </p>
-      <InfoPill label="Total sessions this semester" value={r.totalSessions} />
-      <ReportTable headers={['Course Unit', 'Sessions Held', 'Average Attendance']}>
-        {r.units.map((u) => (
-          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
-            <td className="px-4 py-3 pl-5">
-              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
-              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
-            </td>
-            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
-            <td className="px-4 py-3">
-              <span
-                className={`text-body font-semibold ${
-                  u.avgAttendance === null
-                    ? 'text-text-disabled'
-                    : u.avgAttendance < 75
-                    ? 'text-danger'
-                    : u.avgAttendance < 80
-                    ? 'text-warning'
-                    : 'text-success'
-                }`}
-              >
-                {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
-              </span>
-            </td>
-          </tr>
-        ))}
-      </ReportTable>
+    <div className="space-y-6 pb-2">
+      {/* Hero stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatCard label="Units Assigned" value={r.units.length} />
+        <StatCard label="Sessions This Semester" value={r.totalSessions} />
+        <StatCard
+          label="Overall Avg Attendance"
+          value={overallAvg === null ? '—' : `${overallAvg.toFixed(1)}%`}
+          valueClass={pctClass(overallAvg)}
+        />
+      </div>
+
+      {activeUnits.length === 0 ? (
+        <p className="py-6 text-center text-body-sm text-text-secondary">
+          No sessions have been held yet this semester.
+        </p>
+      ) : (
+        <ReportTable headers={['Course Unit', 'Sessions Held', 'Avg Attendance']}>
+          {activeUnits.map((u) => (
+            <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+              <td className="px-4 py-3 pl-5">
+                <span className="text-body font-semibold text-text-primary">{u.courseUnit.name}</span>
+                <span className="ml-2 text-body-sm text-text-secondary">{u.courseUnit.code}</span>
+              </td>
+              <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
+              <td className="px-4 py-3">
+                <span className={`text-lg font-bold ${pctClass(u.avgAttendance)}`}>
+                  {u.avgAttendance === null ? '—' : `${u.avgAttendance}%`}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </ReportTable>
+      )}
     </div>
   )
 }
@@ -195,45 +230,56 @@ function CourseUnitReport({ data }: { data: unknown }) {
       status: UnitStatus
     }[]
   }
+
+  const atRisk = r.students.filter((s) => s.status === 'warning' || s.status === 'not_eligible').length
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <InfoPill label="Sessions held"      value={r.sessionsHeld} />
-        <InfoPill label="Enrolled students"  value={r.enrolledStudents} />
-        <InfoPill label="Class average"      value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`} />
+    <div className="space-y-6 pb-2">
+      {/* Hero stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Sessions Held" value={r.sessionsHeld} />
+        <StatCard label="Enrolled Students" value={r.enrolledStudents} />
+        <StatCard
+          label="Class Average"
+          value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`}
+          valueClass={pctClass(r.avgAttendance)}
+        />
+        <StatCard
+          label="Students At Risk"
+          value={atRisk}
+          valueClass={atRisk > 0 ? 'text-danger' : 'text-success'}
+        />
       </div>
-      <ReportTable headers={['Student', 'Reg Number', 'Sessions', 'Attended', '%', 'Status']}>
-        {r.students.map((s) => (
-          <tr key={s.student.id} className="hover:bg-surface-1">
-            <td className="px-4 py-3 pl-5 text-body font-medium text-text-primary">
-              {s.student.fullName}
-            </td>
-            <td className="px-4 py-3 text-body text-text-secondary">
-              {s.student.regNumber ?? '—'}
-            </td>
-            <td className="px-4 py-3 text-body text-text-secondary">{s.sessionsHeld}</td>
-            <td className="px-4 py-3 text-body text-text-secondary">{s.attended}</td>
-            <td className="px-4 py-3">
-              <span
-                className={`text-body font-semibold ${
-                  s.percentage === null
-                    ? 'text-text-disabled'
-                    : s.percentage < 75
-                    ? 'text-danger'
-                    : s.percentage < 80
-                    ? 'text-warning'
-                    : 'text-success'
-                }`}
-              >
-                {s.percentage === null ? '—' : `${s.percentage}%`}
-              </span>
-            </td>
-            <td className="px-4 py-3">
-              <Badge status={s.status} />
-            </td>
-          </tr>
-        ))}
-      </ReportTable>
+
+      {r.sessionsHeld === 0 ? (
+        <p className="py-6 text-center text-body-sm text-text-secondary">
+          No closed sessions yet — attendance will appear after the lecturer closes a session.
+        </p>
+      ) : (
+        <ReportTable headers={['Student', 'Reg No.', 'Attended', '%', 'Status']}>
+          {r.students.map((s) => (
+            <tr key={s.student.id} className="hover:bg-surface-1">
+              <td className="px-4 py-3 pl-5 text-body font-semibold text-text-primary">
+                {s.student.fullName}
+              </td>
+              <td className="px-4 py-3 text-body-sm text-text-secondary">
+                {s.student.regNumber ?? '—'}
+              </td>
+              <td className="px-4 py-3 text-body text-text-secondary">
+                {s.attended} / {s.sessionsHeld}
+              </td>
+              <td className="px-4 py-3">
+                <span className={`text-lg font-bold ${pctClass(s.percentage)}`}>
+                  {s.percentage === null ? '—' : `${s.percentage}%`}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                <Badge status={s.status} />
+              </td>
+            </tr>
+          ))}
+        </ReportTable>
+      )}
     </div>
   )
 }
@@ -244,44 +290,59 @@ function StudentReport({ data }: { data: unknown }) {
     period: { academicYear: string; semester: number }
     units: StudentRow[]
   }
+
+  const activeUnits = r.units.filter((u) => u.sessionsHeld > 0)
+  const atRisk = activeUnits.filter((u) => u.status === 'warning' || u.status === 'not_eligible').length
+  const avgPct =
+    activeUnits.length > 0
+      ? activeUnits.reduce((sum, u) => sum + (u.percentage ?? 0), 0) / activeUnits.length
+      : null
+
   return (
-    <div className="space-y-4">
-      <p className="text-body text-text-secondary">
-        {r.student.fullName}
-        {r.student.regNumber ? ` · ${r.student.regNumber}` : ''}
-        {' · '}{r.period.academicYear} · Semester {r.period.semester}
-      </p>
-      <ReportTable headers={['Course Unit', 'Sessions', 'Attended', '%', 'Status']}>
-        {r.units.map((u) => (
-          // key on courseUnit.id — not student.id (that was the bug)
-          <tr key={u.courseUnit.id} className="hover:bg-surface-1">
-            <td className="px-4 py-3 pl-5">
-              <span className="text-body font-medium text-text-primary">{u.courseUnit.name}</span>{' '}
-              <span className="text-body-sm text-text-secondary">({u.courseUnit.code})</span>
-            </td>
-            <td className="px-4 py-3 text-body text-text-secondary">{u.sessionsHeld}</td>
-            <td className="px-4 py-3 text-body text-text-secondary">{u.attended}</td>
-            <td className="px-4 py-3">
-              <span
-                className={`text-body font-semibold ${
-                  u.percentage === null
-                    ? 'text-text-disabled'
-                    : u.percentage < 75
-                    ? 'text-danger'
-                    : u.percentage < 80
-                    ? 'text-warning'
-                    : 'text-success'
-                }`}
-              >
-                {u.percentage === null ? '—' : `${u.percentage}%`}
-              </span>
-            </td>
-            <td className="px-4 py-3">
-              <Badge status={u.status} />
-            </td>
-          </tr>
-        ))}
-      </ReportTable>
+    <div className="space-y-6 pb-2">
+      {/* Hero stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Units Enrolled" value={r.units.length} />
+        <StatCard label="Units with Sessions" value={activeUnits.length} />
+        <StatCard
+          label="Overall Average"
+          value={avgPct === null ? '—' : `${avgPct.toFixed(1)}%`}
+          valueClass={pctClass(avgPct)}
+        />
+        <StatCard
+          label="Units At Risk"
+          value={atRisk}
+          valueClass={atRisk > 0 ? 'text-danger' : 'text-success'}
+        />
+      </div>
+
+      {activeUnits.length === 0 ? (
+        <p className="py-6 text-center text-body-sm text-text-secondary">
+          No closed sessions yet this semester.
+        </p>
+      ) : (
+        <ReportTable headers={['Course Unit', 'Attended / Sessions', '%', 'Status']}>
+          {activeUnits.map((u) => (
+            <tr key={u.courseUnit.id} className="hover:bg-surface-1">
+              <td className="px-4 py-3 pl-5">
+                <span className="text-body font-semibold text-text-primary">{u.courseUnit.name}</span>
+                <span className="ml-2 text-body-sm text-text-secondary">{u.courseUnit.code}</span>
+              </td>
+              <td className="px-4 py-3 text-body text-text-secondary">
+                {u.attended} / {u.sessionsHeld}
+              </td>
+              <td className="px-4 py-3">
+                <span className={`text-lg font-bold ${pctClass(u.percentage)}`}>
+                  {u.percentage === null ? '—' : `${u.percentage}%`}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                <Badge status={u.status} />
+              </td>
+            </tr>
+          ))}
+        </ReportTable>
+      )}
     </div>
   )
 }

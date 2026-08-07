@@ -58,12 +58,14 @@ export async function lecturerPdfController(req: Request, res: Response, next: N
       {
         heading: 'Units taught',
         headers: ['Code', 'Course Unit', 'Sessions Held', 'Average Attendance'],
-        rows: data.units.map((u) => [
-          u.courseUnit.code,
-          u.courseUnit.name,
-          u.sessionsHeld,
-          u.avgAttendance === null ? '—' : `${u.avgAttendance}%`,
-        ]),
+        rows: data.units
+          .filter((u) => u.sessionsHeld > 0)
+          .map((u) => [
+            u.courseUnit.code,
+            u.courseUnit.name,
+            u.sessionsHeld,
+            u.avgAttendance === null ? '—' : `${u.avgAttendance}%`,
+          ]),
       },
     ]
     const pdf = await reportToPdf(header, tables)
@@ -89,13 +91,15 @@ export async function programmePdfController(req: Request, res: Response, next: 
       {
         heading: 'Units',
         headers: ['Code', 'Course Unit', 'Sessions Held', 'Average Attendance', 'Below 75%'],
-        rows: data.units.map((u) => [
-          u.courseUnit.code,
-          u.courseUnit.name,
-          u.sessionsHeld,
-          u.avgAttendance === null ? '—' : `${u.avgAttendance}%`,
-          u.belowThreshold ? 'Yes' : 'No',
-        ]),
+        rows: data.units
+          .filter((u) => u.sessionsHeld > 0)
+          .map((u) => [
+            u.courseUnit.code,
+            u.courseUnit.name,
+            u.sessionsHeld,
+            u.avgAttendance === null ? '—' : `${u.avgAttendance}%`,
+            u.belowThreshold ? 'Yes' : 'No',
+          ]),
       },
       {
         heading: 'Summary',
@@ -168,24 +172,31 @@ export async function studentPdfController(req: Request, res: Response, next: Ne
       periodLabel: `${period.academicYear} · Semester ${period.semester}`,
       subtitle: `${data.student.fullName} · ${data.student.regNumber ?? '—'} · ${data.student.email}`,
     }
+    const activeWeekDays = data.weeklyChart.filter((w) => w.sessionsHeld > 0)
     const tables: PdfTable[] = [
       {
         heading: 'Units',
         headers: ['Code', 'Course Unit', 'Sessions', 'Attended', '%', 'Eligibility'],
-        rows: data.units.map((u) => [
-          u.courseUnit.code,
-          u.courseUnit.name,
-          u.sessionsHeld,
-          u.attended,
-          u.percentage === null ? '—' : `${u.percentage}%`,
-          statusPill(u.status),
-        ]),
+        rows: data.units
+          .filter((u) => u.sessionsHeld > 0)
+          .map((u) => [
+            u.courseUnit.code,
+            u.courseUnit.name,
+            u.sessionsHeld,
+            u.attended,
+            u.percentage === null ? '—' : `${u.percentage}%`,
+            statusPill(u.status),
+          ]),
       },
-      {
-        heading: 'Weekly activity (last 7 days)',
-        headers: ['Date', 'Sessions Held', 'Attended', 'Absent'],
-        rows: data.weeklyChart.map((w) => [w.date, w.sessionsHeld, w.attended, w.absent]),
-      },
+      ...(activeWeekDays.length > 0
+        ? [
+            {
+              heading: 'Weekly activity (last 7 days)',
+              headers: ['Date', 'Sessions Held', 'Attended', 'Absent'],
+              rows: activeWeekDays.map((w) => [w.date, w.sessionsHeld, w.attended, w.absent]),
+            } satisfies PdfTable,
+          ]
+        : []),
     ]
     const pdf = await reportToPdf(header, tables)
     await sendPdf(res, pdf, `student-report-${data.student.regNumber ?? 'student'}.pdf`)
