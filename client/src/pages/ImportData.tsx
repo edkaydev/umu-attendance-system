@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,password'
+const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,regNumber,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
