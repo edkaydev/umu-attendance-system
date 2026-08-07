@@ -2,6 +2,7 @@ import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isValidCampusCode } from '../constants/campuses'
 import { isProfileEditingEnabled } from './settings.service'
+import { getCurriculumUnitIds } from './enrollment.service'
 export interface StudentPathInput {
   campusCode: string
   facultyId: string
@@ -38,10 +39,7 @@ export async function recalculateEnrollments(
   studentId: string,
   { programmeId, year, semester, academicYear }: StudentPathInput
 ): Promise<number> {
-  const curriculum = await prisma.curriculumUnit.findMany({
-    where: { programmeId, year, semester, academicYear },
-    select: { courseUnitId: true },
-  })
+  const curriculum = await getCurriculumUnitIds(programmeId, year, semester, academicYear)
 
   await prisma.enrollment.deleteMany({
     where: { studentId, academicYear, semester },
@@ -49,9 +47,9 @@ export async function recalculateEnrollments(
 
   if (curriculum.length > 0) {
     await prisma.enrollment.createMany({
-      data: curriculum.map((c) => ({
+      data: curriculum.map((courseUnitId) => ({
         studentId,
-        courseUnitId: c.courseUnitId,
+        courseUnitId,
         academicYear,
         semester,
       })),

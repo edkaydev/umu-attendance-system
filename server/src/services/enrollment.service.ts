@@ -10,6 +10,33 @@ export interface EnrollmentInput {
 }
 
 /**
+ * Resolve the course units a (programme, year, semester) cohort takes.
+ * Prefers the curriculum mapped for the exact academic year, then falls back
+ * to the cohort's mapping from ANY academic year. This keeps auto-enrollment
+ * working even when the global period moves to a year the curriculum file
+ * hasn't been re-imported for yet (e.g. period 2026/2027 with a 2025/2026
+ * curriculum).
+ */
+export async function getCurriculumUnitIds(
+  programmeId: string,
+  year: number,
+  semester: number,
+  academicYear: string
+): Promise<string[]> {
+  const exact = await prisma.curriculumUnit.findMany({
+    where: { programmeId, year, semester, academicYear },
+    select: { courseUnitId: true },
+  })
+  if (exact.length > 0) return exact.map((c) => c.courseUnitId)
+
+  const fallback = await prisma.curriculumUnit.findMany({
+    where: { programmeId, year, semester },
+    select: { courseUnitId: true },
+  })
+  return [...new Set(fallback.map((c) => c.courseUnitId))]
+}
+
+/**
  * Everything a Faculty Admin needs for unit management in their faculty:
  * their faculty's course units (owned + shared) and the students + lecturers
  * in that faculty together with the units each currently has.

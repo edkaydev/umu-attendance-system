@@ -5,6 +5,7 @@ import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash, getCurrentPeriod } from './settings.service'
 import { isValidCampusCode } from '../constants/campuses'
+import { getCurriculumUnitIds } from './enrollment.service'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 
@@ -483,16 +484,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
     const key = `${s.programmeId}|${s.year}|${s.semester}|${s.academicYear}`
     let unitIds = combos.get(key)
     if (!unitIds) {
-      const curriculum = await prisma.curriculumUnit.findMany({
-        where: {
-          programmeId: s.programmeId,
-          year: s.year,
-          semester: s.semester,
-          academicYear: s.academicYear,
-        },
-        select: { courseUnitId: true },
-      })
-      unitIds = curriculum.map((c) => c.courseUnitId)
+      unitIds = await getCurriculumUnitIds(s.programmeId, s.year, s.semester, s.academicYear)
       combos.set(key, unitIds)
     }
     s.courseUnitIds = unitIds
