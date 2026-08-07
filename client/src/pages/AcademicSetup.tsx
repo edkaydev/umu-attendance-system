@@ -194,8 +194,8 @@ export default function AcademicSetup() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-h2 font-bold text-text-primary">Academic Setup</h1>
           <p className="text-body-sm text-text-secondary">Manage the academic structure of the university.</p>
         </div>
@@ -395,7 +395,7 @@ export default function AcademicSetup() {
             )}
             <Select label="Course Unit" value={courseUnitId} onChange={(e) => setCourseUnitId(e.target.value)} options={courseUnits.map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }))} />
             <Select label="Programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)} options={programmes.map((p) => ({ value: p.id, label: p.name }))} />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Select
                 label="Year"
                 value={year}

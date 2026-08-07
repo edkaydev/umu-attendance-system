@@ -237,7 +237,7 @@ export default function LiveSession() {
             <ul className="divide-y divide-border">
               {data.present.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success-light text-xs font-bold text-success">
                       ✓
                     </span>

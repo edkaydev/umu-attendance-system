@@ -186,7 +186,7 @@ export default function StudentDashboard() {
         )}
       </Card>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Course Units" value={total} />
         <Stat label="At/Above 80%" value={good} />
         <Stat label="Avg Attendance" value={`${avg}%`} />
@@ -230,7 +230,7 @@ export default function StudentDashboard() {
             <ul className="divide-y divide-border">
               {data.recentCheckIns.map((r, i) => (
                 <li key={i} className="flex items-center justify-between py-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-text-primary">{r.session.courseUnit.name}</p>
                     <p className="text-xs text-text-secondary">
                       {r.checkedInAt
@@ -263,7 +263,7 @@ export default function StudentDashboard() {
               return (
                 <div key={u.courseUnit.id}>
                   <div className="mb-1.5 flex items-center justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-sm font-medium text-text-primary">{u.courseUnit.name}</span>
                       <span className="ml-2 text-xs text-text-secondary">{u.courseUnit.code}</span>
                     </div>

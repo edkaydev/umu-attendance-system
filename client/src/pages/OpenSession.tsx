@@ -119,7 +119,7 @@ export default function OpenSession() {
             {/* Mode */}
             <div className="mb-4">
               <p className="mb-1.5 block text-xs font-medium text-text-secondary">Mode</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(['physical', 'online'] as const).map((m) => (
                   <button
                     key={m}
@@ -154,7 +154,7 @@ export default function OpenSession() {
             />
 
             {/* Duration + code TTL side-by-side */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select
                 label="Class Duration"
                 value={classDuration}

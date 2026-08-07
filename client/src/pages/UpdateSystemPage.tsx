@@ -102,7 +102,7 @@ export default function UpdateSystemPage() {
       {/* ── Trigger card ── */}
       <Card>
         <div className="flex items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold text-text-primary">Deploy Latest Version</p>
             <p className="text-body-sm text-text-secondary mt-0.5">
               Make sure your changes are pushed to <span className="font-mono">main</span> on GitHub before clicking.

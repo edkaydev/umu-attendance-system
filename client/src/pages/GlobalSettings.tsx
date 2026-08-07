@@ -160,7 +160,7 @@ export default function GlobalSettings() {
         {PROFILE_SCOPES.map(({ scope, label, description }) => {
           const enabled = profileEditing?.[scope] ?? false
           return <div key={scope} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 last:border-b-0">
-            <div><p className="font-semibold text-text-primary">{label}</p><p className="text-body-sm text-text-secondary">{description}</p></div>
+            <div className="min-w-0"><p className="font-semibold text-text-primary">{label}</p><p className="text-body-sm text-text-secondary">{description}</p></div>
             <button onClick={() => toggleProfile(scope)} disabled={!profileEditing || saving !== null} aria-label={`Toggle ${label} profile editing`} aria-pressed={enabled} className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full ${enabled ? 'bg-success' : 'bg-text-disabled'} disabled:opacity-60`}>
               <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-[26px]' : 'translate-x-0.5'}`} />
             </button>

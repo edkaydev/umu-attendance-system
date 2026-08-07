@@ -64,7 +64,7 @@ export default function LecturerDashboard() {
         <div>
           <h1 className="text-h1 font-bold text-text-primary">Welcome back, {user?.fullName.split(' ')[0]}</h1>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Assigned Units"   value={0} />
           <Stat label="Sessions Today"   value={0} />
           <Stat label="Students At Risk" value={0} />
@@ -118,7 +118,7 @@ export default function LecturerDashboard() {
           </div>
           {openSessions.length === 1 ? (
             <div className="mt-2 flex items-center justify-between gap-3">
-              <p className="text-body-sm text-success">
+              <p className="min-w-0 text-body-sm text-success">
                 {openSessions[0].courseUnit.name}
                 {' · '}
                 {openSessions[0].mode === 'online' ? 'Online' : (openSessions[0].venue ?? 'Physical')}
@@ -133,7 +133,7 @@ export default function LecturerDashboard() {
             <ul className="mt-2 space-y-2">
               {openSessions.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-3">
-                  <p className="text-body-sm text-success">
+                  <p className="min-w-0 text-body-sm text-success">
                     {s.courseUnit.name}
                     {' · '}
                     {s.mode === 'online' ? 'Online' : (s.venue ?? 'Physical')}
@@ -151,7 +151,7 @@ export default function LecturerDashboard() {
       )}
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Assigned Units"   value={data.units.length} />
         <Stat label="Sessions Today"   value={data.todaySessions.length} />
         <Stat
