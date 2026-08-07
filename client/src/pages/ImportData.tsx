@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,regNumber,password'
+const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -218,8 +218,8 @@ export default function ImportData() {
             enrolled in every course unit from the curriculum mapping.
             The academic year and semester are always taken from the system-wide current
             period (set in Global Settings), so no per-row values are needed.
-            Emails must end in @stud.umu.ac.ug. <code className="code-font">regNumber</code> is
-            optional — a placeholder is generated when blank. Leave password blank to use the
+            Emails must end in @stud.umu.ac.ug. A registration number is auto-assigned —
+            students can change it later in their profile. Leave password blank to use the
             system default; students change it on first sign-in.
           </p>
           <input
@@ -243,7 +243,7 @@ export default function ImportData() {
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
-            (regNumber and password optional; academic year &amp; semester come from Global Settings)
+            (password optional; academic year &amp; semester come from Global Settings)
           </p>
         </Card>
       </div>
