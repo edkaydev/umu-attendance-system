@@ -49,6 +49,7 @@ const HEADER_ALIASES: Record<string, string> = {
   regno: 'regNumber',
   regnumber: 'regNumber',
   programcode: 'programmeCode',
+  programmecode: 'programmeCode',
   program: 'programmeCode',
   programme: 'programmeCode',
   facultycode: 'facultyCode',
