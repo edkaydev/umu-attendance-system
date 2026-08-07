@@ -216,14 +216,16 @@ export default function ImportData() {
             Creates and fully provisions student accounts in bulk: each student is linked to
             their faculty and programme and automatically enrolled in every course unit from
             the curriculum mapping.
-            The academic year, semester and year of study are always determined by the system:
+            Zeevarsity exports are accepted directly (firstname, lastname, registrationNo,
+            programCode, yearOfStudy) — emails are generated automatically and no manual
+            cleaning is needed.
+            The academic year, semester and year of study are determined by the system:
             the period comes from Global Settings, and the year of study is computed from the
-            student's intake year (the first 4 digits of their registration number / numeric
-            email, e.g. 2023001001@stud.umu.ac.ug) against the current academic year — no
-            per-row values are needed.
-            Emails must end in @stud.umu.ac.ug. A registration number is auto-assigned —
-            students can change it later in their profile. Leave password blank to use the
-            system default; students change it on first sign-in.
+            student's intake year (the first 4 digits of their registration number) against
+            the current academic year.
+            Emails must end in @stud.umu.ac.ug. A registration number is auto-assigned when
+            not provided — students can change it later in their profile. Leave password blank
+            to use the system default; students change it on first sign-in.
           </p>
           <input
             ref={studentRef}
@@ -246,7 +248,7 @@ export default function ImportData() {
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
-            (password optional; period &amp; year of study come from Global Settings + intake year)
+            (or a Zeevarsity export; password optional, period &amp; year come from the system)
           </p>
         </Card>
       </div>

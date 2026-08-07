@@ -22,12 +22,47 @@ function parseCsv(buffer: Buffer): Row[] {
     skip_empty_lines: true,
     trim: true,
     relax_column_count: true,
+    bom: true, // Excel/Zeevarsity exports may start with a UTF-8 BOM
   }) as Row[]
   return records
 }
 
 function normalizeCode(value: string | undefined): string | undefined {
   return value?.trim().toUpperCase()
+}
+
+/**
+ * Map common CSV header spellings (including Zeevarsity exports) onto a
+ * canonical student-import key. Header names are matched case-insensitively
+ * with spaces/underscores removed, so "First Name" === "firstname".
+ */
+const HEADER_ALIASES: Record<string, string> = {
+  name: 'name',
+  fullname: 'name',
+  studentname: 'name',
+  email: 'email',
+  password: 'password',
+  firstname: 'firstName',
+  lastname: 'lastName',
+  registrationno: 'regNumber',
+  registrationnumber: 'regNumber',
+  regno: 'regNumber',
+  regnumber: 'regNumber',
+  programcode: 'programmeCode',
+  program: 'programmeCode',
+  programme: 'programmeCode',
+  facultycode: 'facultyCode',
+  yearofstudy: 'yearOfStudy',
+  academicyear: 'academicYear',
+}
+
+function normalizeRow(row: Row): Row {
+  const out: Row = {}
+  for (const [key, value] of Object.entries(row)) {
+    const alias = HEADER_ALIASES[key.trim().toLowerCase().replace(/[\s_]+/g, '')]
+    if (alias) out[alias] = value?.trim()
+  }
+  return out
 }
 
 /**
@@ -272,16 +307,24 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 /**
  * Import student accounts from CSV with full academic provisioning.
  *
- * Columns: name, email, facultyCode, programmeCode, regNumber (optional,
- * auto-generated when blank), password (optional, defaults to the system
- * default). When regNumber is blank, the numeric local part of the email
- * (e.g. "2023001001" in 2023001001@stud.umu.ac.ug) is used as the reg number.
+ * Two formats are accepted:
+ * 1. Native:      name, email, facultyCode, programmeCode, regNumber (optional),
+ *                 password (optional, defaults to the system default).
+ * 2. Zeevarsity:  firstname, lastname, registrationNo (or regNo), programCode,
+ *                 yearOfStudy, academicYear, studentNo, status — plus optional
+ *                 email and facultyCode. Emails are generated as
+ *                 firstname.lastname@stud.umu.ac.ug when not provided.
+ * Headers are matched case-insensitively with spaces/underscores ignored.
+ *
+ * When regNumber is blank, the numeric local part of the email
+ * (e.g. "2023001001" in 2023001001@stud.umu.ac.ug) is used as the reg number,
+ * otherwise one is auto-generated.
  * academicYear, semester and year of study are NOT per-row values: academicYear
  * and semester always come from the system-wide current period set by the
  * System Admin in Global Settings, and the year of study is computed from the
  * student's intake year (first 4 digits of the reg number) against the current
- * period's academic year. So every imported student lands in the same active
- * period at the correct year.
+ * period's academic year (falling back to the yearOfStudy column, then Year 1).
+ * So every imported student lands in the same active period at the correct year.
  *
  * Students are fully provisioned at import time: linked to their faculty and
  * programme, stamped with year/regNumber and the global period, marked
@@ -344,12 +387,18 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
     const row = rows[i]
     const line = i + 2 // header is row 1
     try {
-      const fullName = row['name']?.trim()
-      const email = row['email']?.trim().toLowerCase()
-      const facultyCode = normalizeCode(row['facultyCode'])
-      const programmeCode = normalizeCode(row['programmeCode'])
-      const regNumber = row['regNumber']?.trim()
-      const plainPassword = row['password']?.trim()
+      const r = normalizeRow(row)
+      const firstName = r['firstName']
+      const lastName = r['lastName']
+      const fullName = firstName && lastName ? `${firstName} ${lastName}` : r['name']
+      const email =
+        r['email']?.toLowerCase() ||
+        (firstName && lastName ? `${firstName}.${lastName}@stud.umu.ac.ug`.toLowerCase() : '')
+      const facultyCode = normalizeCode(r['facultyCode'])
+      const programmeCode = normalizeCode(r['programmeCode'])
+      const regNumber = r['regNumber']
+      const yearOfStudyRaw = r['yearOfStudy']
+      const plainPassword = r['password']
 
       if (!fullName || !email) throw new Error('Missing name or email')
       if (!email.endsWith('@stud.umu.ac.ug')) throw new Error('Email must end in @stud.umu.ac.ug')
@@ -362,19 +411,22 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
         throw new Error('Email is already used by a non-student account')
       }
 
-      if (!facultyCode || !programmeCode) throw new Error('Missing facultyCode or programmeCode')
-      const faculty = facultyByCode.get(facultyCode)
-      if (!faculty) throw new Error(`Faculty "${facultyCode}" not found`)
-      if (!faculty.isActive) throw new Error(`Faculty "${facultyCode}" is not active`)
+      if (!programmeCode) throw new Error('Missing programmeCode (or programCode)')
       const programme = programmeByCode.get(programmeCode)
       if (!programme) throw new Error(`Programme "${programmeCode}" not found`)
-      if (programme.facultyId !== faculty.id) {
+
+      // facultyCode is optional: when absent, derive it from the programme.
+      let faculty = facultyCode ? facultyByCode.get(facultyCode) : undefined
+      if (!faculty) faculty = faculties.find((f) => f.id === programme.facultyId)
+      if (!faculty) throw new Error(`Faculty "${facultyCode ?? programmeCode}" not found`)
+      if (!faculty.isActive) throw new Error(`Faculty "${faculty.code}" is not active`)
+      if (facultyCode && programme.facultyId !== faculty.id) {
         throw new Error(`Programme "${programmeCode}" does not belong to faculty "${facultyCode}"`)
       }
 
       // Year of study is derived by the system from the student's intake year
       // (first 4 digits of the reg number / numeric email local part) and the
-      // current period's academic year — never taken from the CSV.
+      // current period's academic year, falling back to a yearOfStudy column.
       const emailLocal = email.split('@')[0]
       const numericRegNumber = /^\d+$/.test(emailLocal) ? emailLocal : undefined
       const intakeMatch = (regNumber || numericRegNumber || '').match(/^(\d{4})/)
@@ -383,7 +435,12 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       const year =
         intakeYear && Number.isInteger(periodStartYear)
           ? Math.min(6, Math.max(1, periodStartYear - intakeYear + 1))
-          : 1
+          : yearOfStudyRaw
+            ? Number(yearOfStudyRaw.replace(/\D/g, ''))
+            : 1
+      if (!Number.isInteger(year) || year < 1 || year > 6) {
+        throw new Error('year of study must be an integer between 1 and 6')
+      }
 
       const finalRegNumber = regNumber || numericRegNumber || `${programmeCode}-${year}-${String(++regSeq.n).padStart(4, '0')}`
 
