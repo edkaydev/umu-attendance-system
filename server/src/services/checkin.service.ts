@@ -1,11 +1,23 @@
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { isWithinCampus } from '../config/geofence'
+
+export interface CheckInLocation {
+  lat: number
+  lng: number
+}
 
 /**
  * Student check-in using the 6-character session code (FR-06.1 → 06.6).
+ * Physical sessions are geo-fenced — the student's location must be inside
+ * the campus radius. Online sessions skip the location check entirely.
  */
-export async function checkIn(studentId: string, code: string): Promise<{
+export async function checkIn(
+  studentId: string,
+  code: string,
+  location?: CheckInLocation
+): Promise<{
   courseUnit: { id: string; name: string; code: string }
   date: string
   status: string
@@ -25,6 +37,16 @@ export async function checkIn(studentId: string, code: string): Promise<{
   // FR-06.2: code not expired (5-minute validity)
   if (session.codeExpiresAt < new Date()) {
     throw new ApiError('Session code has expired', 400, 'CODE_EXPIRED')
+  }
+
+  // Geo-fence: physical sessions require a location inside the campus radius.
+  if (session.mode === 'physical') {
+    if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+      throw new ApiError('Location is required to check in to a physical session', 400, 'LOCATION_REQUIRED')
+    }
+    if (!isWithinCampus(location.lat, location.lng)) {
+      throw new ApiError('You must be within the campus area to check in', 403, 'OUTSIDE_CAMPUS')
+    }
   }
 
   // FR-06.2: student is enrolled in the course unit for this period
