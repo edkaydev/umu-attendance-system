@@ -272,11 +272,16 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 /**
  * Import student accounts from CSV with full academic provisioning.
  *
- * Columns: name, email, facultyCode, programmeCode, year, regNumber (optional,
+ * Columns: name, email, facultyCode, programmeCode, regNumber (optional,
  * auto-generated when blank), password (optional, defaults to the system
- * default). academicYear and semester are NOT per-row values — they always come
- * from the system-wide current period set by the System Admin in Global
- * Settings, so every imported student lands in the same active period.
+ * default). When regNumber is blank, the numeric local part of the email
+ * (e.g. "2023001001" in 2023001001@stud.umu.ac.ug) is used as the reg number.
+ * academicYear, semester and year of study are NOT per-row values: academicYear
+ * and semester always come from the system-wide current period set by the
+ * System Admin in Global Settings, and the year of study is computed from the
+ * student's intake year (first 4 digits of the reg number) against the current
+ * period's academic year. So every imported student lands in the same active
+ * period at the correct year.
  *
  * Students are fully provisioned at import time: linked to their faculty and
  * programme, stamped with year/regNumber and the global period, marked
@@ -343,7 +348,6 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       const email = row['email']?.trim().toLowerCase()
       const facultyCode = normalizeCode(row['facultyCode'])
       const programmeCode = normalizeCode(row['programmeCode'])
-      const year = Number(row['year'])
       const regNumber = row['regNumber']?.trim()
       const plainPassword = row['password']?.trim()
 
@@ -367,11 +371,21 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       if (programme.facultyId !== faculty.id) {
         throw new Error(`Programme "${programmeCode}" does not belong to faculty "${facultyCode}"`)
       }
-      if (!Number.isInteger(year) || year < 1 || year > 6) {
-        throw new Error('year must be an integer between 1 and 6')
-      }
 
-      const finalRegNumber = regNumber || `${programmeCode}-${year}-${String(++regSeq.n).padStart(4, '0')}`
+      // Year of study is derived by the system from the student's intake year
+      // (first 4 digits of the reg number / numeric email local part) and the
+      // current period's academic year — never taken from the CSV.
+      const emailLocal = email.split('@')[0]
+      const numericRegNumber = /^\d+$/.test(emailLocal) ? emailLocal : undefined
+      const intakeMatch = (regNumber || numericRegNumber || '').match(/^(\d{4})/)
+      const intakeYear = intakeMatch ? Number(intakeMatch[1]) : null
+      const periodStartYear = Number.parseInt(academicYear.split('/')[0], 10)
+      const year =
+        intakeYear && Number.isInteger(periodStartYear)
+          ? Math.min(6, Math.max(1, periodStartYear - intakeYear + 1))
+          : 1
+
+      const finalRegNumber = regNumber || numericRegNumber || `${programmeCode}-${year}-${String(++regSeq.n).padStart(4, '0')}`
 
       students.push({
         line,

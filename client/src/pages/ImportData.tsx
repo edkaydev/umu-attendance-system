@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,password'
+const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -214,10 +214,13 @@ export default function ImportData() {
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
             Creates and fully provisions student accounts in bulk: each student is linked to
-            their faculty and programme, stamped with their year of study, and automatically
-            enrolled in every course unit from the curriculum mapping.
-            The academic year and semester are always taken from the system-wide current
-            period (set in Global Settings), so no per-row values are needed.
+            their faculty and programme and automatically enrolled in every course unit from
+            the curriculum mapping.
+            The academic year, semester and year of study are always determined by the system:
+            the period comes from Global Settings, and the year of study is computed from the
+            student's intake year (the first 4 digits of their registration number / numeric
+            email, e.g. 2023001001@stud.umu.ac.ug) against the current academic year — no
+            per-row values are needed.
             Emails must end in @stud.umu.ac.ug. A registration number is auto-assigned —
             students can change it later in their profile. Leave password blank to use the
             system default; students change it on first sign-in.
@@ -243,7 +246,7 @@ export default function ImportData() {
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
-            (password optional; academic year &amp; semester come from Global Settings)
+            (password optional; period &amp; year of study come from Global Settings + intake year)
           </p>
         </Card>
       </div>
