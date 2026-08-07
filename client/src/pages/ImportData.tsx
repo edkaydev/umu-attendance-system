@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,password'
+const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,regNumber,semester,academicYear,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -213,9 +213,13 @@ export default function ImportData() {
 
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates student accounts. Students must change their password on first sign-in, then choose their
-            campus, faculty, programme and year to get their course units automatically.
-            Emails must end in @stud.umu.ac.ug. Leave password blank to use the system default.
+            Creates and fully provisions student accounts in bulk: each student is linked to
+            their faculty and programme, stamped with their year of study, and automatically
+            enrolled in every course unit from the curriculum mapping.
+            Emails must end in @stud.umu.ac.ug. <code className="code-font">semester</code> is
+            optional (defaults to 1). <code className="code-font">academicYear</code> is optional
+            — if blank it is derived from the current period minus the student's year of study.
+            Leave password blank to use the system default; students change it on first sign-in.
           </p>
           <input
             ref={studentRef}
@@ -237,7 +241,8 @@ export default function ImportData() {
           </div>
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
-            Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>
+            Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
+            (semester and academicYear optional)
           </p>
         </Card>
       </div>
