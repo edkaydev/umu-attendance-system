@@ -229,6 +229,5 @@ SMTP_PORT=587
 SMTP_USER=attendance@umu.ac.ug
 SMTP_PASS=google-app-password
 
-# PDF
-UMU_BADGE_PATH=/app/assets/umu-badge.png
+# PDF (logo is committed at server/assets/umu-logo.svg and embedded as base64 — no env var needed)
 ```

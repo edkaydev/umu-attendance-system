@@ -187,8 +187,7 @@ SMTP_PASS=paste-your-gmail-app-password-here
 ALERT_FROM_EMAIL=attendance@umu.ac.ug
 ALERT_FROM_NAME=UMU Attendance System
 
-# UMU logo path inside the container
-UMU_LOGO_PATH=/app/assets/umu-logo.png
+# PDF logo is committed at server/assets/umu-logo.svg and embedded as base64 (no env var needed)
 
 # First system admin account
 SEED_ADMIN_EMAIL=edward@umu.ac.ug
@@ -646,7 +645,7 @@ docker compose logs app | grep -i -E "pdf|puppeteer|chromium"
 The app generates PDFs with Puppeteer's **bundled Chromium**. The `Dockerfile` already
 installs the system libraries Chromium needs, but if the image is out of date (e.g. after
 an OS update on the server), Chromium can fail to launch. Fix: rebuild the image with
-`docker compose up -d --build`. Also check `server/assets/umu-badge.svg` exists (it is
+`docker compose up -d --build`. Also check `server/assets/umu-logo.svg` exists (it is
 committed to the repo and must not be deleted).
 
 ---

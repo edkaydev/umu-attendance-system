@@ -89,8 +89,6 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=attendance@umu.ac.ug
 SMTP_PASS=your-google-app-password
-
-UMU_LOGO_PATH=/app/assets/umu-logo.png
 ```
 
 Generate secure secrets:
@@ -102,8 +100,8 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 > `.env` file. If it contains special characters (like `#`, `@`, `%`), URL-encode it in
 > `DATABASE_URL` — e.g. `Console.log#75` becomes `Console.log%2375`.
 >
-> The logo (`umu-logo.png`) is already committed in `client/public/` and `server/assets/`,
-> so no asset step is needed after cloning.
+> The logo (`umu-logo.svg`) is already committed in `server/assets/` and embedded into PDFs
+> as base64, so no asset or env step is needed after cloning.
 
 ---
 
@@ -423,7 +421,7 @@ docker compose restart app
 | Nginx crash-looping "cannot load certificate" | Certificate doesn't exist yet — get the Let's Encrypt cert first (Step 4), then check `server_name`/cert paths in `devops/nginx/umu-attendance.conf` |
 | Google login failing | `GOOGLE_CALLBACK_URL` must be `https://` and match exactly in Google Console |
 | Google "Access Denied / Something went wrong during sign-in" | OAuth consent screen: User type must be **External**, Publishing status **In production**, redirect URIs **https**. For UMU accounts this can also mean the Google Workspace admin hasn't allowed the app (admin.google.com → Security → Access and data control → API controls → Manage Third-Party App Access) |
-| PDF not generating | Puppeteer's bundled Chromium — rebuild the image with `docker compose up -d --build`; check `server/assets/umu-badge.svg` exists; see logs with `docker compose logs app \| grep -i -E "pdf\|puppeteer\|chromium"` |
+| PDF not generating | Puppeteer's bundled Chromium — rebuild the image with `docker compose up -d --build`; check `server/assets/umu-logo.svg` exists; see logs with `docker compose logs app \| grep -i -E "pdf\|puppeteer\|chromium"` |
 | Emails not sending | `SMTP_PASS` must be a Google App Password (not account password) |
 | 502 Bad Gateway | Node.js crashed — `docker compose logs app` |
 | PWA not installing | Check `/manifest.webmanifest` returns 200; check icons exist in `/public` |

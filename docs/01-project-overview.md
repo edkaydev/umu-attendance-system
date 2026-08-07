@@ -41,8 +41,8 @@ Faculty Admin monitors → generates reports → downloads PDF
 |---|---|
 | Nkozi Campus only | Other campuses (Phase 2) |
 | Web PWA (installable on phone + PC) | Native mobile apps |
-| Google OAuth login only | Password-based login |
-| Student self-registration via profile completion | Manual student CSV import |
+| Google OAuth login only (works fully with password sign-in too) | Google as the *only* auth method |
+| Student self-registration via profile completion + bulk CSV import | — |
 | Code-based student check-in | Biometric / QR code check-in |
 | Course-unit level attendance tracking | — |
 | PDF reports for Faculty Admin + Lecturer | Moodle integration |
@@ -110,7 +110,7 @@ drops again, a new alert fires.
 - Deployed via **Docker + Docker Compose**
 - Must work on campus network — no offline mode
 - PDF reports include the UMU logo
-- All users authenticate via **Google OAuth only**
+- Accounts sign in with **email + password**; Google OAuth is available once the UMU Workspace approves the app
 - Students use `@stud.umu.ac.ug`, staff use `@umu.ac.ug`
 - Faculty Admin and System Admin: **desktop browsers only**
 - Students and Lecturers: mobile + desktop (PWA)

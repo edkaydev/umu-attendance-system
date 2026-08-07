@@ -1,0 +1,174 @@
+name,code,facultyCode
+Introduction to Business,FBAM1101,FBAM
+Principles of Management,FBAM1102,FBAM
+Business Mathematics,FBAM1103,FBAM
+Communication Skills,FBAM1104,FBAM
+Economics I,FBAM1105,FBAM
+Financial Accounting I,FBAM1201,FBAM
+Marketing Management,FBAM1202,FBAM
+Economics II,FBAM1203,FBAM
+Business Statistics,FBAM1204,FBAM
+Financial Accounting II,FBAM1205,FBAM
+Organizational Behaviour,FBAM2101,FBAM
+Human Resource Management,FBAM2102,FBAM
+Business Law,FBAM2103,FBAM
+Cost Accounting,FBAM2104,FBAM
+Entrepreneurship and Innovation,FBAM2105,FBAM
+Strategic Management,FBAM2201,FBAM
+Operations Management,FBAM2202,FBAM
+Auditing and Assurance,FBAM2203,FBAM
+Taxation,FBAM2204,FBAM
+Corporate Finance,FBAM2205,FBAM
+Research Methods in Business,FBAM3101,FBAM
+International Business,FBAM3102,FBAM
+Project Management,FBAM3103,FBAM
+Business Ethics and Corporate Governance,FBAM3104,FBAM
+Supply Chain Management,FBAM3105,FBAM
+Procurement Law and Ethics,FBAM3201,FBAM
+Financial Management,FBAM3202,FBAM
+Management Information Systems,FBAM3203,FBAM
+Introduction to Education,FED1101,FED
+Philosophy of Education,FED1102,FED
+Child Development and Psychology,FED1103,FED
+Communication Skills for Teachers,FED1104,FED
+History of Education in Uganda,FED1105,FED
+Curriculum Development,FED1201,FED
+Educational Psychology,FED1202,FED
+Teaching Methods I,FED1203,FED
+Introduction to Special Needs Education,FED1204,FED
+Assessment and Evaluation,FED2101,FED
+Classroom Management,FED2102,FED
+Teaching Methods II,FED2103,FED
+Educational Technology,FED2104,FED
+School Administration and Management,FED2201,FED
+Guidance and Counselling,FED2202,FED
+Teaching Practice I,FED2203,FED
+Research Methods in Education,FED3101,FED
+Education Policy and Planning,FED3102,FED
+Teaching Practice II,FED3103,FED
+Community and Adult Education,FED3201,FED
+Anatomy and Physiology I,FHS1101,FHS
+Biochemistry for Health Sciences,FHS1102,FHS
+Microbiology and Immunology I,FHS1103,FHS
+Introduction to Health Sciences,FHS1104,FHS
+Communication Skills for Health,FHS1105,FHS
+Anatomy and Physiology II,FHS1201,FHS
+Pathology,FHS1202,FHS
+Microbiology and Immunology II,FHS1203,FHS
+Pharmacology I,FHS1204,FHS
+Nursing Fundamentals,FHS2101,FHS
+Medical-Surgical Nursing I,FHS2102,FHS
+Community Health Nursing,FHS2103,FHS
+Pharmaceutical Chemistry,FHS2104,FHS
+Epidemiology and Biostatistics,FHS2201,FHS
+Medical-Surgical Nursing II,FHS2202,FHS
+Clinical Pharmacology,FHS2203,FHS
+Maternal and Child Health,FHS2204,FHS
+Research Methods in Health,FHS3101,FHS
+Clinical Practice I,FHS3102,FHS
+Public Health Management,FHS3103,FHS
+Clinical Practice II,FHS3201,FHS
+Pharmaceutical Technology,FHS3202,FHS
+Introduction to Social Work,FASS1101,FASS
+Introduction to Sociology,FASS1102,FASS
+Philosophy and Ethics I,FASS1103,FASS
+Communication and Writing Skills,FASS1104,FASS
+Introduction to Political Science,FASS1105,FASS
+Social Research Methods,FASS1201,FASS
+Development Studies I,FASS1202,FASS
+African Studies,FASS1203,FASS
+Media and Society,FASS1204,FASS
+Community Development,FASS2101,FASS
+Social Policy and Administration,FASS2102,FASS
+Development Studies II,FASS2103,FASS
+Journalism Practice I,FASS2104,FASS
+Human Rights and Development,FASS2201,FASS
+Ethics and Governance,FASS2202,FASS
+Social Work Practice,FASS2203,FASS
+Journalism Practice II,FASS2204,FASS
+Research Project in Arts,FASS3101,FASS
+International Relations,FASS3102,FASS
+Gender and Development,FASS3103,FASS
+Peace and Conflict Studies,FASS3201,FASS
+Digital Media and Communication,FASS3202,FASS
+Calculus I,FSC1101,FSC
+Introduction to Computer Science,FSC1102,FSC
+Physics I,FSC1103,FSC
+Chemistry I,FSC1104,FSC
+Communication Skills for Scientists,FSC1105,FSC
+Calculus II,FSC1201,FSC
+Data Structures and Algorithms,FSC1202,FSC
+Physics II,FSC1203,FSC
+Biochemistry I,FSC1204,FSC
+Linear Algebra,FSC2101,FSC
+Operating Systems,FSC2102,FSC
+Database Systems,FSC2103,FSC
+Web Technologies,FSC2104,FSC
+Statistics and Probability,FSC2201,FSC
+Computer Networks,FSC2202,FSC
+Software Engineering,FSC2203,FSC
+Biochemistry II,FSC2204,FSC
+Research Methods in Science,FSC3101,FSC
+Artificial Intelligence,FSC3102,FSC
+Mobile Application Development,FSC3103,FSC
+Information Security,FSC3201,FSC
+Mathematics of Finance,FSC3202,FSC
+Final Year Project,FSC3203,FSC
+Introduction to Agriculture,FAGR1101,FAGR
+Agricultural Chemistry,FAGR1102,FAGR
+Crop Science I,FAGR1103,FAGR
+Animal Husbandry I,FAGR1104,FAGR
+Rural Sociology,FAGR1105,FAGR
+Crop Science II,FAGR1201,FAGR
+Soil Science,FAGR1202,FAGR
+Animal Husbandry II,FAGR1203,FAGR
+Agricultural Economics I,FAGR1204,FAGR
+Agronomy,FAGR2101,FAGR
+Plant Pathology,FAGR2102,FAGR
+Agricultural Extension,FAGR2103,FAGR
+Food Microbiology,FAGR2104,FAGR
+Agricultural Economics II,FAGR2201,FAGR
+Post-Harvest Technology,FAGR2202,FAGR
+Agricultural Marketing,FAGR2203,FAGR
+Food Chemistry and Analysis,FAGR2204,FAGR
+Research Methods in Agriculture,FAGR3101,FAGR
+Farm Management and Planning,FAGR3102,FAGR
+Agribusiness Management,FAGR3103,FAGR
+Food Processing Technology,FAGR3201,FAGR
+Environmental and Natural Resource Management,FAGR3202,FAGR
+Agricultural Project Management,FAGR3203,FAGR
+Strategic Management,FBAM4101,FBAM
+Entrepreneurship and Innovation,FBAM4102,FBAM
+International Trade and Finance,FBAM4103,FBAM
+Business Research Project,FBAM4104,FBAM
+Leadership and Organizational Behaviour,FBAM4105,FBAM
+Corporate Strategy,FBAM4201,FBAM
+Risk Management and Insurance,FBAM4202,FBAM
+Business Law and Taxation,FBAM4203,FBAM
+Curriculum Development and Evaluation,FED4101,FED
+Educational Research Project,FED4102,FED
+Education Law and Administration,FED4103,FED
+Comparative Education,FED4201,FED
+Guidance and Counselling in Education,FED4202,FED
+Health Research Project,FHS4101,FHS
+Advanced Clinical Practice,FHS4102,FHS
+Health Policy and Management,FHS4103,FHS
+Community Health Practicum,FHS4201,FHS
+Clinical Laboratory Management,FHS4202,FHS
+Research Dissertation,FASS4101,FASS
+Development Economics,FASS4102,FASS
+Governance and Leadership,FASS4103,FASS
+Communication for Development,FASS4201,FASS
+Social Entrepreneurship,FASS4202,FASS
+Advanced Database Systems,FSC4101,FSC
+Machine Learning,FSC4102,FSC
+Research Project in Computing,FSC4103,FSC
+Distributed Systems,FSC4201,FSC
+Data Science and Analytics,FSC4202,FSC
+Cybersecurity,FSC4203,FSC
+Agricultural Research Project,FAGR4101,FAGR
+Agricultural Marketing and Trade,FAGR4102,FAGR
+Rural Development,FAGR4103,FAGR
+Agricultural Value Chain Management,FAGR4201,FAGR
+Land and Water Resource Management,FAGR4202,FAGR
+Agricultural Policy Analysis,FAGR4203,FAGR

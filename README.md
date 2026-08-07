@@ -36,7 +36,7 @@ Faculty Admin monitors → generates reports → downloads PDF
 ## Repo Layout
 
 ```
-├── docs/       ← Planning documents (requirements, schema, API, UI)
+├── docs/       ← Planning documents + ready-to-upload demo CSVs (docs/demo-data/)
 ├── client/     ← React + Vite PWA frontend
 ├── server/     ← Express API + Prisma
 └── devops/     ← Docker Compose, Nginx, deploy scripts
@@ -59,3 +59,9 @@ npm run dev
 ```
 
 See [docs/08-deployment-guide.md](docs/08-deployment-guide.md) for production deployment.
+
+## Demo Data
+
+Complete, ready-to-upload demo datasets for Nkozi Campus (faculties, programmes,
+course units, curriculum, staff, and 4,000 students) live in
+[`docs/demo-data/`](docs/demo-data/) — import in the order given in its README.

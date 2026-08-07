@@ -1,0 +1,26 @@
+name,code,facultyCode
+Bachelor of Business Administration,BBA,FBAM
+Bachelor of Commerce,BCOM,FBAM
+Bachelor of Accounting and Finance,BAF,FBAM
+Bachelor of Human Resource Management,BHRM,FBAM
+Bachelor of Procurement and Logistics Management,BPLM,FBAM
+Bachelor of Education (Arts),BED-ARTS,FED
+Bachelor of Education (Science),BED-SCI,FED
+Bachelor of Early Childhood and Primary Education,BECPE,FED
+Postgraduate Diploma in Education,PGDE,FED
+Bachelor of Nursing Science,BNS,FHS
+Bachelor of Pharmacy,BPHARM,FHS
+Bachelor of Public Health,BPH,FHS
+Bachelor of Biomedical Laboratory Technology,BBLT,FHS
+Bachelor of Arts in Social Work and Social Administration,SWSA,FASS
+Bachelor of Arts in Development Studies,BADS,FASS
+Bachelor of Arts in Ethics and Development Studies,BAEDS,FASS
+Bachelor of Arts in Journalism and Communication,BAJC,FASS
+Bachelor of Arts,BA,FASS
+Bachelor of Science in Computer Science,BSC-CS,FSC
+Bachelor of Science in Information Technology,BSC-IT,FSC
+Bachelor of Science in Mathematics,BSC-MATH,FSC
+Bachelor of Science in Biochemistry,BSC-BIOCHEM,FSC
+Bachelor of Science in Agriculture,BSC-AGR,FAGR
+Bachelor of Agricultural Business Management,BABM,FAGR
+Bachelor of Science in Food Science and Technology,BSC-FST,FAGR

@@ -102,6 +102,7 @@
 | FR-07.1 | Every session stores one record per enrolled student: Present, Absent, or Excused | ✅ Built |
 | FR-07.2 | Attendance % per student per unit calculated automatically | ✅ Built |
 | FR-07.3 | Formula: `(Present + Excused) / Total Closed Sessions × 100` | ✅ Built |
+| FR-07.4 | When a unit has **zero closed sessions**, reports show `—` / "No sessions" instead of a misleading 100% | ✅ Built |
 | FR-07.4 | Lecturer (own sessions only) can edit a student's status after close | ✅ Built |
 | FR-07.5 | Faculty Admin is **read-only** on attendance records | ✅ Built |
 | FR-07.6 | Every manual edit requires a reason | ✅ Built |
