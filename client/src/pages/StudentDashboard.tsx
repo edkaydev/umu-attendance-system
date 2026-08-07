@@ -20,6 +20,7 @@ import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
+import { getCurrentPosition, GeoError } from '../utils/geo'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -52,6 +53,7 @@ export default function StudentDashboard() {
   const [selected, setSelected] = useState<LiveSessionForStudent | null>(null)
   const [modalCode, setModalCode] = useState('')
   const [checkingIn, setCheckingIn] = useState(false)
+  const [gettingLocation, setGettingLocation] = useState(false)
 
   useEffect(() => {
     dashboardApi
@@ -89,9 +91,30 @@ export default function StudentDashboard() {
       toast.info('Enter the session code shown by your lecturer')
       return
     }
+
+    // Physical sessions require the student to be within the campus geo-fence.
+    // Online sessions skip the location check entirely.
+    let location: { lat: number; lng: number } | undefined
+
+    if (selected.mode === 'physical') {
+      setGettingLocation(true)
+      try {
+        location = await getCurrentPosition()
+      } catch (e) {
+        setGettingLocation(false)
+        if (e instanceof GeoError) {
+          toast.error(e.message)
+        } else {
+          toast.error('Could not get your location. Please try again.')
+        }
+        return
+      }
+      setGettingLocation(false)
+    }
+
     setCheckingIn(true)
     try {
-      const res = await attendanceApi.checkIn(trimmed)
+      const res = await attendanceApi.checkIn(trimmed, location)
       toast.success(`Checked in to ${res.courseUnit.name} (${res.status})`)
       setModalCode('')
       setSelected(null)
@@ -297,12 +320,20 @@ export default function StudentDashboard() {
 
       {/* Check-in modal */}
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? `Check in — ${selected.courseUnit.name}` : ''}>
-        {selected && (
+      {selected && (
           <div className="space-y-4">
             <p className="text-body-sm text-text-secondary">
               {selected.courseUnit.code} · {selected.mode === 'online' ? 'Online' : `Physical${selected.venue ? ` · ${selected.venue}` : ''}`} ·{' '}
               <ExpiryText expiresAt={selected.codeExpiresAt} now={now} />
             </p>
+            {selected.mode === 'physical' && (
+              <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-light px-3 py-2">
+                <span className="mt-0.5 text-sm">📍</span>
+                <p className="text-xs text-warning">
+                  Your location will be checked. Make sure you are on campus and have allowed location access in your browser.
+                </p>
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-text-secondary" htmlFor="live-code">
                 Session Code
@@ -321,11 +352,11 @@ export default function StudentDashboard() {
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" disabled={checkingIn} onClick={() => setSelected(null)}>
+              <Button variant="ghost" disabled={checkingIn || gettingLocation} onClick={() => setSelected(null)}>
                 Cancel
               </Button>
-              <Button loading={checkingIn} onClick={handleCheckIn}>
-                Check In
+              <Button loading={checkingIn || gettingLocation} onClick={handleCheckIn}>
+                {gettingLocation ? 'Getting location…' : 'Check In'}
               </Button>
             </div>
           </div>

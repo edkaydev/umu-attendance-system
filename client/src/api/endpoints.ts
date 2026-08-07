@@ -73,10 +73,10 @@ export const attendanceApi = {
     http.get<{ period: { academicYear: string; semester: number } | null; units: UnitAttendance[] }>(
       '/api/attendance/my'
     ),
-  checkIn: (code: string) =>
+  checkIn: (code: string, location?: { lat: number; lng: number }) =>
     http.post<{ message: string; courseUnit: CourseUnit; date: string; status: AttendanceStatus }>(
       '/api/checkin',
-      { code }
+      location ? { code, lat: location.lat, lng: location.lng } : { code }
     ),
   sessionAttendance: (sessionId: string) =>
     http.get<{ records: SessionAttendanceRecord[]; counts: Record<string, number> }>(
