@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer'
  * Embed the UMU badge in PDF templates as base64 (FR-10.5).
  */
 export function umuBadgeDataUri(): string {
-  const svg = readFileSync(resolve(__dirname, '../../assets/umu-badge.svg'), 'utf-8')
+  const svg = readFileSync(resolve(__dirname, '../../assets/umu-logo.svg'), 'utf-8')
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
 }
 
@@ -47,7 +47,7 @@ export function buildPdfHtml(header: PdfHeader, tables: PdfTable[]): string {
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; font-size: 11px; margin: 0; }
     .header { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #CC0000; padding-bottom: 10px; }
-    .header img { width: 60px; height: 70px; }
+    .header img { height: 70px; width: auto; }
     .header .title-block { flex: 1; }
     .header h1 { margin: 0; font-size: 20px; color: #CC0000; }
     .header .univ { margin: 0; font-size: 13px; font-weight: bold; }
