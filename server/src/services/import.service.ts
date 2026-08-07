@@ -376,7 +376,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
     semester: number
     academicYear: string
     regNumber: string
-    passwordHash?: string
+    plainPassword?: string
     courseUnitIds: string[]
   }
 
@@ -456,7 +456,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
         semester,
         academicYear,
         regNumber: finalRegNumber,
-        ...(plainPassword ? { passwordHash: await hashPassword(plainPassword) } : {}),
+        ...(plainPassword ? { plainPassword } : {}),
         courseUnitIds: [],
       })
     } catch (error) {
@@ -464,6 +464,17 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       result.errors.push({ row: line, message: (error as Error).message })
     }
   }
+
+  // Phase 1.5 — hash each distinct plain password exactly once. bcrypt is slow
+  // (~100ms per hash), so hashing one password per row made a 4,000-row import
+  // take minutes and time out. A file of identical passwords now hashes once.
+  const passwordHashByPassword = new Map<string, string>()
+  const uniquePasswords = [...new Set(students.map((s) => s.plainPassword).filter((p): p is string => Boolean(p)))]
+  for (const p of uniquePasswords) {
+    passwordHashByPassword.set(p, await hashPassword(p))
+  }
+  const hashOf = (plainPassword?: string) =>
+    plainPassword ? passwordHashByPassword.get(plainPassword) : undefined
 
   // Phase 2 — resolve course units from the curriculum mapping, one query per
   // distinct (programme, year, semester, academicYear) combination.
@@ -494,7 +505,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   if (newStudents.length > 0) {
     const createData = newStudents.map((s) => ({
       email: s.email,
-      password: s.passwordHash ?? defaultPasswordHash,
+      password: hashOf(s.plainPassword) ?? defaultPasswordHash,
       mustChangePassword: true,
       fullName: s.fullName,
       role: Role.student,
@@ -553,7 +564,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
           regNumber: s.regNumber,
           profileComplete: true,
           isActive: true,
-          ...(s.passwordHash ? { password: s.passwordHash, mustChangePassword: true } : {}),
+          ...(hashOf(s.plainPassword) ? { password: hashOf(s.plainPassword), mustChangePassword: true } : {}),
         },
       })
       result.imported++
