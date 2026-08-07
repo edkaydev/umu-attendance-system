@@ -21,7 +21,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,regNumber,semester,academicYear,password'
+const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,year,regNumber,password'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -216,10 +216,11 @@ export default function ImportData() {
             Creates and fully provisions student accounts in bulk: each student is linked to
             their faculty and programme, stamped with their year of study, and automatically
             enrolled in every course unit from the curriculum mapping.
-            Emails must end in @stud.umu.ac.ug. <code className="code-font">semester</code> is
-            optional (defaults to 1). <code className="code-font">academicYear</code> is optional
-            — if blank it is derived from the current period minus the student's year of study.
-            Leave password blank to use the system default; students change it on first sign-in.
+            The academic year and semester are always taken from the system-wide current
+            period (set in Global Settings), so no per-row values are needed.
+            Emails must end in @stud.umu.ac.ug. <code className="code-font">regNumber</code> is
+            optional — a placeholder is generated when blank. Leave password blank to use the
+            system default; students change it on first sign-in.
           </p>
           <input
             ref={studentRef}
@@ -242,7 +243,7 @@ export default function ImportData() {
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
-            (semester and academicYear optional)
+            (regNumber and password optional; academic year &amp; semester come from Global Settings)
           </p>
         </Card>
       </div>

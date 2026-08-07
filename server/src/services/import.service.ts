@@ -272,13 +272,14 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 /**
  * Import student accounts from CSV with full academic provisioning.
  *
- * Columns: name, email, facultyCode, programmeCode, year, regNumber,
- *          semester (optional, defaults to 1), academicYear (optional, derived
- *          from the current period minus the student's year of study),
- *          password (optional, defaults to the system default).
+ * Columns: name, email, facultyCode, programmeCode, year, regNumber (optional,
+ * auto-generated when blank), password (optional, defaults to the system
+ * default). academicYear and semester are NOT per-row values — they always come
+ * from the system-wide current period set by the System Admin in Global
+ * Settings, so every imported student lands in the same active period.
  *
  * Students are fully provisioned at import time: linked to their faculty and
- * programme, stamped with year/semester/academicYear/regNumber, marked
+ * programme, stamped with year/regNumber and the global period, marked
  * profileComplete, and auto-enrolled in every course unit from the curriculum
  * mapping for their programme/year/semester/academicYear. This is optimised
  * for bulk uploads (thousands of rows): reference data and existing users are
@@ -309,12 +310,19 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
 
   const defaultPasswordHash = await getDefaultUserPasswordHash()
 
+  const semester = currentPeriod.semester
+  const academicYear = currentPeriod.academicYear
+
+  // Counter for auto-generated registration numbers.
+  const regSeq = { n: 0 }
+
   interface StudentRow {
     line: number
     email: string
     fullName: string
     faculty: { id: string; campusCode: string }
     programmeId: string
+    programmeCode: string
     year: number
     semester: number
     academicYear: string
@@ -336,8 +344,6 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       const facultyCode = normalizeCode(row['facultyCode'])
       const programmeCode = normalizeCode(row['programmeCode'])
       const year = Number(row['year'])
-      const semester = row['semester']?.trim() ? Number(row['semester']) : 1
-      const academicYear = row['academicYear']?.trim()
       const regNumber = row['regNumber']?.trim()
       const plainPassword = row['password']?.trim()
 
@@ -364,22 +370,8 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       if (!Number.isInteger(year) || year < 1 || year > 6) {
         throw new Error('year must be an integer between 1 and 6')
       }
-      if (!Number.isInteger(semester) || semester < 1 || semester > 2) {
-        throw new Error('semester must be 1 or 2')
-      }
 
-      let ay = academicYear
-      if (ay) {
-        if (!/^\d{4}\/\d{4}$/.test(ay)) throw new Error(`Invalid academicYear "${ay}"`)
-      } else {
-        // Derive from the current period minus the student's year of study:
-        // a 3rd-year student in 2025/2026 is on the 2023/2024 academic year.
-        const start = Number(currentPeriod.academicYear.split('/')[0])
-        if (!Number.isFinite(start)) throw new Error('Cannot derive academicYear from current period')
-        ay = `${start - (year - 1)}/${start - (year - 1) + 1}`
-      }
-
-      if (!regNumber) throw new Error('Missing regNumber')
+      const finalRegNumber = regNumber || `${programmeCode}-${year}-${String(++regSeq.n).padStart(4, '0')}`
 
       students.push({
         line,
@@ -387,10 +379,11 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
         fullName,
         faculty: { id: faculty.id, campusCode: faculty.campusCode },
         programmeId: programme.id,
+        programmeCode,
         year,
         semester,
-        academicYear: ay,
-        regNumber,
+        academicYear,
+        regNumber: finalRegNumber,
         ...(plainPassword ? { passwordHash: await hashPassword(plainPassword) } : {}),
         courseUnitIds: [],
       })
