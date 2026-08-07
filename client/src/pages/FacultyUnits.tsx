@@ -41,6 +41,7 @@ export default function FacultyUnits() {
   const navigate = useNavigate()
 
   const [data, setData] = useState<FacultyUnitOverview | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [tab, setTab] = useState<'students' | 'lecturers'>('students')
   const [search, setSearch] = useState('')
 
@@ -49,6 +50,8 @@ export default function FacultyUnits() {
       setData(await enrollmentApi.overview())
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to load units')
+    } finally {
+      setLoaded(true)
     }
   }
 
@@ -98,8 +101,12 @@ export default function FacultyUnits() {
       </Card>
 
       <Card noPadding>
-        {!data ? (
+        {!loaded ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
+        ) : !data ? (
+          <p className="px-5 py-12 text-center text-body text-text-secondary">
+            Could not load units. Please refresh the page.
+          </p>
         ) : list.length === 0 ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">
             {search ? 'No matching users.' : `No ${tab} in this faculty yet.`}
@@ -162,12 +169,15 @@ export function FacultyUserUnits() {
   const toast = useToast()
   const { userId } = useParams<{ userId: string }>()
   const [data, setData] = useState<FacultyUnitOverview | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   async function reload() {
     try {
       setData(await enrollmentApi.overview())
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to load units')
+    } finally {
+      setLoaded(true)
     }
   }
 
@@ -185,8 +195,16 @@ export function FacultyUserUnits() {
     )
   }, [data, userId])
 
-  if (!data) {
+  if (!loaded) {
     return <p className="py-12 text-center text-body text-text-secondary">Loading…</p>
+  }
+
+  if (!data) {
+    return (
+      <p className="py-12 text-center text-body text-text-secondary">
+        Could not load units. Please refresh the page.
+      </p>
+    )
   }
 
   if (!user) {

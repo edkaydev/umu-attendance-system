@@ -144,16 +144,21 @@ export async function getLecturerDashboard(lecturerId: string) {
 
   const { start: todayStart } = dayRange(0)
 
-  const todaySessions = await prisma.session.findMany({
+  // Fetch today's sessions WITHOUT _count to avoid Prisma version quirks,
+  // then count attendance records separately.
+  const todaySessionsRaw = await prisma.session.findMany({
     where: { lecturerId, openedAt: { gte: todayStart } },
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
-      _count: {
-        select: { attendanceRecords: true },
-      },
+      attendanceRecords: { select: { id: true } },
     },
     orderBy: { openedAt: 'desc' },
   })
+
+  const todaySessions = todaySessionsRaw.map(({ attendanceRecords, ...s }) => ({
+    ...s,
+    _count: { attendanceRecords: attendanceRecords.length },
+  }))
 
   const atRisk = unitIds.length
     ? await prisma.attendanceAlert.findMany({

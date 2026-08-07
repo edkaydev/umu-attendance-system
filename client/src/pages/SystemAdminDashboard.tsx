@@ -95,6 +95,7 @@ export default function SystemAdminDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<DashData | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [profileEditing, setProfileEditing] = useState<ProfileEditingSettings | null>(null)
   const [toggling, setToggling] = useState<ProfileEditingScope | null>(null)
 
@@ -117,6 +118,7 @@ export default function SystemAdminDashboard() {
       .catch((e) =>
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
       )
+      .finally(() => setLoaded(true))
     settingsApi
       .profileEditing()
       .then(setProfileEditing)
@@ -191,10 +193,21 @@ export default function SystemAdminDashboard() {
     }
   }
 
-  if (!data) {
+  if (!loaded) {
     return (
       <div className="flex justify-center py-24">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <h1 className="text-h2 font-bold text-text-primary">Could not load dashboard</h1>
+        <p className="max-w-sm text-body text-text-secondary">
+          There was a problem loading the platform data. Please refresh the page.
+        </p>
       </div>
     )
   }

@@ -34,6 +34,7 @@ export default function LiveSession() {
   const navigate = useNavigate()
 
   const [data, setData] = useState<LiveData | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
   const [extending, setExtending] = useState(false)
@@ -51,6 +52,7 @@ export default function LiveSession() {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to load live session')
     } finally {
       firstLoad.current = false
+      setLoaded(true)
     }
   }, [sessionId, toast])
 
@@ -100,10 +102,21 @@ export default function LiveSession() {
     }
   }
 
-  if (!data) {
+  if (!loaded) {
     return (
       <div className="flex justify-center py-24">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <h1 className="text-h2 font-bold text-text-primary">Session not found</h1>
+        <p className="max-w-sm text-body text-text-secondary">
+          This session could not be loaded. It may have been closed or removed.
+        </p>
       </div>
     )
   }

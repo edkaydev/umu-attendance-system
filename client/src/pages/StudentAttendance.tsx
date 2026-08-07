@@ -10,6 +10,7 @@ import { ApiClientError } from '../api/client'
 export default function StudentAttendance() {
   const toast = useToast()
   const [data, setData] = useState<Awaited<ReturnType<typeof attendanceApi.my>> | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [live, setLive] = useState<LiveSessionForStudent[]>([])
 
   useEffect(() => {
@@ -17,6 +18,7 @@ export default function StudentAttendance() {
       .my()
       .then(setData)
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load attendance'))
+      .finally(() => setLoaded(true))
 
     checkinApi
       .live()
@@ -24,10 +26,21 @@ export default function StudentAttendance() {
       .catch(() => {}) // non-critical — pending indicators just won't show
   }, [toast])
 
-  if (!data) {
+  if (!loaded) {
     return (
       <div className="flex justify-center py-24">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <h1 className="text-h2 font-bold text-text-primary">Could not load attendance</h1>
+        <p className="max-w-sm text-body text-text-secondary">
+          There was a problem loading your attendance records. Please refresh the page.
+        </p>
       </div>
     )
   }

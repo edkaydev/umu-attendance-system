@@ -37,6 +37,7 @@ export default function LecturerDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<Dashboard | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     dashboardApi
@@ -45,12 +46,37 @@ export default function LecturerDashboard() {
       .catch((e) =>
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
       )
+      .finally(() => setLoaded(true))
   }, [toast])
 
-  if (!data) {
+  if (!loaded) {
     return (
       <div className="flex justify-center py-24">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+
+  // Data failed to load — show safe empty state
+  if (!data) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-h1 font-bold text-text-primary">Welcome back, {user?.fullName.split(' ')[0]}</h1>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <Stat label="Assigned Units"   value={0} />
+          <Stat label="Sessions Today"   value={0} />
+          <Stat label="Students At Risk" value={0} />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card title="Today's Sessions">
+            <p className="py-8 text-center text-body text-text-secondary">No sessions today yet.</p>
+          </Card>
+          <Card title="My Course Units">
+            <p className="py-8 text-center text-body text-text-secondary">No units assigned yet. Contact your Faculty Admin.</p>
+          </Card>
+        </div>
       </div>
     )
   }

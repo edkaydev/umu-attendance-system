@@ -46,6 +46,7 @@ export default function StudentDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const [data, setData] = useState<Awaited<ReturnType<typeof dashboardApi.student>> | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [live, setLive] = useState<LiveSessionForStudent[]>([])
   const [now, setNow] = useState(Date.now())
   const [selected, setSelected] = useState<LiveSessionForStudent | null>(null)
@@ -57,6 +58,7 @@ export default function StudentDashboard() {
       .student()
       .then(setData)
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard'))
+      .finally(() => setLoaded(true))
   }, [toast])
 
   // Live session discovery — polls every 5s to stay in sync with the lecturer.
@@ -103,10 +105,21 @@ export default function StudentDashboard() {
     }
   }
 
-  if (!data) {
+  if (!loaded) {
     return (
       <div className="flex justify-center py-24">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <h1 className="text-h2 font-bold text-text-primary">Could not load dashboard</h1>
+        <p className="max-w-sm text-body text-text-secondary">
+          There was a problem loading your dashboard. Please refresh the page.
+        </p>
       </div>
     )
   }
