@@ -205,6 +205,7 @@ export default function StudentDashboard() {
                     <Button
                       variant="secondary"
                       className="min-h-[32px] px-3 py-1 text-body-sm"
+                      disabled={new Date(s.codeExpiresAt).getTime() <= now}
                       onClick={() => {
                         setSelected(s)
                         setModalCode('')
