@@ -130,9 +130,9 @@ Clean API boundary. The API is framework-agnostic and could serve a mobile app l
 No coupling between frontend and backend frameworks.
 
 ### Session Code Safety
-Code alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
+Code alphabet: `ACDEFGHJKLMNPQRTUVWXYZ234679`
 Excluded: `O`, `0` (zero/letter O confusion), `I`, `1` (one/letter I), `B`, `8`, `S`, `5`.
-Generates 6 characters → ~1 billion combinations with safe characters.
+Generates 6 characters → ~481 million combinations with safe characters.
 
 ---
 

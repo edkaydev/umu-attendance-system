@@ -115,9 +115,10 @@ All system users in one table. Role determines access.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | VARCHAR(36) PK | UUID |
-| `google_id` | VARCHAR(100) UNIQUE | From Google OAuth |
+| `google_id` | VARCHAR(100) UNIQUE nullable | From Google OAuth; null for local-auth-only accounts |
 | `email` | VARCHAR(150) UNIQUE | |
-| `full_name` | VARCHAR(100) | From Google profile |
+| `password` | VARCHAR(255) nullable | Bcrypt hash; set for accounts created by System Admin |
+| `full_name` | VARCHAR(100) | From Google profile or admin-entered |
 | `role` | ENUM | `system_admin`, `faculty_admin`, `lecturer`, `student` |
 | `faculty_id` | FK → faculties nullable | Set during profile setup |
 | `programme_id` | FK → programmes nullable | Students only |
@@ -127,6 +128,7 @@ All system users in one table. Role determines access.
 | `reg_number` | VARCHAR(30) nullable | Students only — self-entered |
 | `profile_complete` | BOOLEAN | False until profile setup done |
 | `is_active` | BOOLEAN | Deactivated users blocked on every request |
+| `must_change_password` | BOOLEAN | True when created with a default password — forced change on first login |
 | `created_at` | DATETIME | |
 | `updated_at` | DATETIME | |
 
@@ -256,7 +258,7 @@ System-level action log. Visible to Faculty Admin and System Admin.
 |---|---|---|
 | `id` | VARCHAR(36) PK | UUID |
 | `user_id` | FK → users | Who performed the action |
-| `action` | VARCHAR(50) | e.g. `LOGIN`, `SESSION_OPEN`, `SESSION_CLOSE`, `ATTENDANCE_EDIT`, `PDF_DOWNLOAD` |
+| `action` | VARCHAR(50) | e.g. `LOGIN`, `LOGOUT`, `SESSION_OPEN`, `SESSION_CLOSE`, `SESSION_AUTO_CLOSE`, `SESSION_EXTEND`, `ATTENDANCE_EDIT`, `PDF_DOWNLOAD` |
 | `target_type` | VARCHAR(50) | e.g. `session`, `attendance_record`, `user` |
 | `target_id` | VARCHAR(36) | ID of the affected record |
 | `meta` | JSON nullable | Extra context |
@@ -303,21 +305,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Campus {
-  id        String    @id @default(uuid())
-  name      String    @db.VarChar(100)
-  code      String    @unique @db.VarChar(20)
-  isActive  Boolean   @default(true)
-  faculties Faculty[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  @@map("campuses")
-}
-
+// Campuses are FIXED university locations and live in code (constants/campuses.ts),
+// not in the database. Faculties reference a campus by its code.
 model Faculty {
   id                String              @id @default(uuid())
-  campusId          String
-  campus            Campus              @relation(fields: [campusId], references: [id])
+  campusCode        String              @db.VarChar(20)
   name              String              @db.VarChar(100)
   code              String              @db.VarChar(20)
   isActive          Boolean             @default(true)
@@ -327,7 +319,7 @@ model Faculty {
   users             User[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  @@unique([campusId, code])
+  @@unique([campusCode, code])
   @@map("faculties")
 }
 
@@ -392,8 +384,9 @@ model CurriculumUnit {
 
 model User {
   id                  String               @id @default(uuid())
-  googleId            String               @unique @db.VarChar(100)
+  googleId            String?              @unique @db.VarChar(100)
   email               String               @unique @db.VarChar(150)
+  password            String?              @db.VarChar(255)
   fullName            String               @db.VarChar(100)
   role                Role
   facultyId           String?
@@ -406,6 +399,7 @@ model User {
   regNumber           String?              @db.VarChar(30)
   profileComplete     Boolean              @default(false)
   isActive            Boolean              @default(true)
+  mustChangePassword  Boolean              @default(false)
   enrollments         Enrollment[]
   lecturerAssignments LecturerAssignment[] @relation("LecturerAssignments")
   assignmentsMade     LecturerAssignment[] @relation("AssignedByAdmin")

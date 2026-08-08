@@ -220,6 +220,10 @@ Database Systems · Aug 5, 2026
 └──────────────────────────────┘
          Expires in  03:42
 
+   Class time remaining
+         47:30        ← counts down from openedAt + classDuration
+                     (red "Time elapsed" at 0; amber when ≤ 5 min)
+
      23 of 45 checked in
     ████████████████░░░░░░
 

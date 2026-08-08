@@ -20,9 +20,11 @@ https://attendance.umu.ac.ug/api
 |---|---|---|---|
 | GET | `/auth/google` | Public | Redirect to Google consent screen |
 | GET | `/auth/google/callback` | Public | OAuth callback — sets JWT HttpOnly cookies |
+| POST | `/auth/login` | Public | Local email + password login |
 | POST | `/auth/logout` | Authenticated | Clear cookies, revoke refresh token |
 | POST | `/auth/refresh` | Authenticated | Silently rotate access token |
 | GET | `/auth/me` | Authenticated | Get current user profile |
+| POST | `/auth/password` | Authenticated | Change own password |
 | POST | `/auth/dev-login` | Dev only | Quick login by role (disabled in production) |
 
 ---
@@ -85,12 +87,16 @@ https://attendance.umu.ac.ug/api
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/users` | List users (filterable: `?role=lecturer&search=`) |
-| PATCH | `/users/:id` | Update user details |
+| GET | `/users` | List users (filterable: `?role=lecturer&search=&page=&limit=`) |
+| POST | `/users` | Create a new user account (assigns default password) |
+| PATCH | `/users/:id` | Update user name/email/faculty |
+| DELETE | `/users/:id` | Delete a user |
+| POST | `/users/bulk-delete` | Bulk delete users (`{ userIds: [...] }` or `{ allMatching: true, role?, search? }`) |
 | PATCH | `/users/:id/deactivate` | Deactivate account |
 | PATCH | `/users/:id/activate` | Reactivate account |
-| PATCH | `/users/:id/role` | Change user role |
+| PATCH | `/users/:id/role` | Change user role (no longer exposed in the UI) |
 | PATCH | `/users/:id/faculty` | Assign/unassign faculty |
+| PATCH | `/users/:id/reset-password` | Reset user's password to system default (forces change on next login) |
 
 ---
 
@@ -205,6 +211,11 @@ https://attendance.umu.ac.ug/api
 { "code": "A4X7K2" }
 ```
 
+Physical sessions also accept optional location:
+```json
+{ "code": "A4X7K2", "lat": 0.00389, "lng": 32.01353 }
+```
+
 **Success response**
 ```json
 {
@@ -215,12 +226,17 @@ https://attendance.umu.ac.ug/api
 }
 ```
 
-**Error responses (400)**
+**Error responses**
 ```json
-{ "error": "Invalid or expired code" }
-{ "error": "You are not enrolled in this course unit" }
-{ "error": "You have already checked in to this session" }
+{ "error": "Invalid or expired code",                       "code": "INVALID_CODE" }
+{ "error": "You are not enrolled in this course unit",      "code": "NOT_ENROLLED" }
+{ "error": "You have already checked in to this session",   "code": "ALREADY_CHECKED_IN" }
+{ "error": "Location is required to check in to a physical session", "code": "LOCATION_REQUIRED" }
+{ "error": "You must be within the campus area to check in","code": "OUTSIDE_CAMPUS" }
+{ "error": "Too many requests — please wait before trying again.", "code": "RATE_LIMITED" }
 ```
+
+Rate limit: **10 requests per student per 5-minute window** on `POST /checkin`. Returns `429` with `Retry-After` header.
 
 ---
 
@@ -313,4 +329,5 @@ Query params: `?resolved=false&page=1&limit=20`
 | 403 | Forbidden (wrong role, or wrong data scope) |
 | 404 | Resource not found |
 | 409 | Conflict (e.g. session already open for this unit) |
+| 429 | Too many requests (rate limit exceeded — see `Retry-After` header) |
 | 500 | Internal server error |

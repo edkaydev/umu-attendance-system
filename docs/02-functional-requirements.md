@@ -4,9 +4,9 @@
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-01.1 | All users log in via Google OAuth only — no passwords | ✅ Built |
-| FR-01.2 | Students must use a `@stud.umu.ac.ug` Google account | ✅ Built |
-| FR-01.3 | Staff must use a `@umu.ac.ug` Google account | ✅ Built |
+| FR-01.1 | Users log in via Google OAuth **or** email + password (local auth) | ✅ Built |
+| FR-01.2 | Students must use a `@stud.umu.ac.ug` Google account (Google path) | ✅ Built |
+| FR-01.3 | Staff must use a `@umu.ac.ug` Google account (Google path) | ✅ Built |
 | FR-01.4 | On first login with no profile, redirect to Complete Profile page | ✅ Built |
 | FR-01.5 | Role is determined by the role assigned in the database | ✅ Built |
 | FR-01.6 | Unregistered Google accounts see "Access denied" | ✅ Built |
@@ -14,6 +14,7 @@
 | FR-01.8 | JWT access token expires after 1 hour; refresh token rotates silently | ✅ Built |
 | FR-01.9 | Logout clears JWT cookie and invalidates refresh token | ✅ Built |
 | FR-01.10 | Deactivated accounts are blocked on every request (re-fetched from DB each time) | ✅ Built |
+| FR-01.11 | Accounts created by System Admin receive a default password; `mustChangePassword` flag forces change on first login | ✅ Built |
 
 ---
 
@@ -66,10 +67,10 @@
 |---|---|---|
 | FR-05.1 | Lecturer opens a session for any assigned course unit | ✅ Built |
 | FR-05.2 | Opening generates a unique 6-character alphanumeric code | ✅ Built |
-| FR-05.3 | Code pool: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars) | ✅ Built |
+| FR-05.3 | Code pool: `ACDEFGHJKLMNPQRTUVWXYZ234679` (no ambiguous chars O/0/I/1/B/8/S/5) | ✅ Built |
 | FR-05.4 | Code validity is configurable (5–60 minutes); default 5 min | ✅ Built |
-| FR-05.5 | Lecturer can extend the code expiry without closing the session | ✅ Built |
-| FR-05.6 | Session can be set to auto-close after a configurable class duration | ✅ Built |
+| FR-05.5 | Lecturer can extend the code expiry without closing the session (+5 min) | ✅ Built |
+| FR-05.6 | Session auto-closes after `classDuration` elapses (server-side scheduler, ticks every 60 s) | ✅ Built |
 | FR-05.7 | Only one active session per course unit is allowed at a time | ✅ Built |
 | FR-05.8 | Lecturer can close the session manually | ✅ Built |
 | FR-05.9 | On close, enrolled students without a check-in are auto-marked Absent | ✅ Built |
@@ -78,6 +79,7 @@
 | FR-05.12 | Session mode: Physical or Online | ✅ Built |
 | FR-05.13 | Live view shows real-time count and list of checked-in students (5-second poll) | ✅ Built |
 | FR-05.14 | Sessions list shows Today / All tabs; Today scoped to current EAT calendar day | ✅ Built |
+| FR-05.15 | Live session screen shows class duration countdown (client-side, counts down from `openedAt + classDuration`) | ✅ Built |
 
 ---
 
@@ -87,11 +89,13 @@
 |---|---|---|
 | FR-06.1 | Logged-in student enters a session code to mark themselves present | ✅ Built |
 | FR-06.2 | System validates: code exists, not expired, student enrolled in unit | ✅ Built |
-| FR-06.3 | Student can only check in once per session | ✅ Built |
+| FR-06.3 | Student can only check in once per session (race-condition safe via DB unique + P2002 guard) | ✅ Built |
 | FR-06.4 | On success, student sees: course unit name, date, status | ✅ Built |
 | FR-06.5 | Wrong / expired / closed session shows a clear error | ✅ Built |
 | FR-06.6 | Live sessions for enrolled units appear on student dashboard with countdown | ✅ Built |
 | FR-06.7 | Students sharing a unit across programmes use the same code | ✅ Built |
+| FR-06.8 | Physical sessions require student to be within campus geo-fence (haversine, 500 m radius, configurable via env) | ✅ Built |
+| FR-06.9 | Check-in endpoint rate-limited: 10 attempts per student per 5-minute window | ✅ Built |
 
 ---
 

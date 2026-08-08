@@ -28,6 +28,34 @@ function useCountdown(expiresAt: string | undefined): number {
   return left
 }
 
+/** Seconds remaining in the class based on openedAt + classDuration. */
+function useClassCountdown(openedAt: string | undefined, classDurationMin: number | null | undefined): number | null {
+  const [left, setLeft] = useState<number | null>(() => {
+    if (!openedAt || !classDurationMin) return null
+    const end = new Date(openedAt).getTime() + classDurationMin * 60_000
+    return Math.max(0, Math.floor((end - Date.now()) / 1000))
+  })
+
+  useEffect(() => {
+    if (!openedAt || !classDurationMin) { setLeft(null); return }
+    const end = new Date(openedAt).getTime() + classDurationMin * 60_000
+    const tick = () => setLeft(Math.max(0, Math.floor((end - Date.now()) / 1000)))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [openedAt, classDurationMin])
+
+  return left
+}
+
+function fmt(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 export default function LiveSession() {
   const { sessionId = '' } = useParams()
   const toast = useToast()
@@ -63,6 +91,10 @@ export default function LiveSession() {
   }, [load])
 
   const secondsLeft = useCountdown(data?.session.status === 'open' ? data.session.codeExpiresAt : undefined)
+  const classSecondsLeft = useClassCountdown(
+    data?.session.status === 'open' ? data.session.openedAt : undefined,
+    data?.session.classDuration
+  )
 
   async function handleCopy() {
     if (!data) return
@@ -202,6 +234,30 @@ export default function LiveSession() {
                   ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
                   : 'Code expired — extend to keep it live or close the session'}
               </p>
+
+              {/* Class duration countdown */}
+              {classSecondsLeft !== null && (
+                <div className={`mt-3 rounded-md border px-4 py-2.5 text-center ${
+                  classSecondsLeft === 0
+                    ? 'border-danger-border bg-danger-light'
+                    : classSecondsLeft <= 300
+                    ? 'border-warning-border bg-warning-light'
+                    : 'border-border bg-surface-1'
+                }`}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                    Class time remaining
+                  </p>
+                  <p className={`mt-0.5 font-mono text-2xl font-bold tabular-nums ${
+                    classSecondsLeft === 0
+                      ? 'text-danger'
+                      : classSecondsLeft <= 300
+                      ? 'text-warning'
+                      : 'text-text-primary'
+                  }`}>
+                    {classSecondsLeft > 0 ? fmt(classSecondsLeft) : 'Time elapsed'}
+                  </p>
+                </div>
+              )}
               <Button
                 variant="secondary"
                 fullWidth
