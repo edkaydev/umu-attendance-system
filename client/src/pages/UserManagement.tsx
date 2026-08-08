@@ -437,17 +437,6 @@ export default function UserManagement() {
     })
   }
 
-  async function changeRole(user: ManagedUser, newRole: Role) {
-    if (newRole === user.role) return
-    try {
-      await userApi.changeRole(user.id, newRole)
-      toast.success(`${user.fullName} → ${ROLE_LABEL[newRole]}`)
-      await reload()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to change role')
-    }
-  }
-
   function openAssign(user: ManagedUser) {
     setAssignTarget(user)
     setSelectedFacultyId(user.facultyId ?? '')
@@ -588,18 +577,9 @@ export default function UserManagement() {
                       )}
                     </td>
 
-                    {/* Role inline selector */}
-                    <td className="px-4 py-3">
-                      <select
-                        value={u.role}
-                        onChange={(e) => changeRole(u, e.target.value as Role)}
-                        className="rounded border border-border bg-surface-1 px-2 py-1.5 text-body-sm text-text-primary focus:border-umu-red focus:outline-none"
-                      >
-                        <option value="student">Student</option>
-                        <option value="lecturer">Lecturer</option>
-                        <option value="faculty_admin">Faculty Admin</option>
-                        <option value="system_admin">System Admin</option>
-                      </select>
+                    {/* Role — read-only */}
+                    <td className="px-4 py-3 text-body text-text-primary">
+                      {ROLE_LABEL[u.role]}
                     </td>
 
                     {/* Active status */}
