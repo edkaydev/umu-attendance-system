@@ -43,6 +43,12 @@ function ExpiryText({ expiresAt, now }: { expiresAt: string; now: number }) {
   )
 }
 
+function classEndTime(openedAt: string, classDuration: number | null): string | null {
+  if (!classDuration) return null
+  const end = new Date(new Date(openedAt).getTime() + classDuration * 60_000)
+  return end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
 export default function StudentDashboard() {
   const { user } = useAuth()
   const toast = useToast()
@@ -181,6 +187,11 @@ export default function StudentDashboard() {
                     {s.courseUnit.code} · {s.mode === 'online' ? 'Online' : `Physical${s.venue ? ` · ${s.venue}` : ''}`}
                     {s.startsAt ? ` · ${new Date(s.startsAt).toLocaleTimeString()}` : ''} · {s.lecturer.fullName}
                   </p>
+                  {classEndTime(s.openedAt, s.classDuration) && (
+                    <p className="mt-0.5 text-xs font-medium text-text-primary">
+                      Ends {classEndTime(s.openedAt, s.classDuration)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-xs">

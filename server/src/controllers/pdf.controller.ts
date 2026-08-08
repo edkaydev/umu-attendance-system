@@ -30,6 +30,17 @@ function today(): string {
   return new Date().toLocaleDateString('en-UG', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+function fmtMinutes(total: number): string {
+  if (total <= 0) return '—'
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+function fmtTime(d: Date | null): string {
+  return d ? d.toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' }) : '—'
+}
+
 async function facultyName(facultyId: string | null): Promise<string> {
   if (!facultyId) return '—'
   const faculty = await prisma.faculty.findUnique({ where: { id: facultyId }, select: { name: true } })
@@ -66,6 +77,22 @@ export async function lecturerPdfController(req: Request, res: Response, next: N
             u.sessionsHeld,
             u.avgAttendance === null ? '—' : `${u.avgAttendance}%`,
           ]),
+      },
+      {
+        heading: 'Session log (time taught — accountability)',
+        headers: ['Date', 'Course Unit', 'Opened', 'Closed', 'Duration'],
+        rows: data.sessions.map((s) => [
+          s.openedAt.toISOString().slice(0, 10),
+          s.courseUnit ? `${s.courseUnit.name} (${s.courseUnit.code})` : '—',
+          fmtTime(s.openedAt),
+          fmtTime(s.closedAt),
+          fmtMinutes(s.durationMinutes ?? 0),
+        ]),
+      },
+      {
+        heading: 'Summary',
+        headers: ['Sessions Held', 'Total Time Taught'],
+        rows: [[data.totalSessions, fmtMinutes(data.timeTaughtMinutes)]],
       },
     ]
     const pdf = await reportToPdf(header, tables)
@@ -140,17 +167,23 @@ export async function courseUnitPdfController(req: Request, res: Response, next:
         ]),
       },
       {
-        heading: 'Sessions',
-        headers: ['Date', 'Opened', 'Closed', 'Status', 'Present', 'Excused', 'Absent'],
+        heading: 'Session log (time taught — accountability)',
+        headers: ['Date', 'Opened', 'Closed', 'Duration', 'Status', 'Present', 'Excused', 'Absent'],
         rows: data.sessions.map((s) => [
           s.openedAt.toISOString().slice(0, 10),
-          s.openedAt.toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' }),
-          s.closedAt ? s.closedAt.toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' }) : '—',
+          fmtTime(s.openedAt),
+          fmtTime(s.closedAt),
+          fmtMinutes(s.durationMinutes ?? 0),
           s.status,
           s.present,
           s.excused,
           s.absent,
         ]),
+      },
+      {
+        heading: 'Summary',
+        headers: ['Sessions Held', 'Total Time Taught'],
+        rows: [[data.sessionsHeld, fmtMinutes(data.totalTimeTaughtMinutes)]],
       },
     ]
     const pdf = await reportToPdf(header, tables)

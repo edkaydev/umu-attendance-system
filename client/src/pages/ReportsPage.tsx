@@ -93,6 +93,18 @@ function pctClass(pct: number | null): string {
   return 'text-success'
 }
 
+// Format minutes as "1h 20m" / "45m" (accountability figure: time taught).
+function fmtMinutes(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return '—'
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+function fmtTime(d: string | null): string {
+  return d ? new Date(d).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'
+}
+
 // ─── Report renderers ────────────────────────────────────────────────────────
 
 function ProgrammeReport({ data }: { data: unknown }) {
@@ -164,6 +176,14 @@ function LecturerReport({ data }: { data: unknown }) {
     lecturer: { fullName: string; email: string }
     period: { academicYear: string; semester: number }
     totalSessions: number
+    timeTaughtMinutes: number
+    sessions: {
+      id: string
+      openedAt: string
+      closedAt: string | null
+      courseUnit: { id: string; code: string; name: string } | null
+      durationMinutes: number | null
+    }[]
     units: {
       courseUnit: { id: string; code: string; name: string }
       sessionsHeld: number
@@ -183,6 +203,7 @@ function LecturerReport({ data }: { data: unknown }) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatCard label="Units Assigned" value={r.units.length} />
         <StatCard label="Sessions This Semester" value={r.totalSessions} />
+        <StatCard label="Time Taught" value={fmtMinutes(r.timeTaughtMinutes)} />
         <StatCard
           label="Overall Avg Attendance"
           value={overallAvg === null ? '—' : `${overallAvg.toFixed(1)}%`}
@@ -212,6 +233,32 @@ function LecturerReport({ data }: { data: unknown }) {
           ))}
         </ReportTable>
       )}
+
+      {/* Session log — time-taught accountability per session */}
+      {r.sessions.length > 0 && (
+        <div>
+          <p className="mb-2 text-label font-semibold uppercase tracking-wide text-text-secondary">
+            Session Log
+          </p>
+          <ReportTable headers={['Date', 'Course Unit', 'Opened', 'Closed', 'Duration']}>
+            {r.sessions.map((s) => (
+              <tr key={s.id} className="hover:bg-surface-1">
+                <td className="px-4 py-3 pl-5 text-body text-text-secondary">
+                  {new Date(s.openedAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-3 text-body text-text-primary">
+                  {s.courseUnit ? `${s.courseUnit.name} (${s.courseUnit.code})` : '—'}
+                </td>
+                <td className="px-4 py-3 text-body text-text-secondary">{fmtTime(s.openedAt)}</td>
+                <td className="px-4 py-3 text-body text-text-secondary">{fmtTime(s.closedAt)}</td>
+                <td className="px-4 py-3 text-body font-semibold text-text-primary">
+                  {fmtMinutes(s.durationMinutes ?? 0)}
+                </td>
+              </tr>
+            ))}
+          </ReportTable>
+        </div>
+      )}
     </div>
   )
 }
@@ -222,6 +269,17 @@ function CourseUnitReport({ data }: { data: unknown }) {
     sessionsHeld: number
     enrolledStudents: number
     avgAttendance: number | null
+    totalTimeTaughtMinutes: number
+    sessions: {
+      id: string
+      openedAt: string
+      closedAt: string | null
+      status: string
+      present: number
+      excused: number
+      absent: number
+      durationMinutes: number | null
+    }[]
     students: {
       student: { id: string; regNumber: string | null; fullName: string }
       sessionsHeld: number
@@ -236,9 +294,10 @@ function CourseUnitReport({ data }: { data: unknown }) {
   return (
     <div className="space-y-6 pb-2">
       {/* Hero stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Sessions Held" value={r.sessionsHeld} />
         <StatCard label="Enrolled Students" value={r.enrolledStudents} />
+        <StatCard label="Time Taught" value={fmtMinutes(r.totalTimeTaughtMinutes)} />
         <StatCard
           label="Class Average"
           value={r.avgAttendance === null ? '—' : `${r.avgAttendance}%`}
@@ -279,6 +338,33 @@ function CourseUnitReport({ data }: { data: unknown }) {
             </tr>
           ))}
         </ReportTable>
+      )}
+
+      {/* Session log — time-taught accountability per session */}
+      {r.sessions.length > 0 && (
+        <div>
+          <p className="mb-2 text-label font-semibold uppercase tracking-wide text-text-secondary">
+            Session Log
+          </p>
+          <ReportTable headers={['Date', 'Opened', 'Closed', 'Duration', 'Status', 'Present', 'Excused', 'Absent']}>
+            {r.sessions.map((s) => (
+              <tr key={s.id} className="hover:bg-surface-1">
+                <td className="px-4 py-3 pl-5 text-body text-text-secondary">
+                  {new Date(s.openedAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-3 text-body text-text-secondary">{fmtTime(s.openedAt)}</td>
+                <td className="px-4 py-3 text-body text-text-secondary">{fmtTime(s.closedAt)}</td>
+                <td className="px-4 py-3 text-body font-semibold text-text-primary">
+                  {fmtMinutes(s.durationMinutes ?? 0)}
+                </td>
+                <td className="px-4 py-3 text-body text-text-secondary">{s.status}</td>
+                <td className="px-4 py-3 text-body text-text-secondary">{s.present}</td>
+                <td className="px-4 py-3 text-body text-text-secondary">{s.excused}</td>
+                <td className="px-4 py-3 text-body text-text-secondary">{s.absent}</td>
+              </tr>
+            ))}
+          </ReportTable>
+        </div>
       )}
     </div>
   )

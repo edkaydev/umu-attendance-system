@@ -48,18 +48,25 @@ export async function getLecturerReport(actor: ReportActor, lecturerId: string, 
   const sessions = await prisma.session.findMany({
     where: { lecturerId, courseUnitId: { in: unitIds }, ...period, status: 'closed' },
     select: {
+      id: true,
       courseUnitId: true,
+      openedAt: true,
+      closedAt: true,
       attendanceRecords: { select: { status: true } },
     },
   })
 
   const unitStats = new Map<string, { held: number; present: number; total: number }>()
+  let timeTaughtMinutes = 0
   for (const s of sessions) {
     const st = unitStats.get(s.courseUnitId) ?? { held: 0, present: 0, total: 0 }
     st.held++
     st.total += s.attendanceRecords.length
     for (const r of s.attendanceRecords) if (isGood(r)) st.present++
     unitStats.set(s.courseUnitId, st)
+    if (s.closedAt) {
+      timeTaughtMinutes += Math.round((s.closedAt.getTime() - s.openedAt.getTime()) / 60_000)
+    }
   }
 
   const units = assignments.map((a) => {
@@ -71,6 +78,8 @@ export async function getLecturerReport(actor: ReportActor, lecturerId: string, 
     }
   })
 
+  const unitName = new Map(assignments.map((a) => [a.courseUnit.id, a.courseUnit]))
+
   return {
     lecturer: {
       id: lecturer.id,
@@ -81,6 +90,16 @@ export async function getLecturerReport(actor: ReportActor, lecturerId: string, 
     period,
     units,
     totalSessions: sessions.length,
+    timeTaughtMinutes,
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      openedAt: s.openedAt,
+      closedAt: s.closedAt,
+      courseUnit: unitName.get(s.courseUnitId) ?? null,
+      durationMinutes: s.closedAt
+        ? Math.round((s.closedAt.getTime() - s.openedAt.getTime()) / 60_000)
+        : null,
+    })),
   }
 }
 
@@ -253,8 +272,16 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
       present: presentCount,
       excused: excusedCount,
       absent: absentCount,
+      durationMinutes: s.closedAt
+        ? Math.round((s.closedAt.getTime() - s.openedAt.getTime()) / 60_000)
+        : null,
     }
   })
+
+  const totalTimeTaughtMinutes = closedSessions.reduce(
+    (sum, s) => sum + (s.closedAt ? Math.round((s.closedAt.getTime() - s.openedAt.getTime()) / 60_000) : 0),
+    0
+  )
 
   return {
     courseUnit: { id: unit.id, code: unit.code, name: unit.name, facultyId: unit.facultyId },
@@ -262,6 +289,7 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
     sessionsHeld: closedIds.size,
     enrolledStudents: enrollments.length,
     avgAttendance: total ? Number(((present / total) * 100).toFixed(2)) : null,
+    totalTimeTaughtMinutes,
     students,
     sessions: sessionList,
   }

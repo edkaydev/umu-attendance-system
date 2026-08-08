@@ -129,6 +129,7 @@ Reports page → select report type tab (Programme / Course Unit / Lecturer / St
 │  LIVE NOW                       │
 │  Database Systems               │
 │  CSC3301 · Physical · Room 2    │
+│  Ends 11:50 PM                  │  ← openedAt + classDuration
 │  Expires in 03:42    [Check In] │
 ├─────────────────────────────────┤
 │  [3 Units] [2 Above 80%] [85%] │

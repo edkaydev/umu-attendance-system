@@ -163,6 +163,7 @@ export interface LiveSessionForStudent {
   startsAt: string | null
   openedAt: string
   codeExpiresAt: string
+  classDuration: number | null
   checkedIn: boolean
 }
 

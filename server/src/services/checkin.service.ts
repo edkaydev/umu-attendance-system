@@ -165,6 +165,7 @@ export async function listLiveForStudent(studentId: string) {
     startsAt: s.startsAt,
     openedAt: s.openedAt,
     codeExpiresAt: s.codeExpiresAt,
+    classDuration: s.classDuration,
     checkedIn: checkedIn.has(s.id),
   }))
 }

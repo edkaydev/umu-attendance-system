@@ -96,6 +96,7 @@
 | FR-06.7 | Students sharing a unit across programmes use the same code | ✅ Built |
 | FR-06.8 | Physical sessions require student to be within campus geo-fence (haversine, 500 m radius, configurable via env) | ✅ Built |
 | FR-06.9 | Check-in endpoint rate-limited: 10 attempts per student per 5-minute window | ✅ Built |
+| FR-06.10 | Student dashboard "Live Now" card shows when the class ends (`openedAt + classDuration`) | ✅ Built |
 
 ---
 
@@ -153,6 +154,7 @@
 | FR-10.7 | PDF fetched via authenticated fetch (not plain `<a href>`) | ✅ Built |
 | FR-10.8 | Downloaded file named meaningfully (unit code / lecturer name / reg number) | ✅ Built |
 | FR-10.9 | Report period is locked to the System Admin's global period setting | ✅ Built |
+| FR-10.10 | Lecturer and Course Unit reports track **time taught** per session (opened→closed) plus total for accountability | ✅ Built |
 
 ---
 
