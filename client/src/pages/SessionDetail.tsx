@@ -58,7 +58,6 @@ export default function SessionDetail() {
 
   // PDF generate → download two-step flow
   const [generating, setGenerating] = useState(false)
-  const [reportReady, setReportReady] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
   // Only the session's own lecturer can edit attendance (closed sessions only).
@@ -69,7 +68,7 @@ export default function SessionDetail() {
     isLecturer &&
     session.lecturer.id === user?.id
 
-  async function handleGenerate() {
+  async function handleGenerateAndDownload() {
     if (!session) return
     setGenerating(true)
     try {
@@ -77,8 +76,8 @@ export default function SessionDetail() {
         academicYear: session.academicYear,
         semester: session.semester,
       })
-      setReportReady(true)
-      toast.success('Report generated — ready to download')
+      await handleDownloadPdf()
+      toast.success('Report generated and PDF downloaded')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
     } finally {
@@ -239,30 +238,20 @@ export default function SessionDetail() {
               ) : null
             })()
           )}
-          {/* Two-step: Generate first, then Download becomes active */}
-          {!reportReady ? (
-            <Button
-              variant="secondary"
-              loading={generating}
-              onClick={handleGenerate}
-            >
-              {generating ? 'Generating…' : 'Generate Report'}
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              loading={downloading}
-              onClick={handleDownloadPdf}
-            >
-              {/* Download icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              {downloading ? 'Downloading…' : 'Download PDF'}
-            </Button>
-          )}
+          {/* One click: generate + download */}
+          <Button
+            variant="secondary"
+            loading={generating || downloading}
+            onClick={handleGenerateAndDownload}
+          >
+            {/* Download icon */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {generating || downloading ? 'Generating…' : 'Generate & Download PDF'}
+          </Button>
         </div>
       </div>
 

@@ -440,7 +440,10 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
   return reopened
 }
 
-/** Extend an open session's code expiry by N minutes (same code, keeps the session live). */
+/** Extend an open session by N minutes (same code, keeps the session live).
+ *  Extends BOTH the code expiry and the class time so the "Class time remaining"
+ *  countdown (openedAt + classDuration) stays in sync with reality.
+ *  Extension is blocked once the class time is nearly over (< 5 min left). */
 export async function extendSessionTime(sessionId: string, lecturerId: string, minutes = DEFAULT_CODE_TTL) {
   const session = await prisma.session.findUnique({ where: { id: sessionId } })
   if (!session) throw new ApiError('Session not found', 404)
@@ -451,18 +454,32 @@ export async function extendSessionTime(sessionId: string, lecturerId: string, m
     throw new ApiError('Only open sessions can be extended', 400)
   }
 
+  // Block extending when the class is nearly over — the lecturer should close
+  // the session instead of keeping the code alive after the class has ended.
+  if (session.classDuration) {
+    const elapsedMinutes = (Date.now() - session.openedAt.getTime()) / 60_000
+    const remainingMinutes = session.classDuration - elapsedMinutes
+    if (remainingMinutes < 5) {
+      throw new ApiError('Class time is nearly over — close the session instead of extending', 400, 'CLASS_TIME_ENDING')
+    }
+  }
+
   const base = Math.max(session.codeExpiresAt.getTime(), Date.now())
   const codeExpiresAt = new Date(base + minutes * 60_000)
+  const classDuration = session.classDuration
+    ? session.classDuration + minutes
+    : session.classDuration
 
   const extended = await prisma.session.update({
     where: { id: sessionId },
-    data: { codeExpiresAt },
+    data: { codeExpiresAt, classDuration },
     include: { courseUnit: { select: { id: true, code: true, name: true } } },
   })
 
   await writeAuditLog(lecturerId, 'SESSION_EXTEND', 'session', session.id, {
     minutes,
     codeExpiresAt: codeExpiresAt.toISOString(),
+    classDuration,
   })
 
   return extended

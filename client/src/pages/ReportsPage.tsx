@@ -541,7 +541,7 @@ export default function ReportsPage() {
     tab === 'lecturer'    ? lecturerId   :
     studentId
 
-  async function generate() {
+  async function generateAndDownload() {
     if (!selectedId) {
       toast.error('Select an item first')
       return
@@ -555,8 +555,10 @@ export default function ReportsPage() {
         lecturer:     reportApi.lecturer.bind(reportApi),
         student:      reportApi.student.bind(reportApi),
       }
-      setResult(await methods[tab](selectedId, period))
-      toast.success('Report generated')
+      const data = await methods[tab](selectedId, period)
+      setResult(data)
+      await downloadPdf(data)
+      toast.success('Report generated and PDF downloaded')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
     } finally {
@@ -564,7 +566,7 @@ export default function ReportsPage() {
     }
   }
 
-  async function downloadPdf() {
+  async function downloadPdf(resultData?: unknown) {
     if (!selectedId) return
     setPdfDownloading(true)
     try {
@@ -576,7 +578,7 @@ export default function ReportsPage() {
       const a = document.createElement('a')
       a.href = objectUrl
       // Build a readable filename from the tab + entity name
-      const r = result as Record<string, { name?: string; code?: string; fullName?: string; regNumber?: string }> | null
+      const r = (resultData ?? result) as Record<string, { name?: string; code?: string; fullName?: string; regNumber?: string }> | null
       let label: string = tab
       if (r) {
         if (tab === 'programme' && r.programme) label = r.programme.code ?? tab
@@ -743,22 +745,18 @@ export default function ReportsPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          <Button loading={loading} onClick={generate} disabled={!selectedId}>
-            Generate Report
+          <Button loading={loading || pdfDownloading} onClick={generateAndDownload} disabled={!selectedId}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {loading || pdfDownloading ? 'Generating…' : 'Generate & Download PDF'}
           </Button>
-          {/* PDF only available after report is generated */}
-          {result !== null && selectedId && (
-            <Button variant="secondary" loading={pdfDownloading} onClick={downloadPdf}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              {pdfDownloading ? 'Downloading…' : 'Download PDF'}
-            </Button>
-          )}
           {!result && selectedId && (
-            <span className="text-body-sm text-text-disabled">Generate the report first to unlock PDF download</span>
+            <span className="text-body-sm text-text-disabled">
+              One click generates the report preview and downloads the PDF
+            </span>
           )}
         </div>
       </Card>
@@ -772,18 +770,6 @@ export default function ReportsPage() {
             {tab === 'course-unit' && <CourseUnitReport  data={result} />}
             {tab === 'student'     && <StudentReport     data={result} />}
           </div>
-          {/* PDF download at bottom of preview too */}
-          {selectedId && (
-            <div className="border-t border-border px-5 py-3 text-right">
-              <button
-                onClick={downloadPdf}
-                disabled={pdfDownloading}
-                className="text-body font-medium text-umu-red hover:underline disabled:opacity-50"
-              >
-                {pdfDownloading ? 'Downloading…' : 'Download this report as PDF →'}
-              </button>
-            </div>
-          )}
         </Card>
       )}
     </div>

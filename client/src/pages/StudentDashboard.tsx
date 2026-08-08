@@ -43,10 +43,33 @@ function ExpiryText({ expiresAt, now }: { expiresAt: string; now: number }) {
   )
 }
 
-function classEndTime(openedAt: string, classDuration: number | null): string | null {
+// Live countdown for the remaining class time (openedAt + classDuration).
+// `now` ticks every second from the dashboard state, so this updates in place.
+function ClassCountdown({
+  openedAt,
+  classDuration,
+  now,
+}: {
+  openedAt: string
+  classDuration: number | null
+  now: number
+}) {
   if (!classDuration) return null
-  const end = new Date(new Date(openedAt).getTime() + classDuration * 60_000)
-  return end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const end = new Date(openedAt).getTime() + classDuration * 60_000
+  const seconds = Math.max(0, Math.floor((end - now) / 1000))
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  const time =
+    h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  const tone = seconds === 0 ? 'text-danger' : seconds <= 300 ? 'text-warning' : 'text-text-primary'
+  return (
+    <p className={`mt-0.5 text-xs font-medium ${tone}`}>
+      Class time remaining {time}
+    </p>
+  )
 }
 
 export default function StudentDashboard() {
@@ -187,11 +210,7 @@ export default function StudentDashboard() {
                     {s.courseUnit.code} · {s.mode === 'online' ? 'Online' : `Physical${s.venue ? ` · ${s.venue}` : ''}`}
                     {s.startsAt ? ` · ${new Date(s.startsAt).toLocaleTimeString()}` : ''} · {s.lecturer.fullName}
                   </p>
-                  {classEndTime(s.openedAt, s.classDuration) && (
-                    <p className="mt-0.5 text-xs font-medium text-text-primary">
-                      Ends {classEndTime(s.openedAt, s.classDuration)}
-                    </p>
-                  )}
+                  <ClassCountdown openedAt={s.openedAt} classDuration={s.classDuration} now={now} />
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-xs">

@@ -84,6 +84,7 @@ export interface Session {
   startsAt: string | null
   openedAt: string
   closedAt: string | null
+  classDuration?: number | null
   _count?: { attendanceRecords: number }
 }
 

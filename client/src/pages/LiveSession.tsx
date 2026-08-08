@@ -111,7 +111,17 @@ export default function LiveSession() {
     setExtending(true)
     try {
       const res = await sessionApi.extend(sessionId, 5)
-      toast.success(`Session extended until ${new Date(res.session.codeExpiresAt).toLocaleTimeString()}`)
+      const codeUntil = new Date(res.session.codeExpiresAt).toLocaleTimeString()
+      const classEnd = res.session.classDuration
+        ? new Date(
+            new Date(res.session.openedAt).getTime() + res.session.classDuration * 60_000
+          ).toLocaleTimeString()
+        : null
+      toast.success(
+        classEnd
+          ? `Extended — code valid until ${codeUntil}, class ends ${classEnd}`
+          : `Session extended until ${codeUntil}`
+      )
       await load()
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to extend session')
@@ -263,11 +273,16 @@ export default function LiveSession() {
                 fullWidth
                 className="mt-4"
                 loading={extending}
-                disabled={closed}
+                disabled={closed || (classSecondsLeft !== null && classSecondsLeft < 300)}
                 onClick={handleExtend}
               >
                 Extend time (+5 min)
               </Button>
+              {!closed && classSecondsLeft !== null && classSecondsLeft < 300 && (
+                <p className="mt-2 text-center text-xs text-danger">
+                  Class time is nearly over — you can't extend the code. Close the session instead.
+                </p>
+              )}
             </>
           )}
 

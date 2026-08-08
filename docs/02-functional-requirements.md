@@ -69,7 +69,7 @@
 | FR-05.2 | Opening generates a unique 6-character alphanumeric code | ✅ Built |
 | FR-05.3 | Code pool: `ACDEFGHJKLMNPQRTUVWXYZ234679` (no ambiguous chars O/0/I/1/B/8/S/5) | ✅ Built |
 | FR-05.4 | Code validity is configurable (5–60 minutes); default 5 min | ✅ Built |
-| FR-05.5 | Lecturer can extend the code expiry without closing the session (+5 min) | ✅ Built |
+| FR-05.5 | Lecturer can extend the session (+5 min) — extends both code expiry and class time countdown; **blocked when class time remaining < 5 min** | ✅ Built |
 | FR-05.6 | Session auto-closes after `classDuration` elapses (server-side scheduler, ticks every 60 s) | ✅ Built |
 | FR-05.7 | Only one active session per course unit is allowed at a time | ✅ Built |
 | FR-05.8 | Lecturer can close the session manually | ✅ Built |
@@ -96,7 +96,7 @@
 | FR-06.7 | Students sharing a unit across programmes use the same code | ✅ Built |
 | FR-06.8 | Physical sessions require student to be within campus geo-fence (haversine, 500 m radius, configurable via env) | ✅ Built |
 | FR-06.9 | Check-in endpoint rate-limited: 10 attempts per student per 5-minute window | ✅ Built |
-| FR-06.10 | Student dashboard "Live Now" card shows when the class ends (`openedAt + classDuration`) | ✅ Built |
+| FR-06.10 | Student dashboard "Live Now" card shows a live **class time remaining** countdown (`openedAt + classDuration`) | ✅ Built |
 
 ---
 
