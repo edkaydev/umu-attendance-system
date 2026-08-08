@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/google-oauth'
+import { startSessionScheduler } from './utils/sessionScheduler'
 import authRoutes from './routes/auth.routes'
 import academicRoutes from './routes/academic.routes'
 import userRoutes from './routes/user.routes'
@@ -60,4 +61,5 @@ app.use(errorHandler)
 const PORT = Number(process.env.PORT) || 4000
 app.listen(PORT, () => {
   console.log(`UMU Attendance API listening on http://localhost:${PORT}`)
+  startSessionScheduler()
 })

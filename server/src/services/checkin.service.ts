@@ -1,4 +1,5 @@
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isWithinCampus } from '../config/geofence'
@@ -24,19 +25,21 @@ export async function checkIn(
 }> {
   const normalized = code.trim().toUpperCase()
 
-  // FR-06.2: code exists and session is open
+  // FR-06.2: code exists, session is open, AND code has not expired.
+  // Merging the expiry check into the DB query avoids a redundant round-trip
+  // and returns a single INVALID_CODE error for both "no such session" and
+  // "session exists but code expired" — preventing information leakage.
   const session = await prisma.session.findFirst({
-    where: { code: normalized, status: SessionStatus.open },
+    where: {
+      code: normalized,
+      status: SessionStatus.open,
+      codeExpiresAt: { gt: new Date() },
+    },
     include: { courseUnit: { select: { id: true, name: true, code: true } } },
   })
 
   if (!session) {
     throw new ApiError('Invalid or expired code', 400, 'INVALID_CODE')
-  }
-
-  // FR-06.2: code not expired (5-minute validity)
-  if (session.codeExpiresAt < new Date()) {
-    throw new ApiError('Session code has expired', 400, 'CODE_EXPIRED')
   }
 
   // Geo-fence: physical sessions require a location inside the campus radius.
@@ -64,7 +67,12 @@ export async function checkIn(
     throw new ApiError('You are not enrolled in this course unit', 403, 'NOT_ENROLLED')
   }
 
-  // FR-06.3: one check-in per session
+  // FR-06.3: one check-in per session.
+  // Check first so we can give a clear ALREADY_CHECKED_IN error for the
+  // normal case. The create below is additionally guarded against the race
+  // condition where two concurrent requests both pass this findUnique before
+  // either has written — the DB @@unique([sessionId, studentId]) will reject
+  // the second insert with a P2002; we catch that and surface the same error.
   const existing = await prisma.attendanceRecord.findUnique({
     where: { sessionId_studentId: { sessionId: session.id, studentId } },
   })
@@ -79,14 +87,24 @@ export async function checkIn(
       data: { status: AttendanceStatus.present, checkedInAt: new Date() },
     })
   } else {
-    await prisma.attendanceRecord.create({
-      data: {
-        sessionId: session.id,
-        studentId,
-        status: AttendanceStatus.present,
-        checkedInAt: new Date(),
-      },
-    })
+    try {
+      await prisma.attendanceRecord.create({
+        data: {
+          sessionId: session.id,
+          studentId,
+          status: AttendanceStatus.present,
+          checkedInAt: new Date(),
+        },
+      })
+    } catch (err) {
+      // Two concurrent requests both passed the findUnique guard simultaneously.
+      // The DB unique constraint fires on the second insert — treat it as a
+      // benign duplicate rather than an internal server error.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ApiError('You have already checked in to this session', 409, 'ALREADY_CHECKED_IN')
+      }
+      throw err
+    }
   }
 
   // FR-06.4: confirmation with course unit, date, status
@@ -99,13 +117,26 @@ export async function checkIn(
 
 /** Open sessions for course units the student is enrolled in (live check-in discovery). */
 export async function listLiveForStudent(studentId: string) {
+  // Pull the student's enrolled (courseUnitId, academicYear, semester) tuples.
   const enrollments = await prisma.enrollment.findMany({
     where: { studentId },
     select: { courseUnitId: true, academicYear: true, semester: true },
   })
 
+  if (enrollments.length === 0) return []
+
+  // Push the enrollment filter into the DB query instead of fetching all open
+  // sessions and filtering in memory.  The OR list is bounded by the number of
+  // course units the student is enrolled in (typically ≤ 10).
   const openSessions = await prisma.session.findMany({
-    where: { status: SessionStatus.open },
+    where: {
+      status: SessionStatus.open,
+      OR: enrollments.map((e) => ({
+        courseUnitId: e.courseUnitId,
+        academicYear: e.academicYear,
+        semester: e.semester,
+      })),
+    },
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
       lecturer: { select: { id: true, fullName: true } },
@@ -113,26 +144,19 @@ export async function listLiveForStudent(studentId: string) {
     orderBy: { openedAt: 'desc' },
   })
 
-  const mine = openSessions.filter((s) =>
-    enrollments.some(
-      (e) =>
-        e.courseUnitId === s.courseUnitId &&
-        e.academicYear === s.academicYear &&
-        e.semester === s.semester
-    )
-  )
+  if (openSessions.length === 0) return []
 
   const checkedInRecords = await prisma.attendanceRecord.findMany({
     where: {
       studentId,
-      sessionId: { in: mine.map((s) => s.id) },
+      sessionId: { in: openSessions.map((s) => s.id) },
       status: AttendanceStatus.present,
     },
     select: { sessionId: true },
   })
   const checkedIn = new Set(checkedInRecords.map((r) => r.sessionId))
 
-  return mine.map((s) => ({
+  return openSessions.map((s) => ({
     id: s.id,
     courseUnit: s.courseUnit,
     lecturer: s.lecturer,

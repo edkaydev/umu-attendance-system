@@ -400,7 +400,14 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
   }
 
   const opened = session.closedAt ?? session.openedAt
-  // Compare calendar dates in EAT (UTC+3) so the check reflects the lecturer's local day
+  // Compare calendar dates in EAT (UTC+3) so the check reflects the lecturer's
+  // local day at Nkozi Campus, Uganda.
+  //
+  // ⚠️  TIMEZONE NOTE: the +3 offset is hardcoded here because the system is
+  // deployed exclusively at UMU Nkozi (EAT, UTC+3, no DST).  If the system is
+  // ever deployed in a different timezone, replace the constant with a
+  // configurable offset (e.g. process.env.TZ_OFFSET_HOURS) or switch to a
+  // timezone-aware library such as Luxon.
   const toEATDate = (d: Date) => {
     const eat = new Date(d.getTime() + 3 * 60 * 60 * 1000)
     return eat.toISOString().slice(0, 10) // "YYYY-MM-DD"
