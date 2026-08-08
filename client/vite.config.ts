@@ -8,33 +8,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['umu-logo.png'],
+      includeAssets: ['umu-logo.png', 'icons/*.png', 'icons/favicon.ico'],
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
       },
-      manifest: {
-        name: 'UMU Attendance',
-        short_name: 'UMU Attend',
-        description: 'Attendance management system for Uganda Martyrs University',
-        theme_color: '#CC0000',
-        background_color: '#FFFFFF',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          {
-            src: '/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
-      },
+      manifest: false,
     }),
   ],
   resolve: {
