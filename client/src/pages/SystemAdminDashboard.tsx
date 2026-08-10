@@ -356,46 +356,36 @@ export default function SystemAdminDashboard() {
         </div>
       </section>
 
-      {/* ── Recent imports + activity ── */}
+      {/* ── Recent registrations + activity ── */}
       <div className="grid gap-6 lg:grid-cols-2">
 
-        {/* Recent imports */}
-        <Card title="Recent Imports" noPadding={data.recentImports.length > 0}>
-          {data.recentImports.length === 0 ? (
+        {/* Recent registrations */}
+        <Card title="Recent Registrations" noPadding={data.recentActivity.length > 0}>
+          {data.recentActivity.filter((e) => e.action === 'PROFILE_COMPLETE' || e.action === 'PROFILE_UPDATE').length === 0 ? (
             <p className="py-10 text-center text-body text-text-secondary">
-              No CSV imports yet.{' '}
-              <Link to="/system-admin/imports" className="text-umu-red hover:underline">
-                Go to Imports →
-              </Link>
+              No profile completions yet.
             </p>
           ) : (
             <ul className="divide-y divide-border">
-              {data.recentImports.map((entry) => {
-                const meta = entry.meta as { imported?: number; failed?: number } | null
-                return (
+              {data.recentActivity
+                .filter((e) => e.action === 'PROFILE_COMPLETE' || e.action === 'PROFILE_UPDATE')
+                .slice(0, 10)
+                .map((entry) => (
                   <li key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <div className="min-w-0">
                       <p className="text-body font-medium text-text-primary">
-                        {entry.user?.fullName ?? 'System'}
+                        {entry.user?.fullName || entry.user?.email || 'Unknown'}
                       </p>
                       <p className="text-body-sm text-text-secondary">
                         {ACTION_LABELS[entry.action] ?? entry.action} &middot;{' '}
                         {new Date(entry.createdAt).toLocaleString()}
                       </p>
                     </div>
-                    {meta && (
-                      <div className="shrink-0 text-right">
-                        {typeof meta.imported === 'number' && (
-                          <span className="text-body-sm text-success">{meta.imported} imported</span>
-                        )}
-                        {typeof meta.failed === 'number' && meta.failed > 0 && (
-                          <span className="ml-2 text-body-sm text-danger">{meta.failed} failed</span>
-                        )}
-                      </div>
-                    )}
+                    <span className="shrink-0 rounded-sm border border-border bg-surface-1 px-2.5 py-1 text-body-sm font-medium text-text-secondary">
+                      {entry.action === 'PROFILE_COMPLETE' ? 'New' : 'Updated'}
+                    </span>
                   </li>
-                )
-              })}
+                ))}
             </ul>
           )}
         </Card>

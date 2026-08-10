@@ -8,8 +8,6 @@ import {
   setCurrentPeriodController,
   getSupportSettingsController,
   setSupportSettingsController,
-  getDefaultUserPasswordController,
-  setDefaultUserPasswordController,
   resetDatabaseController,
   clearCacheController,
   updateSystemController,
@@ -18,21 +16,18 @@ import {
 
 const router = Router()
 
-router.get('/profile-editing', authenticate, getProfileEditing)
+router.get('/profile-editing',  authenticate, getProfileEditing)
 router.patch('/profile-editing', authenticate, requireRole('system_admin'), setProfileEditing)
 
-router.get('/current-period', getCurrentPeriodController)
+router.get('/current-period',   getCurrentPeriodController)
 router.patch('/current-period', authenticate, requireRole('system_admin'), setCurrentPeriodController)
 
-router.get('/support', authenticate, getSupportSettingsController)
+router.get('/support',   authenticate, getSupportSettingsController)
 router.patch('/support', authenticate, requireRole('system_admin'), setSupportSettingsController)
 
-router.get('/default-user-password', authenticate, requireRole('system_admin'), getDefaultUserPasswordController)
-router.patch('/default-user-password', authenticate, requireRole('system_admin'), setDefaultUserPasswordController)
-
 router.post('/reset-database', authenticate, requireRole('system_admin'), resetDatabaseController)
-router.post('/clear-cache', authenticate, requireRole('system_admin'), clearCacheController)
-router.post('/update-system', authenticate, requireRole('system_admin'), updateSystemController)
-router.get('/update-log', authenticate, requireRole('system_admin'), updateLogController)
+router.post('/clear-cache',    authenticate, requireRole('system_admin'), clearCacheController)
+router.post('/update-system',  authenticate, requireRole('system_admin'), updateSystemController)
+router.get('/update-log',      authenticate, requireRole('system_admin'), updateLogController)
 
 export default router

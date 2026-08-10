@@ -1,12 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import {
-  userApi,
-  academicApi,
-  profileApi,
-  ProfileOptions,
-  AdminUserUpdateInput,
-  CreateUserInput,
-} from '../api/endpoints'
+import { useEffect, useState } from 'react'
+import { userApi, academicApi, PreRegisterInput } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -26,75 +19,69 @@ const ROLE_LABEL: Record<Role, string> = {
   system_admin:  'System Admin',
 }
 
-const ROLE_OPTIONS = [
+const STAFF_ROLE_OPTIONS = [
+  { value: 'lecturer',      label: 'Lecturer' },
+  { value: 'faculty_admin', label: 'Faculty Admin' },
+  { value: 'system_admin',  label: 'System Admin' },
+]
+
+const ALL_ROLE_OPTIONS = [
+  { value: '',              label: 'All Roles' },
   { value: 'student',       label: 'Student' },
   { value: 'lecturer',      label: 'Lecturer' },
   { value: 'faculty_admin', label: 'Faculty Admin' },
   { value: 'system_admin',  label: 'System Admin' },
 ]
 
-function CreateUserModal({
+// ── Pre-Register Modal ──────────────────────────────────────────────────────
+function PreRegisterModal({
+  faculties,
   onClose,
   onCreated,
 }: {
+  faculties: Faculty[]
   onClose: () => void
   onCreated: () => void
 }) {
   const toast = useToast()
-
-  const [options, setOptions] = useState<ProfileOptions | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('student')
+  const [email,     setEmail]     = useState('')
+  const [role,      setRole]      = useState<'lecturer' | 'faculty_admin' | 'system_admin'>('lecturer')
   const [facultyId, setFacultyId] = useState('')
+  const [saving,    setSaving]    = useState(false)
 
-  const isStaff = role === 'lecturer' || role === 'faculty_admin'
-
-  useEffect(() => {
-    profileApi
-      .options()
-      .then(setOptions)
-      .catch(() => setOptions(null))
-  }, [])
-
-  const staffFaculties = useMemo(() => {
-    return options?.campuses.flatMap((c) => c.faculties) ?? []
-  }, [options])
+  const needsFaculty = role === 'faculty_admin'
 
   async function handleCreate() {
-    const payload: CreateUserInput = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      role,
-    }
-    if (!payload.fullName) return toast.error('Full name is required')
-    if (!payload.email) return toast.error('Email is required')
+    if (!email.trim()) return toast.error('Email is required')
+    if (needsFaculty && !facultyId) return toast.error('Faculty is required for Faculty Admin')
 
-    if (isStaff) {
-      if (!facultyId) return toast.error('Select a faculty')
-      payload.facultyId = facultyId
+    const payload: PreRegisterInput = {
+      email: email.trim().toLowerCase(),
+      role,
+      ...(needsFaculty ? { facultyId } : {}),
     }
 
     setSaving(true)
     try {
       await userApi.create(payload)
-      toast.success(`${fullName.trim()} created`)
+      toast.success('Account pre-registered. They can now sign in with Google.')
       onCreated()
+      onClose()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to create user')
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to pre-register account')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Add User">
+    <Modal open onClose={onClose} title="Pre-Register Staff Account">
       <div className="space-y-4">
-        <Input label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <p className="text-body-sm text-text-secondary">
+          Enter the staff member's UMU email and role. They complete their profile on first Google login.
+        </p>
         <Input
-          label="Email"
+          label="UMU Email (@umu.ac.ug)"
           type="email"
           placeholder="name@umu.ac.ug"
           value={email}
@@ -103,536 +90,209 @@ function CreateUserModal({
         <Select
           label="Role"
           value={role}
-          onChange={(e) => {
-            setRole(e.target.value as Role)
-            setFacultyId('')
-          }}
-          options={ROLE_OPTIONS}
+          onChange={(e) => { setRole(e.target.value as typeof role); setFacultyId('') }}
+          options={STAFF_ROLE_OPTIONS}
         />
-        <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
-          This account will receive the system default password and must change it on first sign-in.
-          {role === 'student' && ' The student will choose their faculty, programme and year on first login.'}
-        </p>
-
-        {isStaff && (
+        {needsFaculty && (
           <>
             <Select
               label="Faculty"
               placeholder="Select faculty"
               value={facultyId}
               onChange={(e) => setFacultyId(e.target.value)}
-              options={[
-                ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
-              ]}
+              options={faculties.map((f) => ({ value: f.id, label: f.name }))}
             />
-            <p className="text-body-sm text-text-secondary">
-              They will only be able to manage data within this faculty.
+            <p className="text-xs text-text-secondary">
+              Faculty Admin is linked to this faculty and goes straight to dashboard on first login.
             </p>
           </>
         )}
-
         <div className="flex justify-end gap-3 pt-2">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button loading={saving} onClick={handleCreate}>
-            Create User
-          </Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button loading={saving} onClick={handleCreate}>Pre-Register</Button>
         </div>
       </div>
     </Modal>
   )
 }
 
-function EditUserModal({
-  user,
-  onClose,
-  onSaved,
-}: {
-  user: ManagedUser
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const toast = useToast()
-
-  const [options, setOptions] = useState<ProfileOptions | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [resettingPassword, setResettingPassword] = useState(false)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
-
-  const [fullName, setFullName] = useState(user.fullName)
-  const [email, setEmail] = useState(user.email)
-  const [facultyId, setFacultyId] = useState('')
-
-  const isStudent = user.role === 'student'
-  const isStaff = user.role === 'lecturer' || user.role === 'faculty_admin'
-
-  useEffect(() => {
-    setFullName(user.fullName)
-    setEmail(user.email)
-    setFacultyId(user.facultyId ?? '')
-    profileApi
-      .options()
-      .then((opts) => { setOptions(opts) })
-      .catch(() => setOptions(null))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
-
-  const staffFaculties = useMemo(() => {
-    return options?.campuses.flatMap((c) => c.faculties) ?? []
-  }, [options])
-
-  async function handleSave() {
-    const payload: AdminUserUpdateInput = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-    }
-    if (!payload.fullName) return toast.error('Full name is required')
-    if (!payload.email) return toast.error('Email is required')
-
-    if (isStaff) {
-      if (!facultyId) return toast.error('Select a faculty')
-      payload.facultyId = facultyId
-    }
-
-    setSaving(true)
-    try {
-      await userApi.update(user.id, payload)
-      toast.success(`${user.fullName} updated`)
-      onSaved()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update user')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleResetPassword() {
-    setResettingPassword(true)
-    try {
-      const { message } = await userApi.resetPassword(user.id)
-      toast.success(message)
-      setShowResetConfirm(false)
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reset password')
-    } finally {
-      setResettingPassword(false)
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={`Edit User — ${user.fullName}`}>
-      <div className="space-y-4">
-        <Input label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-
-        {isStudent && (
-          <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
-            This student will manage their own academic profile (faculty, programme, year) from their profile page.
-          </p>
-        )}
-
-        {isStaff && (
-          <>
-            <Select
-              label="Faculty"
-              placeholder="Select faculty"
-              value={facultyId}
-              onChange={(e) => setFacultyId(e.target.value)}
-              options={[
-                ...staffFaculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
-              ]}
-            />
-            <p className="text-body-sm text-text-secondary">
-              They will only be able to manage data within this faculty.
-            </p>
-          </>
-        )}
-
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="secondary"
-            loading={resettingPassword}
-            onClick={() => setShowResetConfirm(true)}
-          >
-            Reset Password
-          </Button>
-          <Button loading={saving} onClick={handleSave}>
-            Save Changes
-          </Button>
-        </div>
-      </div>
-
-      <ConfirmModal
-        open={showResetConfirm}
-        title="Reset Password to Default"
-        message={`Reset ${user.fullName}'s password to the system default? They will be forced to change it on next login. All their data is untouched.`}
-        confirmLabel="Reset Password"
-        loading={resettingPassword}
-        onConfirm={handleResetPassword}
-        onCancel={() => !resettingPassword && setShowResetConfirm(false)}
-      />
-    </Modal>
-  )
-}
-
+// ── Main Page ───────────────────────────────────────────────────────────────
 export default function UserManagement() {
   const toast = useToast()
 
-  const [data,     setData]     = useState<{ users: ManagedUser[]; total: number } | null>(null)
-  const [faculties, setFaculties] = useState<Faculty[]>([])
-  const [role,     setRole]     = useState('')
-  const [search,   setSearch]   = useState('')
-  const [page,     setPage]     = useState(1)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [deleting, setDeleting] = useState(false)
+  const [users,       setUsers]       = useState<ManagedUser[]>([])
+  const [total,       setTotal]       = useState(0)
+  const [page,        setPage]        = useState(1)
+  const [search,      setSearch]      = useState('')
+  const [roleFilter,  setRoleFilter]  = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [faculties,   setFaculties]   = useState<Faculty[]>([])
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null)
+  const [deleting,    setDeleting]    = useState(false)
+  const [actioning,   setActioning]   = useState<string | null>(null)
 
-  // Confirm modal state
-  const [confirm, setConfirm] = useState<{
-    title: string
-    message: string
-    onConfirm: () => Promise<void>
-  } | null>(null)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // Assign-faculty modal state
-  const [assignTarget, setAssignTarget] = useState<ManagedUser | null>(null)
-  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('')
-  const [assigning, setAssigning] = useState(false)
-
-  // Edit-user modal state
-  const [editTarget, setEditTarget] = useState<ManagedUser | null>(null)
-
-  // Create-user modal state
-  const [creating, setCreating] = useState(false)
-
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
-
-  // Build query params from current filter state
-  function buildParams() {
-    return {
-      page: String(page),
-      limit: String(PAGE_SIZE),
-      ...(role   ? { role }   : {}),
-      ...(search ? { search } : {}),
+  async function load() {
+    setLoading(true)
+    try {
+      const params: Record<string, string> = { page: String(page), limit: String(PAGE_SIZE) }
+      if (search)     params.search = search
+      if (roleFilter) params.role   = roleFilter
+      const res = await userApi.list(params)
+      setUsers(res.users)
+      setTotal(res.total)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load users')
+    } finally {
+      setLoading(false)
     }
   }
 
-  async function reload() {
-    const res = await userApi.list(buildParams())
-    setData(res)
-  }
+  useEffect(() => { void load() }, [page, roleFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load users whenever filters change
   useEffect(() => {
-    userApi
-      .list(buildParams())
-      .then(setData)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load users'))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, search, page])
-
-  // Load faculties once for the assign modal
-  useEffect(() => {
-    academicApi.faculties().then(setFaculties).catch(() => {})
+    academicApi.faculties().then(setFaculties).catch(() => setFaculties([]))
   }, [])
 
-  async function toggleActive(user: ManagedUser) {
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    setPage(1)
+    void load()
+  }
+
+  async function handleToggleActive(u: ManagedUser) {
+    setActioning(u.id)
     try {
-      if (user.isActive) await userApi.deactivate(user.id)
-      else               await userApi.activate(user.id)
-      toast.success(user.isActive ? `${user.fullName} deactivated` : `${user.fullName} activated`)
-      await reload()
+      await (u.isActive ? userApi.deactivate(u.id) : userApi.activate(u.id))
+      toast.success(`${u.fullName || u.email} ${u.isActive ? 'deactivated' : 'activated'}`)
+      void load()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Operation failed')
+      toast.error(e instanceof ApiClientError ? e.message : 'Action failed')
+    } finally {
+      setActioning(null)
     }
   }
 
-  function toggleSelected(userId: string) {
-    setSelectedIds((current) =>
-      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
-    )
-  }
-
-  function togglePageSelection() {
-    const pageIds = data?.users.map((user) => user.id) ?? []
-    const everyPageUserSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
-    setSelectedIds((current) =>
-      everyPageUserSelected
-        ? current.filter((id) => !pageIds.includes(id))
-        : [...new Set([...current, ...pageIds])]
-    )
-  }
-
-  async function handleDeleteOne(user: ManagedUser) {
-    setConfirm({
-      title: 'Delete User',
-      message: `Permanently delete ${user.fullName}? This cannot be undone.`,
-      onConfirm: async () => {
-        setDeleting(true)
-        try {
-          await userApi.remove(user.id)
-          toast.success(`${user.fullName} deleted`)
-          setSelectedIds((ids) => ids.filter((id) => id !== user.id))
-          await reload()
-        } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete user')
-        } finally {
-          setDeleting(false)
-          setConfirm(null)
-        }
-      },
-    })
-  }
-
-  async function handleDeleteSelected() {
-    if (selectedIds.length === 0) return
-    setConfirm({
-      title: 'Delete Selected Users',
-      message: `Permanently delete ${selectedIds.length} selected user(s)? This cannot be undone.`,
-      onConfirm: async () => {
-        setDeleting(true)
-        try {
-          const { result } = await userApi.removeMany({ userIds: selectedIds })
-          setSelectedIds([])
-          toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
-          if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
-          await reload()
-        } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete selected users')
-        } finally {
-          setDeleting(false)
-          setConfirm(null)
-        }
-      },
-    })
-  }
-
-  async function handleDeleteAllMatching() {
-    const scope = role || search ? 'all users matching the current filters' : 'all users except your own account'
-    setConfirm({
-      title: 'Delete All Users',
-      message: `Permanently delete ${scope}? This cannot be undone.`,
-      onConfirm: async () => {
-        setDeleting(true)
-        try {
-          const { result } = await userApi.removeMany({
-            allMatching: true,
-            ...(role ? { role: role as Role } : {}),
-            ...(search ? { search } : {}),
-          })
-          setSelectedIds([])
-          toast.success(`${result.deleted} user(s) deleted${result.skipped ? `; ${result.skipped} skipped` : ''}`)
-          if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
-          await reload()
-        } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete users')
-        } finally {
-          setDeleting(false)
-          setConfirm(null)
-        }
-      },
-    })
-  }
-
-  function openAssign(user: ManagedUser) {
-    setAssignTarget(user)
-    setSelectedFacultyId(user.facultyId ?? '')
-  }
-
-  async function handleAssignFaculty() {
-    if (!assignTarget) return
-    setAssigning(true)
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await userApi.assignFaculty(
-        assignTarget.id,
-        selectedFacultyId || null
-      )
-      const facultyName = faculties.find((f) => f.id === selectedFacultyId)?.name ?? 'None'
-      toast.success(`Faculty set to "${facultyName}" for ${assignTarget.fullName}`)
-      setAssignTarget(null)
-      await reload()
+      await userApi.remove(deleteTarget.id)
+      toast.success('Account deleted')
+      setDeleteTarget(null)
+      void load()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to assign faculty')
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to delete — deactivate instead if they have records')
     } finally {
-      setAssigning(false)
+      setDeleting(false)
     }
   }
 
   return (
     <div className="space-y-6">
-
-      {/* ── Header ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-h1 font-bold text-text-primary">User Management</h1>
-          <p className="mt-1 text-body text-text-secondary">
-            Manage accounts, roles, and faculty assignments. Users sign in with their email
-            and password (or Google).
-          </p>
+          <h1 className="text-h2 font-bold text-text-primary">User Management</h1>
+          <p className="text-body-sm text-text-secondary">Pre-register staff and manage all accounts.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="danger" loading={deleting} onClick={handleDeleteAllMatching}>Delete All</Button>
-          <Button onClick={() => setCreating(true)}>Add User</Button>
-        </div>
+        <Button onClick={() => setShowCreate(true)}>+ Pre-Register Staff</Button>
       </div>
 
-      {/* ── Filters ── */}
+      {/* Filters */}
       <Card>
-        <div className="flex flex-wrap items-end gap-3">
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-3">
           <Input
-            label="Search"
-            placeholder="Name or email"
+            placeholder="Search name, email, reg number…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="mb-0 md:w-72"
+            onChange={(e) => setSearch(e.target.value)}
+            className="min-w-[220px] flex-1"
           />
-          <div className="mb-0 w-48">
-            <Select
-              label="Role"
-              value={role}
-              onChange={(e) => { setRole(e.target.value); setPage(1) }}
-              options={[
-                { value: '',               label: 'All roles' },
-                { value: 'student',        label: 'Student' },
-                { value: 'lecturer',       label: 'Lecturer' },
-                { value: 'faculty_admin',  label: 'Faculty Admin' },
-                { value: 'system_admin',   label: 'System Admin' },
-              ]}
-            />
-          </div>
-        </div>
+          <Select
+            value={roleFilter}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(1) }}
+            options={ALL_ROLE_OPTIONS}
+            className="min-w-[160px]"
+          />
+          <Button type="submit">Search</Button>
+        </form>
       </Card>
 
-      {selectedIds.length > 0 && (
-        <div className="flex items-center justify-between rounded border border-danger-border bg-danger-light px-4 py-3">
-          <p className="text-body-sm text-text-primary">{selectedIds.length} user(s) selected</p>
-          <Button variant="danger" loading={deleting} onClick={handleDeleteSelected}>Delete Selected</Button>
-        </div>
-      )}
-
-      {/* ── Users table ── */}
-      <Card noPadding>
-        {!data ? (
-          <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
-        ) : data.users.length === 0 ? (
-          <p className="px-5 py-12 text-center text-body text-text-secondary">No users found.</p>
+      {/* Table */}
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+          </div>
+        ) : users.length === 0 ? (
+          <p className="py-12 text-center text-body-sm text-text-secondary">No users found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-surface-1">
-                  <th className="w-12 px-5 py-3">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all users on this page"
-                      checked={data.users.length > 0 && data.users.every((user) => selectedIds.includes(user.id))}
-                      onChange={togglePageSelection}
-                    />
-                  </th>
-                  <th className="px-5 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">User</th>
-                  <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Faculty</th>
-                  <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Role</th>
-                  <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Status</th>
-                  <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">Joined</th>
-                  <th className="px-4 py-3 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">Actions</th>
+                <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  <th className="pb-3 pr-4">User</th>
+                  <th className="pb-3 pr-4">Role</th>
+                  <th className="pb-3 pr-4">Faculty</th>
+                  <th className="pb-3 pr-4">Profile</th>
+                  <th className="pb-3 pr-4">Status</th>
+                  <th className="pb-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data.users.map((u) => (
-                  <tr key={u.id} className="transition-colors hover:bg-surface-1">
-
-                    <td className="px-5 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${u.fullName}`}
-                        checked={selectedIds.includes(u.id)}
-                        onChange={() => toggleSelected(u.id)}
-                      />
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-2.5">
+                        {u.photoUrl ? (
+                          <img src={u.photoUrl} alt={u.fullName} className="h-8 w-8 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-xs font-bold text-text-secondary shrink-0">
+                            {(u.fullName || u.email)[0]?.toUpperCase()}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-medium text-text-primary truncate">
+                            {u.fullName || <span className="italic text-text-disabled">Not set yet</span>}
+                          </p>
+                          <p className="text-xs text-text-secondary truncate">{u.email}</p>
+                        </div>
+                      </div>
                     </td>
-
-                    {/* User */}
-                    <td className="px-5 py-3">
-                      <p className="text-body font-medium text-text-primary">{u.fullName}</p>
-                      <p className="text-body-sm text-text-secondary">{u.email}</p>
-                      {u.regNumber && (
-                        <p className="text-body-sm text-text-disabled">{u.regNumber}</p>
-                      )}
-                    </td>
-
-                    {/* Faculty */}
-                    <td className="px-4 py-3">
-                      {(u.role === 'faculty_admin' || u.role === 'lecturer') ? (
-                          u.facultyId ? (
-                            <span className="text-body text-text-primary">
-                              {u.faculty?.name ?? '—'}
-                            </span>
-                          ) : (
-                          <span className="text-body-sm text-warning font-medium">Not assigned</span>
-                        )
-                      ) : (
-                        <span className="text-body-sm text-text-disabled">—</span>
-                      )}
-                    </td>
-
-                    {/* Role — read-only */}
-                    <td className="px-4 py-3 text-body text-text-primary">
-                      {ROLE_LABEL[u.role]}
-                    </td>
-
-                    {/* Active status */}
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-body-sm font-medium ${
-                        u.isActive
-                          ? 'border-success-border bg-success-light text-success'
-                          : 'border-danger-border bg-danger-light text-danger'
-                      }`}>
-                        {u.isActive ? 'Active' : 'Disabled'}
+                    <td className="py-3 pr-4">
+                      <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-text-secondary whitespace-nowrap">
+                        {ROLE_LABEL[u.role]}
                       </span>
                     </td>
-
-                    {/* Joined */}
-                    <td className="px-4 py-3 text-body text-text-secondary">
-                      {new Date(u.createdAt).toLocaleDateString()}
+                    <td className="py-3 pr-4 text-text-secondary text-xs">
+                      {u.faculty?.name ?? <span className="text-text-disabled">—</span>}
                     </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="secondary"
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
-                          onClick={() => setEditTarget(u)}
-                        >
-                          Edit
-                        </Button>
-                        {/* Assign Faculty — only for faculty_admin and lecturer */}
-                        {(u.role === 'faculty_admin' || u.role === 'lecturer') && (
-                          <Button
-                            variant="secondary"
-                            className="min-h-[32px] px-3 py-1 text-body-sm"
-                            onClick={() => openAssign(u)}
-                          >
-                            {u.facultyId ? 'Change Faculty' : 'Assign Faculty'}
-                          </Button>
-                        )}
-                        <Button
-                          variant={u.isActive ? 'danger' : 'secondary'}
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
-                          onClick={() => toggleActive(u)}
+                    <td className="py-3 pr-4">
+                      <span className={`text-xs font-semibold ${u.profileComplete ? 'text-success' : 'text-warning'}`}>
+                        {u.profileComplete ? 'Complete' : 'Pending'}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span className={`text-xs font-semibold ${u.isActive ? 'text-success' : 'text-danger'}`}>
+                        {u.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleToggleActive(u)}
+                          disabled={actioning === u.id}
+                          className="text-xs font-medium text-umu-red hover:underline disabled:opacity-40"
                         >
                           {u.isActive ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
-                          loading={deleting}
-                          onClick={() => handleDeleteOne(u)}
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          className="text-xs font-medium text-danger hover:underline"
                         >
                           Delete
-                        </Button>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -643,82 +303,37 @@ export default function UserManagement() {
         )}
 
         {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-border px-5 py-3">
-          <p className="text-body-sm text-text-secondary">
-            Page {page} of {totalPages} · {data?.total ?? 0} users
-          </p>
-          <div className="flex gap-2">
-            <Button variant="secondary" disabled={page <= 1}           onClick={() => setPage((p) => p - 1)}>Previous</Button>
-            <Button variant="secondary" disabled={page >= totalPages}  onClick={() => setPage((p) => p + 1)}>Next</Button>
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+            <span>{total} total users</span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
+              <span className="px-2">Page {page} of {totalPages}</span>
+              <Button variant="ghost" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
 
-      {/* ── Assign Faculty modal ── */}
-      <Modal
-        open={Boolean(assignTarget)}
-        onClose={() => setAssignTarget(null)}
-        title={`Assign Faculty — ${assignTarget?.fullName ?? ''}`}
-      >
-        <div className="space-y-4">
-          <p className="text-body text-text-secondary">
-            Select the faculty this {assignTarget?.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} belongs to.
-            They will only be able to manage data within this faculty.
-          </p>
-
-          <Select
-            label="Faculty"
-            value={selectedFacultyId}
-            onChange={(e) => setSelectedFacultyId(e.target.value)}
-            options={[
-              ...faculties.map((f) => ({ value: f.id, label: `${f.name} (${f.code})` })),
-            ]}
-          />
-
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setAssignTarget(null)}>
-              Cancel
-            </Button>
-            <Button loading={assigning} onClick={handleAssignFaculty}>
-              Save
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ── Edit user modal ── */}
-      {editTarget && (
-        <EditUserModal
-          user={editTarget}
-          onClose={() => setEditTarget(null)}
-          onSaved={() => {
-            setEditTarget(null)
-            reload()
-          }}
+      {/* Pre-register modal */}
+      {showCreate && (
+        <PreRegisterModal
+          faculties={faculties}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { setPage(1); void load() }}
         />
       )}
 
-      {/* ── Add user modal ── */}
-      {creating && (
-        <CreateUserModal
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false)
-            reload()
-          }}
-        />
-      )}
-
-      {/* ── Confirm destructive action modal ── */}
+      {/* Delete confirmation */}
       <ConfirmModal
-        open={Boolean(confirm)}
-        title={confirm?.title ?? ''}
-        message={confirm?.message ?? ''}
+        open={Boolean(deleteTarget)}
+        title="Delete account?"
+        message={`Permanently delete ${deleteTarget?.fullName || deleteTarget?.email}? If they have attendance records, deactivate instead.`}
         confirmLabel="Delete"
+        variant="danger"
         loading={deleting}
-        onConfirm={() => confirm?.onConfirm()}
-        onCancel={() => !deleting && setConfirm(null)}
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   )

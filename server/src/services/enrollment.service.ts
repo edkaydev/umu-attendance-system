@@ -87,7 +87,13 @@ export async function getFacultyUnitOverview(facultyId: string) {
       },
     }),
     prisma.user.findMany({
-      where: { role: 'lecturer', facultyId },
+      where: {
+        role: 'lecturer',
+        OR: [
+          { facultyId },
+          { additionalFaculties: { some: { facultyId } } },
+        ],
+      },
       orderBy: { fullName: 'asc' },
       select: {
         id: true,

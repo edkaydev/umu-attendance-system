@@ -25,6 +25,7 @@ model Faculty {
   courseUnits         CourseUnit[]
   sharedCourseUnits   CourseUnitFaculty[]
   users               User[]
+  additionalUsers     UserFaculty[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
@@ -38,6 +39,7 @@ model Programme {
   faculty         Faculty          @relation(fields: [facultyId], references: [id])
   name            String           @db.VarChar(150)
   code            String           @db.VarChar(20)
+  level           ProgrammeLevel   @default(bachelors)
   isActive        Boolean          @default(true)
   curriculumUnits CurriculumUnit[]
   students        User[]
@@ -46,6 +48,15 @@ model Programme {
 
   @@unique([facultyId, code])
   @@map("programmes")
+}
+
+enum ProgrammeLevel {
+  bachelors
+  masters
+  phd
+  diploma
+  certificate
+  other
 }
 
 model CourseUnit {
@@ -59,7 +70,6 @@ model CourseUnit {
   enrollments         Enrollment[]
   lecturerAssignments LecturerAssignment[]
   sessions            Session[]
-  attendanceAlerts    AttendanceAlert[]
   sharedFaculties     CourseUnitFaculty[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -103,15 +113,20 @@ model CurriculumUnit {
 // ─────────────────────────────────────────────
 
 model User {
-  id              String   @id @default(uuid())
-  googleId        String?  @unique @db.VarChar(100)
-  email           String   @unique @db.VarChar(150)
-  password        String?  @db.VarChar(255)
-  fullName        String   @db.VarChar(100)
+  id              String    @id @default(uuid())
+  googleId        String?   @unique @db.VarChar(100)
+  email           String    @unique @db.VarChar(150)
+  fullName        String    @db.VarChar(100)
   role            Role
+  // Profile extras
+  whatsapp        String?   @db.VarChar(30)
+  gender          Gender?
+  photoUrl        String?   @db.VarChar(500)
   // Faculty link (all roles except system_admin set this)
   facultyId       String?
-  faculty         Faculty? @relation(fields: [facultyId], references: [id])
+  faculty         Faculty?  @relation(fields: [facultyId], references: [id])
+  // Additional faculties (lecturers who teach across faculties)
+  additionalFaculties UserFaculty[]
   // Student-only fields
   programmeId     String?
   programme       Programme? @relation(fields: [programmeId], references: [id])
@@ -120,10 +135,8 @@ model User {
   academicYear    String?    @db.VarChar(10)
   regNumber       String?    @db.VarChar(30)
   // Profile state
-  profileComplete Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  // Security: accounts created with a temporary password must change it on first login
-  mustChangePassword Boolean @default(false)
+  profileComplete Boolean   @default(false)
+  isActive        Boolean   @default(true)
   // Relations
   enrollments          Enrollment[]
   lecturerAssignments  LecturerAssignment[] @relation("LecturerAssignments")
@@ -131,13 +144,25 @@ model User {
   sessionsOpened       Session[]
   attendanceRecords    AttendanceRecord[]
   attendanceEdits      AttendanceEdit[]
-  attendanceAlerts     AttendanceAlert[]
   refreshTokens        RefreshToken[]
   auditLogs            AuditLog[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("users")
+}
+
+/// Additional faculties a lecturer belongs to (beyond their primary facultyId).
+model UserFaculty {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  facultyId String
+  faculty   Faculty  @relation(fields: [facultyId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, facultyId])
+  @@map("user_faculties")
 }
 
 enum Role {
@@ -145,6 +170,12 @@ enum Role {
   faculty_admin
   lecturer
   student
+}
+
+enum Gender {
+  male
+  female
+  other
 }
 
 // ─────────────────────────────────────────────
@@ -160,6 +191,8 @@ model Enrollment {
   courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
   academicYear String     @db.VarChar(10)
   semester     Int        @db.TinyInt
+  /// true = added manually by Faculty Admin; preserved when profile path changes
+  isManual     Boolean    @default(false)
   enrolledAt   DateTime   @default(now())
 
   @@unique([studentId, courseUnitId, academicYear, semester])
@@ -202,7 +235,7 @@ model Session {
   mode             SessionMode       @default(physical)
   startsAt         DateTime?
   classDuration    Int?              /// class length in minutes (max 180); null = no auto-close
-  codeTtl          Int?              /// initial code validity in minutes (5–60); null = 5 default
+  codeTtl          Int?              /// initial code validity in minutes (5–60); null = 20 default
   openedAt         DateTime          @default(now())
   closedAt         DateTime?
   attendanceRecords AttendanceRecord[]
@@ -260,26 +293,6 @@ model AttendanceEdit {
   changedAt          DateTime         @default(now())
 
   @@map("attendance_edits")
-}
-
-// Tracks 80% warning and 75% critical alerts sent to prevent duplicates
-model AttendanceAlert {
-  id            String     @id @default(uuid())
-  studentId     String
-  student       User       @relation(fields: [studentId], references: [id])
-  courseUnitId  String
-  courseUnit    CourseUnit @relation(fields: [courseUnitId], references: [id])
-  alertType     AlertType
-  attendancePct Decimal    @db.Decimal(5, 2)
-  sentAt        DateTime   @default(now())
-  resolved      Boolean    @default(false)
-
-  @@map("attendance_alerts")
-}
-
-enum AlertType {
-  warning   // fired at 80%
-  critical  // fired at 75%
 }
 
 // ─────────────────────────────────────────────

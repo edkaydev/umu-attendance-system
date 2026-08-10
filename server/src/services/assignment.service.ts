@@ -32,9 +32,21 @@ export async function createAssignment(
     throw new ApiError('Unit editing is currently disabled by the System Admin', 403)
   }
 
-  const lecturer = await prisma.user.findUnique({ where: { id: input.lecturerId } })
+  const lecturer = await prisma.user.findUnique({
+    where: { id: input.lecturerId },
+    include: { additionalFaculties: { select: { facultyId: true } } },
+  })
   if (!lecturer || lecturer.role !== 'lecturer') {
     throw new ApiError('Lecturer not found', 404)
+  }
+
+  // Lecturer must belong to the faculty (primary or additional)
+  const lecturerFacultyIds = new Set([
+    lecturer.facultyId,
+    ...lecturer.additionalFaculties.map((uf) => uf.facultyId),
+  ])
+  if (!lecturerFacultyIds.has(facultyId)) {
+    throw new ApiError('This lecturer does not belong to your faculty', 403)
   }
 
   const courseUnit = await prisma.courseUnit.findUnique({

@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
 
 export const DASHBOARD_BY_ROLE: Record<Role, string> = {
-  student: '/student',
-  lecturer: '/lecturer',
+  student:       '/student',
+  lecturer:      '/lecturer',
   faculty_admin: '/faculty-admin',
-  system_admin: '/system-admin',
+  system_admin:  '/system-admin',
 }
 
 function FullScreenLoader() {
@@ -18,7 +18,7 @@ function FullScreenLoader() {
   )
 }
 
-/** Requires an authenticated user. If password change is pending, force it; otherwise profile setup. */
+/** Requires an authenticated user. Redirects to profile setup if incomplete. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
@@ -26,21 +26,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (loading) return <FullScreenLoader />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
 
-  // Must change password — only the change-password screen is allowed
-  if (user.mustChangePassword && location.pathname !== '/password/change') {
-    return <Navigate to="/password/change" replace />
-  }
-
-  // Password is fine — leave the change-password screen, go to the right place
-  if (!user.mustChangePassword && location.pathname === '/password/change') {
-    const next = !user.profileComplete
-      ? '/profile/setup'
-      : DASHBOARD_BY_ROLE[user.role]
-    return <Navigate to={next} replace />
-  }
-
   // Profile not yet complete — only the setup screen is allowed
-  if (!user.mustChangePassword && !user.profileComplete && location.pathname !== '/profile/setup') {
+  if (!user.profileComplete && location.pathname !== '/profile/setup') {
     return <Navigate to="/profile/setup" replace />
   }
 
@@ -65,11 +52,9 @@ export function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <FullScreenLoader />
   if (user) {
-    const target = user.mustChangePassword
-      ? '/password/change'
-      : user.profileComplete
-        ? DASHBOARD_BY_ROLE[user.role]
-        : '/profile/setup'
+    const target = user.profileComplete
+      ? DASHBOARD_BY_ROLE[user.role]
+      : '/profile/setup'
     return <Navigate to={target} replace />
   }
   return <>{children}</>

@@ -28,11 +28,7 @@ export const authApi = {
     const res = await http.get<{ user: User }>('/api/auth/me')
     return res.user
   },
-  login: (email: string, password: string) =>
-    http.post<LoginResponse>('/api/auth/login', { email, password }),
   logout: () => http.post<{ message: string }>('/api/auth/logout'),
-  changePassword: (currentPassword: string, newPassword: string) =>
-    http.post<{ message: string }>('/api/auth/password', { currentPassword, newPassword }),
   devLogin: (role: Role) =>
     http.post<{ user: User; redirect: string }>('/api/auth/dev-login', { role }),
 }
@@ -41,19 +37,28 @@ export const authApi = {
 export interface ProfileOptions {
   campuses: (Campus & {
     faculties: (Faculty & {
-      programmes: (Programme & { id: string })[]
+      programmes: (Programme & { id: string; level: string })[]
     })[]
   })[]
 }
 
 export interface StudentProfileInput {
-  campusCode: string
-  facultyId: string
-  programmeId: string
-  year: number
-  semester: number
-  regNumber: string
+  campusCode:   string
+  facultyId:    string
+  programmeId:  string
+  year:         number
+  semester:     number
+  regNumber:    string
   academicYear: string
+  whatsapp:     string
+  gender:       string
+}
+
+export interface LecturerProfileInput {
+  facultyId:            string
+  additionalFacultyIds: string[]
+  whatsapp:             string
+  gender:               string
 }
 
 export const profileApi = {
@@ -61,9 +66,9 @@ export const profileApi = {
     const res = await http.get<{ campuses: ProfileOptions['campuses'] }>('/api/academic/options')
     return { campuses: res.campuses }
   },
-  complete: (data: StudentProfileInput | { facultyId: string }) =>
+  complete: (data: StudentProfileInput | LecturerProfileInput) =>
     http.put<{ message: string }>('/api/profile/complete', data),
-  update: (data: StudentProfileInput | { facultyId: string }) =>
+  update: (data: StudentProfileInput | LecturerProfileInput) =>
     http.put<{ message: string }>('/api/profile', data),
 }
 
@@ -398,21 +403,10 @@ export const enrollmentApi = {
 }
 
 // ─── User management (System Admin) ───
-export interface AdminUserUpdateInput {
-  fullName: string
-  email: string
-  facultyId?: string | null
-  campusCode?: string
-  programmeId?: string
-  year?: number
-  semester?: number
-  academicYear?: string
-  regNumber?: string
-}
-
-export interface CreateUserInput extends AdminUserUpdateInput {
-  role: Role
-  password?: string
+export interface PreRegisterInput {
+  email:     string
+  role:      'lecturer' | 'faculty_admin' | 'system_admin'
+  facultyId?: string
 }
 
 export const userApi = {
@@ -420,45 +414,15 @@ export const userApi = {
     const qs = new URLSearchParams(params).toString()
     return http.get<{ users: ManagedUser[]; total: number }>(`/api/users${qs ? `?${qs}` : ''}`)
   },
-  create: (data: CreateUserInput) => http.post<{ user: ManagedUser }>('/api/users', data),
-  deactivate:   (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/deactivate`),
-  activate:     (id: string)              => http.patch<{ user: ManagedUser }>(`/api/users/${id}/activate`),
-  changeRole:   (id: string, role: Role)  => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
+  create:       (data: PreRegisterInput)          => http.post<{ user: ManagedUser }>('/api/users', data),
+  deactivate:   (id: string)                      => http.patch<{ user: ManagedUser }>(`/api/users/${id}/deactivate`),
+  activate:     (id: string)                      => http.patch<{ user: ManagedUser }>(`/api/users/${id}/activate`),
+  changeRole:   (id: string, role: Role)          => http.patch<{ user: ManagedUser }>(`/api/users/${id}/role`, { role }),
   assignFaculty:(id: string, facultyId: string | null) =>
     http.patch<{ user: ManagedUser }>(`/api/users/${id}/faculty`, { facultyId }),
-  update:       (id: string, data: AdminUserUpdateInput) =>
-    http.patch<{ user: ManagedUser }>(`/api/users/${id}`, data),
-  remove:       (id: string) => http.del<{ deleted: number }>(`/api/users/${id}`),
+  remove:       (id: string)                      => http.del<{ deleted: number }>(`/api/users/${id}`),
   removeMany: (data: { userIds?: string[]; allMatching?: boolean; role?: Role; search?: string }) =>
     http.post<{ result: { deleted: number; skipped: number; errors: { id: string; message: string }[] } }>('/api/users/bulk-delete', data),
-  resetPassword: (id: string) =>
-    http.patch<{ message: string }>(`/api/users/${id}/reset-password`),
-}
-
-// ─── Imports (System Admin) ───
-export interface ImportResult {
-  imported: number
-  failed: number
-  errors: { row: number; message: string }[]
-}
-
-export const importApi = {
-  structure: (type: string, file: File) => {
-    const fd = new FormData()
-    fd.append('type', type)
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/structure', fd)
-  },
-  staff: (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/staff', fd)
-  },
-  students: (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/students', fd)
-  },
 }
 
 // ─── Reports ───
@@ -517,12 +481,6 @@ export const settingsApi = {
       '/api/settings/current-period',
       period
     ),
-  defaultUserPassword: async () => {
-    const res = await http.get<{ defaultUserPassword: { configured: boolean } }>('/api/settings/default-user-password')
-    return res.defaultUserPassword
-  },
-  setDefaultUserPassword: (password: string) =>
-    http.patch<{ message: string }>('/api/settings/default-user-password', { password }),
   resetDatabase: () =>
     http.post<{ message: string; result: Record<string, number> }>('/api/settings/reset-database'),
   clearCache: () =>

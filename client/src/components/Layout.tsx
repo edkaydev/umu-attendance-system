@@ -245,8 +245,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
               ))}
             </nav>
             <div className="border-t border-border px-4 py-3">
-              <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
-              <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+              <div className="flex items-center gap-2.5 mb-1">
+                {user.photoUrl ? (
+                  <img src={user.photoUrl} alt={user.fullName} className="h-8 w-8 rounded-full object-cover shrink-0" />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-umu-red text-xs font-bold text-white shrink-0">
+                    {user.fullName?.[0]?.toUpperCase() ?? '?'}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+                  <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+                </div>
+              </div>
               <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
             </div>
           </aside>
@@ -262,6 +273,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <p className="text-body font-medium text-text-primary leading-tight">{user.fullName}</p>
                   <p className="text-body-sm text-text-secondary">{user.email}</p>
                 </div>
+                {user.photoUrl ? (
+                  <img src={user.photoUrl} alt={user.fullName} className="h-8 w-8 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-umu-red text-xs font-bold text-white">
+                    {user.fullName?.[0]?.toUpperCase() ?? '?'}
+                  </span>
+                )}
                 <span className="rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary">
                   {ROLE_LABEL[user.role]}
                 </span>
@@ -321,8 +339,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="border-t border-border px-4 py-3">
-          <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
-          <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+          <div className="flex items-center gap-2.5 mb-1">
+            {user.photoUrl ? (
+              <img src={user.photoUrl} alt={user.fullName} className="h-8 w-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-umu-red text-xs font-bold text-white shrink-0">
+                {user.fullName?.[0]?.toUpperCase() ?? '?'}
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+              <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
+            </div>
+          </div>
           <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
         </div>
       </aside>

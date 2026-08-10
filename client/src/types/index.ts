@@ -1,4 +1,6 @@
 export type Role = 'student' | 'lecturer' | 'faculty_admin' | 'system_admin'
+export type Gender = 'male' | 'female' | 'other'
+export type ProgrammeLevel = 'bachelors' | 'masters' | 'phd' | 'diploma' | 'certificate' | 'other'
 
 export interface FacultyRef {
   id: string
@@ -10,6 +12,7 @@ export interface ProgrammeRef {
   id: string
   name: string
   code: string
+  level?: ProgrammeLevel
 }
 
 export interface User {
@@ -20,14 +23,17 @@ export interface User {
   profileComplete: boolean
   facultyId: string | null
   faculty: FacultyRef | null
+  additionalFaculties: FacultyRef[]
   programmeId: string | null
   programme: ProgrammeRef | null
   year: number | null
   semester: number | null
   academicYear: string | null
   regNumber: string | null
+  whatsapp: string | null
+  gender: Gender | null
+  photoUrl: string | null
   isActive: boolean
-  mustChangePassword: boolean
 }
 
 export interface CourseUnit {
@@ -53,6 +59,7 @@ export interface Programme {
   id: string
   name: string
   code: string
+  level?: ProgrammeLevel
   facultyId?: string
   isActive?: boolean
 }
@@ -155,6 +162,9 @@ export interface ManagedUser {
   semester: number | null
   academicYear: string | null
   regNumber: string | null
+  whatsapp: string | null
+  gender: Gender | null
+  photoUrl: string | null
   isActive: boolean
   profileComplete: boolean
   createdAt: string

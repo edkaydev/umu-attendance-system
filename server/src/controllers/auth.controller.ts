@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import passport from 'passport'
 import crypto from 'crypto'
-import { z } from 'zod'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import {
@@ -9,51 +8,12 @@ import {
   refreshSession,
   logoutSession,
   getCurrentUser,
-  loginWithPassword,
-  changePassword,
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
 import { prisma } from '../config/db'
 
 const OAUTH_SCOPES = ['profile', 'email']
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email').max(150),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
-})
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required').max(128),
-  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(128),
-})
-
-/** POST /api/auth/login — sign in with email + password. */
-export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { email, password } = loginSchema.parse(req.body)
-    const user = await loginWithPassword(email, password)
-    const redirect = await finalizeLogin(user, res)
-    ok(res, { user: await getCurrentUser(user.id), redirect })
-  } catch (error) {
-    next(error)
-  }
-}
-
-/** POST /api/auth/password — change the current password (forced or voluntary). */
-export async function postPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
-    await changePassword(req.user!.id, currentPassword, newPassword)
-    // Re-fetch the user so mustChangePassword is now false — otherwise
-    // finalizeLogin would redirect back to /password/change again.
-    const updated = await getCurrentUser(req.user!.id)
-    await finalizeLogin(updated, res)
-    ok(res, { message: 'Password changed successfully' })
-  } catch (error) {
-    next(error)
-  }
-}
 
 /** GET /api/auth/google — start the OAuth flow (redirect to Google). */
 export function googleRedirect(req: Request, res: Response, next: NextFunction): void {
@@ -62,27 +22,25 @@ export function googleRedirect(req: Request, res: Response, next: NextFunction):
 
 /** GET /api/auth/google/callback — exchange code, set cookies, redirect. */
 export function googleCallback(req: Request, res: Response, next: NextFunction): void {
-  passport.authenticate('google', { session: false }, (err: Error | null, user: Express.User | undefined) => {
-    if (err || !user) {
-      const reason = err instanceof Error ? mapOAuthError(err.message) : 'error'
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
-      res.redirect(`${clientUrl}/access-denied?reason=${reason}`)
-      return
-    }
+  passport.authenticate(
+    'google',
+    { session: false },
+    (err: Error | null, user: Express.User | undefined) => {
+      if (err || !user) {
+        const reason = err instanceof Error ? mapOAuthError(err.message) : 'error'
+        const base = process.env.CLIENT_URL || 'http://localhost:5173'
+        res.redirect(`${base}/access-denied?reason=${reason}`)
+        return
+      }
 
-    finalizeLogin(
-      user as {
-        id: string
-        email: string
-        role: Role
-        profileComplete: boolean
-        mustChangePassword: boolean
-      },
-      res
-    )
-      .then((redirectUrl) => res.redirect(redirectUrl))
-      .catch(next)
-  })(req, res, next)
+      finalizeLogin(
+        user as { id: string; email: string; role: Role; profileComplete: boolean },
+        res
+      )
+        .then((redirectUrl) => res.redirect(redirectUrl))
+        .catch(next)
+    }
+  )(req, res, next)
 }
 
 /** POST /api/auth/refresh — silently rotate the access token. */
@@ -130,7 +88,7 @@ const DEV_ROLES = Object.values(Role)
 
 /**
  * POST /api/auth/dev-login — development-only instant login.
- * Disabled in production. Finds or creates a user for the requested role.
+ * Disabled in production.
  */
 export async function devLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -162,6 +120,7 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
       user = await prisma.user.update({ where: { id: user.id }, data: { role } })
     }
 
+    // Faculty admin needs profileComplete = true (no setup step)
     const needsProfile = user.role === 'student' || user.role === 'lecturer'
     if (!needsProfile && !user.profileComplete) {
       user = await prisma.user.update({
@@ -171,13 +130,7 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
     }
 
     const redirect = await finalizeLogin(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        profileComplete: user.profileComplete,
-        mustChangePassword: user.mustChangePassword,
-      },
+      { id: user.id, email: user.email, role: user.role, profileComplete: user.profileComplete },
       res
     )
     ok(res, { user: await getCurrentUser(user.id), redirect })

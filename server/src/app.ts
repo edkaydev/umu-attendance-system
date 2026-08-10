@@ -12,7 +12,6 @@ import assignmentRoutes from './routes/assignment.routes'
 import sessionRoutes from './routes/session.routes'
 import checkinRoutes from './routes/checkin.routes'
 import attendanceRoutes from './routes/attendance.routes'
-import alertRoutes from './routes/alert.routes'
 import dashboardRoutes from './routes/dashboard.routes'
 import reportRoutes from './routes/report.routes'
 import auditLogRoutes from './routes/audit-log.routes'
@@ -39,19 +38,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-app.use('/api/auth', authRoutes)
-app.use('/api/academic', academicRoutes)
-app.use('/api/users', userRoutes)
-app.use('/api/profile', profileRoutes)
+app.use('/api/auth',        authRoutes)
+app.use('/api/academic',    academicRoutes)
+app.use('/api/users',       userRoutes)
+app.use('/api/profile',     profileRoutes)
 app.use('/api/assignments', assignmentRoutes)
-app.use('/api/sessions', sessionRoutes)
-app.use('/api/checkin', checkinRoutes)
-app.use('/api/attendance', attendanceRoutes)
-app.use('/api/alerts', alertRoutes)
-app.use('/api/dashboard', dashboardRoutes)
-app.use('/api/reports', reportRoutes)
-app.use('/api/audit-logs', auditLogRoutes)
-app.use('/api/settings', settingsRoutes)
+app.use('/api/sessions',    sessionRoutes)
+app.use('/api/checkin',     checkinRoutes)
+app.use('/api/attendance',  attendanceRoutes)
+app.use('/api/dashboard',   dashboardRoutes)
+app.use('/api/reports',     reportRoutes)
+app.use('/api/audit-logs',  auditLogRoutes)
+app.use('/api/settings',    settingsRoutes)
 app.use('/api/enrollments', enrollmentRoutes)
 
 // 404 + global error handler (must be last)
