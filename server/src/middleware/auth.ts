@@ -23,8 +23,12 @@ interface JwtPayload {
   role: Role
 }
 
-/** Paths a user can still reach while their password change is pending. */
-const PASSWORD_CHANGE_EXEMPT = ['/api/auth/me', '/api/auth/logout', '/api/auth/password']
+/**
+ * Path prefixes a user can still reach while their password change is pending.
+ * Checked against req.path (no query string, no mount prefix) to avoid false
+ * misses when a query string is appended (e.g. /api/auth/me?foo=bar).
+ */
+const PASSWORD_CHANGE_EXEMPT = ['/me', '/logout', '/password']
 
 /**
  * Verifies the JWT access token from the HttpOnly cookie.
@@ -65,7 +69,7 @@ export async function authenticate(
     }
 
     // Force a password change before the account can do anything else.
-    if (user.mustChangePassword && !PASSWORD_CHANGE_EXEMPT.includes(req.originalUrl)) {
+    if (user.mustChangePassword && !PASSWORD_CHANGE_EXEMPT.some(p => req.path === p)) {
       res.status(403).json({
         error: 'You must change your password before continuing',
         code: 'PASSWORD_CHANGE_REQUIRED',

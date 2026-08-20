@@ -7,7 +7,8 @@ import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
 import { ApiClientError } from '../api/client'
-import { SessionMode } from '../types'
+import { getCurrentPosition, GeoError } from '../utils/geo'
+import type { SessionMode } from '../types'
 
 type Assignment = Awaited<ReturnType<typeof dashboardApi.lecturer>>['units'][number]
 
@@ -37,13 +38,15 @@ export default function OpenSession() {
   const navigate = useNavigate()
 
   const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [selectedId, setSelectedId] = useState('')
-  const [mode, setMode] = useState<SessionMode>('physical')
-  const [venue, setVenue] = useState('')
-  const [startsAt, setStartsAt] = useState('')
+  const [selectedId, setSelectedId]   = useState('')
+  const [mode, setMode]               = useState<SessionMode>('physical')
+  const [venue, setVenue]             = useState('')
+  const [startsAt, setStartsAt]       = useState('')
   const [classDuration, setClassDuration] = useState('60')
-  const [codeTtl, setCodeTtl] = useState('5')
-  const [submitting, setSubmitting] = useState(false)
+  const [codeTtl, setCodeTtl]         = useState('5')
+  const [submitting, setSubmitting]   = useState(false)
+  const [geoStatus, setGeoStatus]     = useState<'idle' | 'locating' | 'ready' | 'error'>('idle')
+  const [geoError, setGeoError]       = useState<string | null>(null)
 
   useEffect(() => {
     dashboardApi
@@ -62,8 +65,33 @@ export default function OpenSession() {
       toast.error('Select a course unit')
       return
     }
+
     setSubmitting(true)
+    setGeoError(null)
+
     try {
+      let lat: number | undefined
+      let lng: number | undefined
+
+      // Physical sessions: capture location before submitting
+      if (mode === 'physical') {
+        setGeoStatus('locating')
+        try {
+          const coords = await getCurrentPosition(12_000)
+          lat = coords.lat
+          lng = coords.lng
+          setGeoStatus('ready')
+        } catch (err) {
+          const msg = err instanceof GeoError
+            ? err.message
+            : 'Could not get your location. Please enable location access and try again.'
+          setGeoError(msg)
+          setGeoStatus('error')
+          setSubmitting(false)
+          return
+        }
+      }
+
       const res = await sessionApi.open({
         courseUnitId: assignment.courseUnit.id,
         mode,
@@ -73,14 +101,37 @@ export default function OpenSession() {
         semester: assignment.semester,
         classDuration: classDuration ? Number(classDuration) : undefined,
         codeTtl: Number(codeTtl),
+        lat,
+        lng,
       })
+
       toast.success('Session opened — code ' + res.session.code)
       navigate(`/lecturer/sessions/${res.session.id}/live`)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to open session')
+      const msg = e instanceof ApiClientError ? e.message : 'Failed to open session'
+      // Geo-related server rejections — show inline rather than toast
+      if (e instanceof ApiClientError && (
+        e.code === 'LECTURER_OUTSIDE_CAMPUS' || e.code === 'LOCATION_REQUIRED'
+      )) {
+        setGeoError(msg)
+        setGeoStatus('error')
+      } else {
+        toast.error(msg)
+      }
       setSubmitting(false)
     }
   }
+
+  // Reset geo state when switching to online (no location needed)
+  function handleModeChange(m: SessionMode) {
+    setMode(m)
+    if (m === 'online') {
+      setGeoStatus('idle')
+      setGeoError(null)
+    }
+  }
+
+  const isLocating = submitting && geoStatus === 'locating'
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -124,7 +175,7 @@ export default function OpenSession() {
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setMode(m)}
+                    onClick={() => handleModeChange(m)}
                     className={`min-h-[44px] rounded border-[1.5px] text-sm font-semibold transition-colors ${
                       mode === m
                         ? 'border-umu-red bg-[#FFF4F4] text-umu-red'
@@ -136,6 +187,29 @@ export default function OpenSession() {
                 ))}
               </div>
             </div>
+
+            {/* Location note for physical sessions */}
+            {mode === 'physical' && (
+              <div className={`mb-4 rounded border px-4 py-3 text-body-sm ${
+                geoStatus === 'error'
+                  ? 'border-danger-border bg-danger-light text-danger'
+                  : 'border-border bg-surface-1 text-text-secondary'
+              }`}>
+                {geoStatus === 'locating' ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-umu-red border-t-transparent" />
+                    Getting your location…
+                  </span>
+                ) : geoStatus === 'error' && geoError ? (
+                  geoError
+                ) : (
+                  <>
+                    <span className="font-medium text-text-primary">Location required.</span>{' '}
+                    Your location will be recorded when you open the session so students can be checked against it.
+                  </>
+                )}
+              </div>
+            )}
 
             {mode === 'physical' && (
               <Input
@@ -177,8 +251,13 @@ export default function OpenSession() {
               Use <em>Extend</em> on the live screen to refresh it.
             </p>
 
-            <Button fullWidth loading={submitting} disabled={!assignment} onClick={handleSubmit}>
-              Open Session
+            <Button
+              fullWidth
+              loading={isLocating || (submitting && geoStatus !== 'error')}
+              disabled={!assignment}
+              onClick={handleSubmit}
+            >
+              {isLocating ? 'Getting location…' : 'Open Session'}
             </Button>
           </>
         )}

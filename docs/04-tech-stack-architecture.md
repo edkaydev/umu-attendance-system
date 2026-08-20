@@ -222,6 +222,8 @@ GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
 # JWT
 JWT_ACCESS_SECRET=random-64-char-string
 JWT_REFRESH_SECRET=random-64-char-string
+JWT_ACCESS_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d     # controls both cookie maxAge AND DB expiresAt
 
 # Email
 SMTP_HOST=smtp.gmail.com
@@ -229,5 +231,11 @@ SMTP_PORT=587
 SMTP_USER=attendance@umu.ac.ug
 SMTP_PASS=google-app-password
 
-# PDF (logo is committed at server/assets/umu-logo.svg and embedded as base64 — no env var needed)
+# Geo-fencing
+CAMPUS_LAT=0.00389
+CAMPUS_LNG=32.01353
+CAMPUS_RADIUS_METERS=500                # how far from campus centre a lecturer/student can be
+LECTURER_PROXIMITY_RADIUS_METERS=50     # how close a student must be to the lecturer to check in
+
+# PDF (logo committed at server/assets/umu-logo.svg — no env var needed)
 ```

@@ -33,7 +33,8 @@ import {
 } from '../controllers/academic.controller'
 
 const router = Router()
-const adminOnly = requireRole('system_admin')
+const adminOnly     = requireRole('system_admin')
+const curriculumAccess = requireRole('system_admin', 'faculty_admin')
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -51,25 +52,25 @@ router.get('/faculties', authenticate, adminOnly, getFaculties)
 router.post('/faculties', authenticate, adminOnly, validate(facultySchema), postFaculty)
 router.put('/faculties/:id', authenticate, adminOnly, validate(updateFacultySchema), putFaculty)
 
-// Programme
-router.get('/programmes', authenticate, adminOnly, getProgrammes)
+// Programme — faculty_admin can read (for curriculum dropdowns)
+router.get('/programmes', authenticate, curriculumAccess, getProgrammes)
 router.post('/programmes', authenticate, adminOnly, validate(programmeSchema), postProgramme)
 router.put('/programmes/:id', authenticate, adminOnly, validate(updateProgrammeSchema), putProgramme)
 
-// Course unit
-router.get('/course-units', authenticate, adminOnly, getCourseUnits)
+// Course unit — faculty_admin can read (for curriculum dropdowns)
+router.get('/course-units', authenticate, curriculumAccess, getCourseUnits)
 router.post('/course-units', authenticate, adminOnly, validate(courseUnitSchema), postCourseUnit)
 router.put('/course-units/:id', authenticate, adminOnly, validate(updateCourseUnitSchema), putCourseUnit)
 // Share / unshare a course unit with additional faculties
 router.post('/course-units/:id/faculties', authenticate, adminOnly, postCourseUnitFaculty)
 router.delete('/course-units/:id/faculties/:facultyId', authenticate, adminOnly, deleteCourseUnitFaculty)
 
-// Curriculum mapping
-router.get('/curriculum', authenticate, adminOnly, getCurriculum)
-router.post('/curriculum', authenticate, adminOnly, validate(curriculumSchema), postCurriculum)
-router.delete('/curriculum/:id', authenticate, adminOnly, deleteCurriculum)
+// Curriculum mapping — faculty_admin can read and write (scoped to their faculty)
+router.get('/curriculum', authenticate, curriculumAccess, getCurriculum)
+router.post('/curriculum', authenticate, curriculumAccess, validate(curriculumSchema), postCurriculum)
+router.delete('/curriculum/:id', authenticate, curriculumAccess, deleteCurriculum)
 
-// CSV imports
+// CSV imports — system_admin only
 router.post('/import/structure', authenticate, adminOnly, upload.single('file'), importStructure)
 router.post('/import/staff', authenticate, adminOnly, upload.single('file'), importStaff)
 router.post('/import/students', authenticate, adminOnly, upload.single('file'), importStudents)

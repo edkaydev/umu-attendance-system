@@ -56,30 +56,32 @@ https://attendance.umu.ac.ug/api
 
 ---
 
-## Academic Structure Routes (System Admin only)
+## Academic Structure Routes
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/academic/campuses` | List all campuses |
-| POST | `/academic/campuses` | Create campus |
-| PUT | `/academic/campuses/:id` | Edit campus |
-| GET | `/academic/faculties` | List faculties |
-| POST | `/academic/faculties` | Create faculty |
-| PUT | `/academic/faculties/:id` | Edit faculty |
-| GET | `/academic/programmes` | List programmes |
-| POST | `/academic/programmes` | Create programme |
-| PUT | `/academic/programmes/:id` | Edit programme |
-| GET | `/academic/course-units` | List course units |
-| POST | `/academic/course-units` | Create course unit |
-| PUT | `/academic/course-units/:id` | Edit course unit |
-| POST | `/academic/course-units/:id/faculties` | Share unit to another faculty |
-| DELETE | `/academic/course-units/:id/faculties/:facultyId` | Remove faculty share |
-| GET | `/academic/curriculum` | List all curriculum mappings |
-| POST | `/academic/curriculum` | Map unit to programme + year + semester |
-| DELETE | `/academic/curriculum/:id` | Remove curriculum mapping |
-| GET | `/academic/options` | Campuses + faculties + programmes (for profile setup) |
-| POST | `/academic/import/structure` | Bulk import via CSV |
-| POST | `/academic/import/staff` | Bulk import staff accounts via CSV |
+> System Admin has full access. Faculty Admin has **read access** to course units and programmes, and **read/write access** to curriculum mappings scoped to their own faculty.
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/academic/campuses` | System Admin | List all campuses |
+| POST | `/academic/campuses` | System Admin | Create campus |
+| PUT | `/academic/campuses/:id` | System Admin | Edit campus |
+| GET | `/academic/faculties` | System Admin | List faculties |
+| POST | `/academic/faculties` | System Admin | Create faculty |
+| PUT | `/academic/faculties/:id` | System Admin | Edit faculty |
+| GET | `/academic/programmes` | System Admin, Faculty Admin | List programmes |
+| POST | `/academic/programmes` | System Admin | Create programme |
+| PUT | `/academic/programmes/:id` | System Admin | Edit programme |
+| GET | `/academic/course-units` | System Admin, Faculty Admin | List course units |
+| POST | `/academic/course-units` | System Admin | Create course unit |
+| PUT | `/academic/course-units/:id` | System Admin | Edit course unit |
+| POST | `/academic/course-units/:id/faculties` | System Admin | Share unit to another faculty |
+| DELETE | `/academic/course-units/:id/faculties/:facultyId` | System Admin | Remove faculty share |
+| GET | `/academic/curriculum` | System Admin, Faculty Admin | List curriculum mappings |
+| POST | `/academic/curriculum` | System Admin, Faculty Admin (own faculty only) | Map unit to programme + year + semester |
+| DELETE | `/academic/curriculum/:id` | System Admin, Faculty Admin (own faculty only) | Remove curriculum mapping |
+| GET | `/academic/options` | Authenticated | Campuses + faculties + programmes (for profile setup) |
+| POST | `/academic/import/structure` | System Admin | Bulk import via CSV |
+| POST | `/academic/import/staff` | System Admin | Bulk import staff accounts via CSV |
 
 ---
 
@@ -169,13 +171,23 @@ https://attendance.umu.ac.ug/api
   "academicYear": "2025/2026",
   "semester": 1,
   "classDuration": 60,
-  "codeTtl": 5
+  "codeTtl": 5,
+  "lat": 0.00389,
+  "lng": 32.01353
 }
 ```
 
 - `mode`: `"physical"` | `"online"`
 - `classDuration`: 1–180 minutes; if set, session auto-closes
 - `codeTtl`: 5–60 minutes; default 5
+- `lat` / `lng`: **required for physical sessions** — lecturer's GPS coordinates. Server rejects if off campus.
+
+**Error responses (open session)**
+```json
+{ "error": "Please enable location access and try again",               "code": "LOCATION_REQUIRED" }
+{ "error": "You appear to be off campus. You need to be on campus to open a physical session.", "code": "LECTURER_OUTSIDE_CAMPUS" }
+{ "error": "A session is already open for this course unit",            "code": "SESSION_ALREADY_OPEN" }
+```
 
 **PATCH /sessions/:id/extend body**
 ```json
@@ -228,15 +240,20 @@ Physical sessions also accept optional location:
 
 **Error responses**
 ```json
-{ "error": "Invalid or expired code",                       "code": "INVALID_CODE" }
-{ "error": "You are not enrolled in this course unit",      "code": "NOT_ENROLLED" }
-{ "error": "You have already checked in to this session",   "code": "ALREADY_CHECKED_IN" }
-{ "error": "Location is required to check in to a physical session", "code": "LOCATION_REQUIRED" }
-{ "error": "You must be within the campus area to check in","code": "OUTSIDE_CAMPUS" }
-{ "error": "Too many requests — please wait before trying again.", "code": "RATE_LIMITED" }
+{ "error": "Invalid or expired code",                                              "code": "INVALID_CODE" }
+{ "error": "You are not enrolled in this course unit",                             "code": "NOT_ENROLLED" }
+{ "error": "You have already checked in to this session",                          "code": "ALREADY_CHECKED_IN" }
+{ "error": "Please enable location access and try again",                          "code": "LOCATION_REQUIRED" }
+{ "error": "You appear to be off campus. Move closer and try again.",              "code": "OUTSIDE_CAMPUS" }
+{ "error": "You appear to be outside the classroom. Move closer and try again.",   "code": "TOO_FAR_FROM_LECTURER" }
+{ "error": "Too many requests — please wait before trying again.",                 "code": "RATE_LIMITED" }
 ```
 
 Rate limit: **10 requests per student per 5-minute window** on `POST /checkin`. Returns `429` with `Retry-After` header.
+
+**Physical session geo-checks (in order):**
+1. Student must be within the campus radius (`CAMPUS_RADIUS_METERS`, default 500 m)
+2. Student must be within the lecturer's proximity radius (`LECTURER_PROXIMITY_RADIUS_METERS`, default 50 m) of the lecturer's position recorded when the session was opened
 
 ---
 

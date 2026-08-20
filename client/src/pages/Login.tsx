@@ -114,6 +114,12 @@ export default function Login() {
           >
             {loggingIn ? 'Signing in…' : 'Sign in'}
           </button>
+
+          <div className="mt-3 text-center">
+            <a href="/forgot-password" className="text-body-sm text-text-secondary hover:text-umu-red hover:underline">
+              Forgot password?
+            </a>
+          </div>
         </form>
 
         {/* Google sign-in — disabled until OAuth is configured on this server */}

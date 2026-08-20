@@ -2,7 +2,7 @@ import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
-import { isWithinCampus } from '../config/geofence'
+import { isWithinCampus, isNearLecturer } from '../config/geofence'
 
 export interface CheckInLocation {
   lat: number
@@ -42,13 +42,29 @@ export async function checkIn(
     throw new ApiError('Invalid or expired code', 400, 'INVALID_CODE')
   }
 
-  // Geo-fence: physical sessions require a location inside the campus radius.
+  // Geo-fence: physical sessions require a location inside the campus radius
+  // AND within proximity of the lecturer's recorded position (two checks).
   if (session.mode === 'physical') {
     if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
-      throw new ApiError('Location is required to check in to a physical session', 400, 'LOCATION_REQUIRED')
+      throw new ApiError('Please enable location access and try again', 400, 'LOCATION_REQUIRED')
     }
+
+    // Check 1: student must be within campus bounds
     if (!isWithinCampus(location.lat, location.lng)) {
-      throw new ApiError('You must be within the campus area to check in', 403, 'OUTSIDE_CAMPUS')
+      throw new ApiError('You appear to be off campus. Move closer and try again.', 403, 'OUTSIDE_CAMPUS')
+    }
+
+    // Check 2: student must be near the lecturer
+    const lLat = session.lecturerLat ? Number(session.lecturerLat) : null
+    const lLng = session.lecturerLng ? Number(session.lecturerLng) : null
+    if (lLat !== null && lLng !== null) {
+      if (!isNearLecturer(location.lat, location.lng, lLat, lLng, session.proximityRadius)) {
+        throw new ApiError(
+          'You appear to be outside the classroom. Move closer and try again.',
+          403,
+          'TOO_FAR_FROM_LECTURER'
+        )
+      }
     }
   }
 

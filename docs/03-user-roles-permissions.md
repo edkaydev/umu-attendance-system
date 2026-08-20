@@ -27,7 +27,8 @@ Faculty Admin and System Admin portals are blocked on narrow viewports with a
 | Enable/disable profile editing per role | ❌ | ❌ | ❌ | ✅ |
 | **Academic Structure** |
 | Create / edit Campus, Faculty, Programme, Course Units | ❌ | ❌ | ❌ | ✅ |
-| Map course units to programmes (curriculum) | ❌ | ❌ | ❌ | ✅ |
+| Map course units to programmes (curriculum) | ❌ | ❌ | ✅ (own faculty) | ✅ |
+| View course units and programmes | ❌ | ❌ | ✅ (own faculty) | ✅ |
 | Share course units across faculties | ❌ | ❌ | ❌ | ✅ |
 | Import academic structure via CSV | ❌ | ❌ | ❌ | ✅ |
 | Import staff accounts via CSV | ❌ | ❌ | ❌ | ✅ |
@@ -97,12 +98,13 @@ Academic monitoring officer. Belongs to one faculty.
 Responsibilities:
 - Assigns lecturers to course units in their faculty
 - Enrols students in course units
+- **Manages curriculum mappings** (maps course units to programmes, year, and semester) for their faculty
 - Monitors attendance across the entire faculty
 - Generates and downloads PDF reports (lecturer, programme, unit, student)
 - Receives all below-threshold alerts for their faculty
 
 Does NOT:
-- Set up academic structure
+- Set up or edit faculties, programmes, or course units
 - Open attendance sessions
 - Edit attendance records (read-only)
 

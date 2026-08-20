@@ -202,7 +202,13 @@ export interface CurriculumInput {
   academicYear: string
 }
 
-export async function createCurriculumMapping(data: CurriculumInput) {
+/**
+ * Create a curriculum mapping.
+ * @param actorFacultyId  When provided (faculty_admin), the programme must belong
+ *                        to the actor's faculty and the course unit must be owned
+ *                        by or shared with that faculty.
+ */
+export async function createCurriculumMapping(data: CurriculumInput, actorFacultyId?: string | null) {
   const [courseUnit, programme] = await Promise.all([
     prisma.courseUnit.findUnique({
       where: { id: data.courseUnitId },
@@ -220,24 +226,44 @@ export async function createCurriculumMapping(data: CurriculumInput) {
   ])
   if (!allowedFaculties.has(programme.facultyId)) {
     throw new ApiError(
-      'Course unit is not available to this programme\'s faculty. Share the course unit first.',
+      "Course unit is not available to this programme's faculty. Share the course unit first.",
       400
     )
+  }
+
+  // Faculty Admin scoping: programme must belong to their faculty
+  if (actorFacultyId) {
+    if (programme.facultyId !== actorFacultyId) {
+      throw new ApiError('You can only map curriculum for programmes in your own faculty', 403)
+    }
   }
 
   return prisma.curriculumUnit.create({ data })
 }
 
-export async function removeCurriculumMapping(id: string) {
-  const existing = await prisma.curriculumUnit.findUnique({ where: { id } })
+export async function removeCurriculumMapping(id: string, actorFacultyId?: string | null) {
+  const existing = await prisma.curriculumUnit.findUnique({
+    where: { id },
+    include: { programme: { select: { facultyId: true } } },
+  })
   if (!existing) throw new ApiError('Curriculum mapping not found', 404)
+
+  // Faculty Admin scoping: can only remove mappings in their own faculty
+  if (actorFacultyId && existing.programme.facultyId !== actorFacultyId) {
+    throw new ApiError('You can only remove curriculum mappings for your own faculty', 403)
+  }
+
   await prisma.curriculumUnit.delete({ where: { id } })
   return existing
 }
 
-export function listCurriculum(filters?: { programmeId?: string; academicYear?: string }) {
+export function listCurriculum(filters?: { programmeId?: string; academicYear?: string; facultyId?: string }) {
+  const { facultyId, ...rest } = filters ?? {}
   return prisma.curriculumUnit.findMany({
-    where: filters ?? {},
+    where: {
+      ...rest,
+      ...(facultyId ? { programme: { facultyId } } : {}),
+    },
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
       programme: { select: { id: true, code: true, name: true } },

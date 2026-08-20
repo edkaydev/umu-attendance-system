@@ -3,7 +3,22 @@ import { prisma } from '../config/db'
 import { generateRefreshToken } from './jwt.service'
 import { ApiError } from '../utils/apiResponse'
 
-const REFRESH_TTL_DAYS = 7
+/**
+ * Refresh token TTL in milliseconds, driven by the same JWT_REFRESH_EXPIRES_IN
+ * env var used for the cookie maxAge — keeps the DB expiresAt and cookie in sync.
+ * Falls back to 7 days if the env var is not set.
+ */
+function refreshTtlMs(): number {
+  const v = (process.env.JWT_REFRESH_EXPIRES_IN || '7d').trim()
+  const match = /^(\d+)([smhd])$/.exec(v)
+  if (!match) return 7 * 86400_000
+  const n = Number(match[1])
+  const unit = match[2]
+  return unit === 's' ? n * 1000
+       : unit === 'm' ? n * 60_000
+       : unit === 'h' ? n * 3600_000
+       :                n * 86400_000
+}
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex')
@@ -16,7 +31,7 @@ export async function createRefreshToken(userId: string): Promise<string> {
     data: {
       userId,
       tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + REFRESH_TTL_DAYS * 86400_000),
+      expiresAt: new Date(Date.now() + refreshTtlMs()),
     },
   })
   return token
@@ -63,7 +78,7 @@ export async function rotateRefreshToken(rawToken: string): Promise<{
       data: {
         userId: existing.userId,
         tokenHash: hashToken(refreshToken),
-        expiresAt: new Date(Date.now() + REFRESH_TTL_DAYS * 86400_000),
+        expiresAt: new Date(Date.now() + refreshTtlMs()),
       },
     }),
   ])

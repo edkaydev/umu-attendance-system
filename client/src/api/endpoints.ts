@@ -108,6 +108,9 @@ export interface OpenSessionInput {
   semester: number
   classDuration?: number
   codeTtl?: number
+  /** Lecturer GPS — required for physical sessions */
+  lat?: number
+  lng?: number
 }
 
 export interface SessionDetail extends Session {

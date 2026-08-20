@@ -22,6 +22,9 @@ const openSessionSchema = z.object({
   semester: z.number().int().min(1).max(2),
   classDuration: z.number().int().min(1).max(180).optional(),
   codeTtl: z.number().int().min(5).max(60).optional(),
+  /** Lecturer GPS for physical session campus check */
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
 })
 
 const listQuerySchema = z.object({

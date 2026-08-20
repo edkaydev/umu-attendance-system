@@ -203,6 +203,11 @@ model Session {
   startsAt         DateTime?
   classDuration    Int?              /// class length in minutes (max 180); null = no auto-close
   codeTtl          Int?              /// initial code validity in minutes (5–60); null = 5 default
+  /// Lecturer GPS captured when the physical session was opened (null for online sessions)
+  lecturerLat      Decimal?          @db.Decimal(10, 7)
+  lecturerLng      Decimal?          @db.Decimal(10, 7)
+  /// Proximity radius (metres) a student must be within relative to the lecturer (null = campus-only check)
+  proximityRadius  Int?
   openedAt         DateTime          @default(now())
   closedAt         DateTime?
   attendanceRecords AttendanceRecord[]

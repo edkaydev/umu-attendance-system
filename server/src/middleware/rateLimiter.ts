@@ -16,25 +16,38 @@ interface WindowEntry {
   windowStart: number
 }
 
-const store = new Map<string, WindowEntry>()
-
 /**
  * Create a rate-limiting middleware.
  *
- * @param windowMs   Length of the sliding window in milliseconds.
- * @param maxRequests  Max requests allowed per key within the window.
- * @param keyFn      Function that extracts a string key from the request.
- *                   Defaults to userId (authenticated) falling back to IP.
+ * Each call to rateLimiter() creates its own isolated Map store so that
+ * different limiters (login, refresh, checkin, …) never share key-space
+ * and cannot interfere with each other.
+ *
+ * @param windowMs    Length of the sliding window in milliseconds.
+ * @param maxRequests Max requests allowed per key within the window.
+ * @param keyFn       Function that extracts a string key from the request.
+ *                    Defaults to userId (authenticated) falling back to IP.
  */
 export function rateLimiter(
   windowMs: number,
   maxRequests: number,
   keyFn?: (req: Request) => string
 ): (req: Request, res: Response, next: NextFunction) => void {
+  // Each limiter instance gets its own isolated store — no shared key-space.
+  const store = new Map<string, WindowEntry>()
+
   const defaultKey = (req: Request): string =>
     req.user?.id ?? req.ip ?? 'anonymous'
 
   const getKey = keyFn ?? defaultKey
+
+  // Purge expired entries for this limiter's store every 5 minutes.
+  setInterval(() => {
+    const cutoff = Date.now() - windowMs
+    for (const [key, entry] of store.entries()) {
+      if (entry.windowStart < cutoff) store.delete(key)
+    }
+  }, 5 * 60_000)
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const key = getKey(req)
@@ -66,18 +79,3 @@ export function rateLimiter(
     next()
   }
 }
-
-/**
- * Periodically purge expired entries to prevent unbounded memory growth.
- * Called internally; no need to invoke from application code.
- */
-function purgeExpired(windowMs: number): void {
-  const cutoff = Date.now() - windowMs
-  for (const [key, entry] of store.entries()) {
-    if (entry.windowStart < cutoff) store.delete(key)
-  }
-}
-
-// Purge every 5 minutes.  The windowMs passed here is the maximum window
-// any limiter could use — we use a conservative 10-minute value.
-setInterval(() => purgeExpired(10 * 60_000), 5 * 60_000)

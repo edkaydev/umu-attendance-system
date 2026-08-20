@@ -15,6 +15,8 @@
 | FR-01.9 | Logout clears JWT cookie and invalidates refresh token | ✅ Built |
 | FR-01.10 | Deactivated accounts are blocked on every request (re-fetched from DB each time) | ✅ Built |
 | FR-01.11 | Accounts created by System Admin receive a default password; `mustChangePassword` flag forces change on first login | ✅ Built |
+| FR-01.12 | `/api/auth/refresh` is rate-limited (20 req / 15 min per IP) | ✅ Built |
+| FR-01.13 | Dev-login endpoint (`/api/auth/dev-login`) is never registered in production | ✅ Built |
 
 ---
 
@@ -46,6 +48,16 @@
 | FR-03.6 | System Admin deactivates/reactivates user accounts | ✅ Built |
 | FR-03.7 | System Admin sets the global current academic year and semester | ✅ Built |
 | FR-03.8 | All other roles read the current period from System Admin's setting — no manual selection | ✅ Built |
+
+## FR-03B: Curriculum Management (Faculty Admin)
+
+| ID | Requirement | Status |
+|---|---|---|
+| FR-03B.1 | Faculty Admin can view course units and programmes belonging to their faculty | ✅ Built |
+| FR-03B.2 | Faculty Admin can add curriculum mappings (unit → programme + year + semester) scoped to their own faculty | ✅ Built |
+| FR-03B.3 | Faculty Admin can remove curriculum mappings scoped to their own faculty | ✅ Built |
+| FR-03B.4 | Faculty Admin cannot map curriculum for programmes in another faculty (403 enforced server-side) | ✅ Built |
+| FR-03B.5 | Faculty Admin cannot create or edit faculties, programmes, or course units | ✅ Built |
 
 ---
 
@@ -80,6 +92,8 @@
 | FR-05.13 | Live view shows real-time count and list of checked-in students (5-second poll) | ✅ Built |
 | FR-05.14 | Sessions list shows Today / All tabs; Today scoped to current EAT calendar day | ✅ Built |
 | FR-05.15 | Live session screen shows class duration countdown (client-side, counts down from `openedAt + classDuration`) | ✅ Built |
+| FR-05.16 | **Physical sessions only:** lecturer's GPS is captured when opening a session; server rejects if lecturer is off campus | ✅ Built |
+| FR-05.17 | Lecturer location (lat/lng) and proximity radius are stored on the session for student check-in validation | ✅ Built |
 
 ---
 
@@ -94,9 +108,10 @@
 | FR-06.5 | Wrong / expired / closed session shows a clear error | ✅ Built |
 | FR-06.6 | Live sessions for enrolled units appear on student dashboard with countdown | ✅ Built |
 | FR-06.7 | Students sharing a unit across programmes use the same code | ✅ Built |
-| FR-06.8 | Physical sessions require student to be within campus geo-fence (haversine, 500 m radius, configurable via env) | ✅ Built |
+| FR-06.8 | **Physical sessions — Check 1:** student must be within the campus geo-fence (haversine, 500 m radius, configurable via `CAMPUS_RADIUS_METERS`) | ✅ Built |
 | FR-06.9 | Check-in endpoint rate-limited: 10 attempts per student per 5-minute window | ✅ Built |
 | FR-06.10 | Student dashboard "Live Now" card shows a live **class time remaining** countdown (`openedAt + classDuration`) | ✅ Built |
+| FR-06.11 | **Physical sessions — Check 2:** student must be within the lecturer's proximity radius (default 50 m, configurable via `LECTURER_PROXIMITY_RADIUS_METERS`) of the lecturer's recorded position | ✅ Built |
 
 ---
 

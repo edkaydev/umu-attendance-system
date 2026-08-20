@@ -3,6 +3,7 @@ import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
 import { writeAuditLog } from '../utils/audit'
+import { isWithinCampus, geofence } from '../config/geofence'
 
 const DEFAULT_CODE_TTL = 5 // minutes
 
@@ -15,6 +16,9 @@ export interface OpenSessionInput {
   semester: number
   classDuration?: number  // 1–180 min; null = no auto-close
   codeTtl?: number        // 5–60 min; defaults to 5
+  /** Lecturer GPS — required for physical sessions (Check 1). */
+  lat?: number
+  lng?: number
 }
 
 async function assertLecturerAssigned(
@@ -58,6 +62,25 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
   )
 
   const mode = input.mode ?? SessionMode.physical
+
+  // ── Check 1: physical sessions require the lecturer to be on campus ──────
+  if (mode === SessionMode.physical) {
+    if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng)) {
+      throw new ApiError(
+        'Please enable location access and try again',
+        400,
+        'LOCATION_REQUIRED'
+      )
+    }
+    if (!isWithinCampus(input.lat!, input.lng!)) {
+      throw new ApiError(
+        'You appear to be off campus. You need to be on campus to open a physical session.',
+        403,
+        'LECTURER_OUTSIDE_CAMPUS'
+      )
+    }
+  }
+
   let startsAt: Date | null = null
   if (input.startsAt) {
     startsAt = new Date(input.startsAt)
@@ -107,6 +130,10 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
       startsAt,
       classDuration,
       codeTtl: codeTtlMinutes,
+      // Store lecturer position for student proximity check (physical only)
+      lecturerLat: mode === SessionMode.physical ? input.lat : null,
+      lecturerLng: mode === SessionMode.physical ? input.lng : null,
+      proximityRadius: mode === SessionMode.physical ? geofence.lecturerProximityMeters : null,
     },
     include: { courseUnit: { select: { id: true, code: true, name: true } } },
   })
