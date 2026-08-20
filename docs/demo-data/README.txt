@@ -32,7 +32,10 @@ CONTENTS SUMMARY
     (firstname.lastname@stud.umu.ac.ug) — no duplicates
   - Realistic registration numbers (e.g. 2024-B101-00001: intake year +
     programme number + sequence) — intake years 2022-2025 give a proper
-    spread across Years 1-4
+  spread across Years 1-4
+• tester-students.csv: the three requested BSc Computer Science tester accounts.
+  These same records are also included at the end of students.csv, so import only
+  one of the two files to avoid duplicate-email errors.
 • students-zeevarsity-sample.csv: a sample Zeevarsity export (Student No,
   Registration No, First Name, Last Name, Gender, Program Code, Year of
   Study, Academic Year, Status) to test the direct Zeevarsity import path.
