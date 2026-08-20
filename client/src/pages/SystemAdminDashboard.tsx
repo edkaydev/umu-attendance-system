@@ -195,8 +195,9 @@ export default function SystemAdminDashboard() {
 
   if (!loaded) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading system dashboard…</p>
       </div>
     )
   }
@@ -208,6 +209,9 @@ export default function SystemAdminDashboard() {
         <p className="max-w-sm text-body text-text-secondary">
           There was a problem loading the platform data. Please refresh the page.
         </p>
+        <button onClick={() => window.location.reload()} className="min-h-[44px] rounded px-4 text-body font-semibold text-umu-red hover:bg-[#FFF4F4] focus:outline-none focus:ring-4 focus:ring-umu-red/30">
+          Try again
+        </button>
       </div>
     )
   }

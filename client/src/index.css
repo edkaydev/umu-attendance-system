@@ -13,6 +13,13 @@
   body {
     background-color: #ffffff;
   }
+
+  /* A consistent focus indicator keeps native links, buttons, inputs and
+     custom controls operable by keyboard across every portal. */
+  :focus-visible {
+    outline: 3px solid #cc0000 !important;
+    outline-offset: 3px;
+  }
 }
 
 @layer components {

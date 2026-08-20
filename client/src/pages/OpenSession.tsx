@@ -59,10 +59,17 @@ export default function OpenSession() {
   }, [toast])
 
   const assignment = assignments.find((a) => a.courseUnit.id === selectedId) ?? null
+  const classDurationMinutes = classDuration ? Number(classDuration) : null
+  const codeValidityMinutes = Number(codeTtl)
+  const codeOutlivesClass = classDurationMinutes !== null && codeValidityMinutes > classDurationMinutes
 
   async function handleSubmit() {
     if (!assignment) {
       toast.error('Select a course unit')
+      return
+    }
+    if (codeOutlivesClass) {
+      toast.error('Code validity cannot be longer than the class duration.')
       return
     }
 
@@ -168,25 +175,30 @@ export default function OpenSession() {
             )}
 
             {/* Mode */}
-            <div className="mb-4">
-              <p className="mb-1.5 block text-xs font-medium text-text-secondary">Mode</p>
+            <fieldset className="mb-4">
+              <legend className="mb-1.5 block text-xs font-medium text-text-secondary">Mode</legend>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(['physical', 'online'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleModeChange(m)}
-                    className={`min-h-[44px] rounded border-[1.5px] text-sm font-semibold transition-colors ${
-                      mode === m
-                        ? 'border-umu-red bg-[#FFF4F4] text-umu-red'
-                        : 'border-border bg-white text-text-secondary hover:bg-surface-1'
-                    }`}
-                  >
-                    {m === 'physical' ? 'Physical (In-Person)' : 'Online'}
-                  </button>
+                  <div key={m}>
+                    <input
+                      id={`session-mode-${m}`}
+                      name="session-mode"
+                      type="radio"
+                      value={m}
+                      checked={mode === m}
+                      onChange={() => handleModeChange(m)}
+                      className="peer sr-only"
+                    />
+                    <label
+                      htmlFor={`session-mode-${m}`}
+                      className="flex min-h-[44px] cursor-pointer items-center justify-center rounded border-[1.5px] border-border bg-white px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-1 peer-checked:border-umu-red peer-checked:bg-[#FFF4F4] peer-checked:text-umu-red peer-focus-visible:ring-4 peer-focus-visible:ring-umu-red/30"
+                    >
+                      {m === 'physical' ? 'Physical (In-Person)' : 'Online'}
+                    </label>
+                  </div>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {/* Location note for physical sessions */}
             {mode === 'physical' && (
@@ -230,25 +242,31 @@ export default function OpenSession() {
             {/* Duration + code TTL side-by-side */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select
-                label="Class Duration"
+                label="Class ends after"
+                id="class-duration"
                 value={classDuration}
                 onChange={(e) => setClassDuration(e.target.value)}
                 options={CLASS_DURATION_OPTIONS}
               />
               <Select
-                label="Code Validity"
+                label="Students can use code for"
+                id="code-validity"
                 value={codeTtl}
                 onChange={(e) => setCodeTtl(e.target.value)}
                 options={CODE_TTL_OPTIONS}
+                error={codeOutlivesClass ? 'Choose a code window no longer than the class duration.' : undefined}
               />
             </div>
 
             <p className="mb-4 text-xs text-text-secondary">
-              <span className="font-medium text-text-primary">Class Duration</span> — how long the session runs
+              <span className="font-medium text-text-primary">Class ends after</span> — how long the session runs
               {classDuration ? ` (${classDuration} min)` : ' (no auto-close)'}. {' '}
-              <span className="font-medium text-text-primary">Code Validity</span> — how long students have
+              <span className="font-medium text-text-primary">Students can use code for</span> — how long students have
               to enter the code before it expires ({codeTtl} min).
               Use <em>Extend</em> on the live screen to refresh it.
+            </p>
+            <p className="mb-4 rounded-md border border-info-border bg-info-light px-3 py-2 text-xs text-info">
+              Example: for a 60-minute class, a 5-minute code gives students a short check-in window while the class remains open for the full hour.
             </p>
 
             <Button

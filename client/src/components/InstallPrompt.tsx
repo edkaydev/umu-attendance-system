@@ -65,13 +65,13 @@ export function InstallPrompt() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => setVisible(false)}
-          className="min-h-[36px] rounded px-3 text-sm font-medium text-text-secondary hover:bg-surface-1"
+          className="min-h-[44px] rounded px-3 text-sm font-medium text-text-secondary hover:bg-surface-1"
         >
           Not now
         </button>
         <button
           onClick={install}
-          className="min-h-[36px] rounded bg-umu-red px-4 text-sm font-semibold text-white hover:bg-umu-red-dark"
+          className="min-h-[44px] rounded bg-umu-red px-4 text-sm font-semibold text-white hover:bg-umu-red-dark"
         >
           Install
         </button>

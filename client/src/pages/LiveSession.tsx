@@ -67,12 +67,29 @@ export default function LiveSession() {
   const [closing, setClosing] = useState(false)
   const [extending, setExtending] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [attendanceAnnouncement, setAttendanceAnnouncement] = useState('')
+  const [expiryAnnouncement, setExpiryAnnouncement] = useState('')
   const firstLoad = useRef(true)
+  const presentCountRef = useRef<number | null>(null)
+  const expiryStageRef = useRef<'minute' | 'thirtySeconds' | 'expired' | null>(null)
 
   const load = useCallback(async () => {
     try {
       const live = await sessionApi.live(sessionId)
       setData(live)
+      const previousPresentCount = presentCountRef.current
+      if (
+        !firstLoad.current &&
+        live.session.status === 'open' &&
+        previousPresentCount !== null &&
+        live.presentCount > previousPresentCount
+      ) {
+        const newCheckIns = live.presentCount - previousPresentCount
+        setAttendanceAnnouncement(
+          `${newCheckIns} student${newCheckIns === 1 ? '' : 's'} checked in. ${live.presentCount} of ${live.enrolledCount} students are now present.`
+        )
+      }
+      presentCountRef.current = live.presentCount
       if (live.session.status === 'closed' && !firstLoad.current) {
         toast.info('Session was closed')
       }
@@ -96,11 +113,33 @@ export default function LiveSession() {
     data?.session.classDuration
   )
 
+  useEffect(() => {
+    const expiresAt = data?.session.status === 'open' ? data.session.codeExpiresAt : undefined
+    if (!expiresAt) {
+      expiryStageRef.current = null
+      return
+    }
+
+    if (secondsLeft === 0 && expiryStageRef.current !== 'expired') {
+      expiryStageRef.current = 'expired'
+      setExpiryAnnouncement('The session code has expired.')
+    } else if (secondsLeft > 0 && secondsLeft <= 30 && expiryStageRef.current !== 'thirtySeconds') {
+      expiryStageRef.current = 'thirtySeconds'
+      setExpiryAnnouncement(`The session code expires in ${secondsLeft} seconds.`)
+    } else if (secondsLeft > 30 && secondsLeft <= 60 && expiryStageRef.current !== 'minute') {
+      expiryStageRef.current = 'minute'
+      setExpiryAnnouncement('The session code expires in under one minute.')
+    } else if (secondsLeft > 60) {
+      expiryStageRef.current = null
+    }
+  }, [data?.session.codeExpiresAt, data?.session.status, secondsLeft])
+
   async function handleCopy() {
     if (!data) return
     try {
       await navigator.clipboard.writeText(data.session.code)
       setCopied(true)
+      toast.success('Session code copied to clipboard.')
       setTimeout(() => setCopied(false), 2000)
     } catch {
       toast.error('Could not copy to clipboard')
@@ -146,8 +185,9 @@ export default function LiveSession() {
 
   if (!loaded) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading live session…</p>
       </div>
     )
   }
@@ -167,6 +207,8 @@ export default function LiveSession() {
 
   return (
     <div className="space-y-6">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{attendanceAnnouncement}</p>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{expiryAnnouncement}</p>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-h2 font-bold text-text-primary">{data.session.courseUnit.name}</h1>
@@ -184,8 +226,8 @@ export default function LiveSession() {
               <span className="rounded-full bg-surface-2 px-4 py-1.5 text-sm font-medium text-text-secondary">
                 Closed
               </span>
-              <Link to={`/lecturer/sessions/${sessionId}`}>
-                <Button variant="secondary">View Attendance</Button>
+              <Link to={`/lecturer/sessions/${sessionId}`} className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+                View Attendance
               </Link>
             </>
           ) : (
@@ -220,7 +262,7 @@ export default function LiveSession() {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="mt-3 flex items-center gap-1.5 mx-auto text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+                className="mx-auto mt-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary focus:outline-none focus:ring-4 focus:ring-umu-red/30"
               >
                 {copied ? (
                   <>
@@ -244,6 +286,15 @@ export default function LiveSession() {
                   ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
                   : 'Code expired — extend to keep it live or close the session'}
               </p>
+              {secondsLeft > 30 && secondsLeft <= 60 && (
+                <p className="mt-1 text-xs font-semibold text-warning">Code expires in under one minute.</p>
+              )}
+              {secondsLeft > 0 && secondsLeft <= 30 && (
+                <p className="mt-1 text-xs font-semibold text-danger">Code expires in less than 30 seconds.</p>
+              )}
+              {secondsLeft === 0 && (
+                <p className="mt-1 text-xs font-semibold text-danger">Students can no longer check in with this code.</p>
+              )}
 
               {/* Class duration countdown */}
               {classSecondsLeft !== null && (
@@ -266,6 +317,15 @@ export default function LiveSession() {
                   }`}>
                     {classSecondsLeft > 0 ? fmt(classSecondsLeft) : 'Time elapsed'}
                   </p>
+                  {classSecondsLeft > 30 && classSecondsLeft <= 60 && (
+                    <p className="mt-1 text-xs font-semibold text-warning">Class ends in under one minute.</p>
+                  )}
+                  {classSecondsLeft > 0 && classSecondsLeft <= 30 && (
+                    <p className="mt-1 text-xs font-semibold text-danger">Class ends in less than 30 seconds.</p>
+                  )}
+                  {classSecondsLeft === 0 && (
+                    <p className="mt-1 text-xs font-semibold text-danger">Class time has ended. Close the session to finalise attendance.</p>
+                  )}
                 </div>
               )}
               <Button
@@ -326,7 +386,12 @@ export default function LiveSession() {
         </Card>
       </div>
 
-      <Modal open={confirmClose} onClose={() => setConfirmClose(false)} title="Close this session?">
+      <Modal
+        open={confirmClose}
+        onClose={() => setConfirmClose(false)}
+        title="Close this session?"
+        closeOnOverlay={false}
+      >
         <p className="mb-6 text-body-sm text-text-primary">
           Closing auto-marks every enrolled student who has not checked in as <b>Absent</b> and
           triggers attendance alerts. This cannot be undone after today.

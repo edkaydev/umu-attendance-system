@@ -7,6 +7,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { useAuth } from '../context/AuthContext'
@@ -159,8 +160,9 @@ export default function StudentDashboard() {
 
   if (!loaded) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
       </div>
     )
   }
@@ -172,6 +174,9 @@ export default function StudentDashboard() {
         <p className="max-w-sm text-body text-text-secondary">
           There was a problem loading your dashboard. Please refresh the page.
         </p>
+        <button onClick={() => window.location.reload()} className="min-h-[44px] rounded px-4 text-body font-semibold text-umu-red hover:bg-[#FFF4F4] focus:outline-none focus:ring-4 focus:ring-umu-red/30">
+          Try again
+        </button>
       </div>
     )
   }
@@ -223,7 +228,7 @@ export default function StudentDashboard() {
                   ) : (
                     <Button
                       variant="secondary"
-                      className="min-h-[32px] px-3 py-1 text-body-sm"
+                      className="px-3 py-1 text-body-sm"
                       disabled={new Date(s.codeExpiresAt).getTime() <= now}
                       onClick={() => {
                         setSelected(s)
@@ -252,7 +257,8 @@ export default function StudentDashboard() {
           {data.weeklyChart.length === 0 ? (
             <p className="py-8 text-center text-body-sm text-text-secondary">No sessions held yet this week.</p>
           ) : (
-            <div className="h-[220px]">
+            <>
+              <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.weeklyChart} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -268,11 +274,36 @@ export default function StudentDashboard() {
                   />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} width={28} />
                   <Tooltip />
+                  <Legend />
                   <Bar dataKey="attended" name="Attended" fill="#16A34A" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="absent" name="Absent" fill="#DC2626" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+              </div>
+              <details className="mt-3 text-body-sm text-text-secondary">
+              <summary className="cursor-pointer font-medium text-umu-red">View weekly attendance data as a table</summary>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="py-1 pr-3 font-semibold">Date</th>
+                      <th className="py-1 pr-3 font-semibold">Attended</th>
+                      <th className="py-1 font-semibold">Absent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.weeklyChart.map((day) => (
+                      <tr key={day.date} className="border-b border-border last:border-0">
+                        <td className="py-1 pr-3">{new Date(day.date + 'T00:00:00').toLocaleDateString()}</td>
+                        <td className="py-1 pr-3">{day.attended}</td>
+                        <td className="py-1">{day.absent}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              </details>
+            </>
           )}
         </Card>
 
@@ -344,7 +375,7 @@ export default function StudentDashboard() {
       </Card>
 
       <div className="text-right">
-        <Link to="/student/attendance" className="text-sm font-medium text-umu-red hover:underline">
+        <Link to="/student/attendance" className="inline-flex min-h-[44px] items-center text-sm font-medium text-umu-red hover:underline">
           View full attendance report →
         </Link>
       </div>

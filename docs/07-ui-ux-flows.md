@@ -2,11 +2,12 @@
 
 ## Design Principles
 - **Mobile-first for Students and Lecturers** — phones in class, quick check-in
-- **Desktop-only for Faculty Admin and System Admin** — data-heavy, table-driven
+- **Read-only mobile summaries for Faculty Admin and System Admin**; data-heavy administration remains desktop-first
 - **One primary action per screen** during live sessions
 - **UMU brand**: red `#CC0000`, yellow `#F5C800`, white background
 - **Minimum 44×44px tap targets** on all interactive elements
-- **Loading, success, and error states** on every action
+- **Loading, success, and error states** on every action, with visible and screen-reader-readable messages
+- **Keyboard access** — a visible-on-focus skip link, clear focus indicators, and accessible modal focus management
 
 ---
 
@@ -16,8 +17,8 @@
 |---|---|---|
 | Student | ✅ Full PWA | ✅ |
 | Lecturer | ✅ Full PWA | ✅ |
-| Faculty Admin | ❌ "Desktop required" screen | ✅ |
-| System Admin | ❌ "Desktop required" screen | ✅ |
+| Faculty Admin | ✅ Read-only overview and priority alerts | ✅ Full administration |
+| System Admin | ✅ Read-only overview and recent activity | ✅ Full administration |
 
 ---
 
@@ -70,7 +71,8 @@ Lecturer Dashboard or Sessions page
   → Click "Open Session"
   → Select course unit (dropdown, filtered to assigned units for current period)
   → Set mode (Physical / Online), optional venue, start time
-  → Set Class Duration (no auto-close to 180 min) and Code Validity (5–60 min)
+  → Set “Class ends after” (no auto-close to 180 min) and “Students can use code for” (5–60 min)
+  → Code window cannot be longer than the class duration
   → Submit
   → Redirected to Live Session screen
 ```
@@ -195,11 +197,11 @@ Venue (optional) [Room 2]
 
 Session Start Time (optional) [date-time picker]
 
-Class Duration    [▼ 1 hour]
-Code Validity     [▼ 5 minutes]
+Class ends after            [▼ 1 hour]
+Students can use code for   [▼ 5 minutes]
 
-Info: Class Duration = how long session runs.
-      Code Validity = how long students have to enter code.
+Info: a 60-minute class with a 5-minute code allows a short check-in window
+      while the class remains open for the full hour.
 
 [Open Session]
 ```
@@ -220,6 +222,7 @@ Database Systems · Aug 5, 2026
 │                              │
 └──────────────────────────────┘
          Expires in  03:42
+         (explicit text warnings at 1 minute, 30 seconds, and expiry)
 
    Class time remaining
          47:30        ← counts down from openedAt + classDuration
@@ -233,6 +236,22 @@ Database Systems · Aug 5, 2026
 ✅  Wasswa Peter        10:01
 ✅  Auma Grace          10:00
 ```
+
+## Accessibility and Performance Notes
+
+- Toasts announce routine updates politely and errors assertively. Live check-ins
+  and code-expiry milestones are announced without reading every countdown tick.
+- Attendance progress exposes its percentage and status in text, and the weekly
+  chart includes an expandable data table.
+- All routes have descriptive document titles. Pages use the shared `main-content`
+  landmark, which can be reached with the keyboard-visible “Skip to main content” link.
+- Portal pages are lazy-loaded. The production build recorded on 20 August 2026
+  produced a 224.77 kB initial JavaScript bundle (68.14 kB gzip); the chart-heavy
+  Student Dashboard is deferred into a 369.43 kB route chunk (104.19 kB gzip).
+- The initial HTML, JavaScript, and CSS transfer is approximately 75 kB compressed.
+  At a 1.6 Mbps mobile connection this is about 0.4 seconds of transfer time before
+  connection latency and device processing; route-specific code is fetched only when
+  the user navigates to that page.
 
 ---
 

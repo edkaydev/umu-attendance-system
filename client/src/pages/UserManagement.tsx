@@ -603,7 +603,7 @@ export default function UserManagement() {
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="secondary"
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
+                          className="px-3 py-1 text-body-sm"
                           onClick={() => setEditTarget(u)}
                         >
                           Edit
@@ -612,7 +612,7 @@ export default function UserManagement() {
                         {(u.role === 'faculty_admin' || u.role === 'lecturer') && (
                           <Button
                             variant="secondary"
-                            className="min-h-[32px] px-3 py-1 text-body-sm"
+                            className="px-3 py-1 text-body-sm"
                             onClick={() => openAssign(u)}
                           >
                             {u.facultyId ? 'Change Faculty' : 'Assign Faculty'}
@@ -620,14 +620,14 @@ export default function UserManagement() {
                         )}
                         <Button
                           variant={u.isActive ? 'danger' : 'secondary'}
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
+                          className="px-3 py-1 text-body-sm"
                           onClick={() => toggleActive(u)}
                         >
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </Button>
                         <Button
                           variant="danger"
-                          className="min-h-[32px] px-3 py-1 text-body-sm"
+                          className="px-3 py-1 text-body-sm"
                           loading={deleting}
                           onClick={() => handleDeleteOne(u)}
                         >

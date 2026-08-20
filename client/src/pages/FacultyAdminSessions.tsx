@@ -64,7 +64,7 @@ export default function FacultyAdminSessions() {
           <button
             type="button"
             onClick={() => setTodayOnly((v) => !v)}
-            className={`inline-flex min-h-[40px] items-center gap-2 rounded border px-4 text-body font-medium transition-colors ${
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded border px-4 text-body font-medium transition-colors ${
               todayOnly
                 ? 'border-umu-red bg-[#FFF4F4] text-umu-red'
                 : 'border-border bg-white text-text-secondary hover:bg-surface-1'

@@ -63,10 +63,11 @@ export default function Login() {
           onSubmit={handleLogin}
           className="mt-10 w-full max-w-sm rounded-md border border-border bg-surface-1 p-6"
         >
-          <label className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
+          <label htmlFor="login-email" className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
             Email
           </label>
           <input
+            id="login-email"
             type="email"
             required
             autoComplete="username"
@@ -76,11 +77,12 @@ export default function Login() {
             className="mb-4 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
           />
 
-          <label className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
+          <label htmlFor="login-password" className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
             Password
           </label>
           <div className="relative mb-2">
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               required
               minLength={6}
@@ -154,7 +156,7 @@ export default function Login() {
                   key={role}
                   onClick={() => devLogin(role)}
                   disabled={devLoggingIn !== null}
-                  className="min-h-[40px] rounded border border-umu-red bg-white px-4 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-[44px] rounded border border-umu-red bg-white px-4 text-body font-semibold text-umu-red transition-colors hover:bg-[#FFF4F4] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {devLoggingIn === role ? 'Signing in…' : `Login as ${label}`}
                 </button>

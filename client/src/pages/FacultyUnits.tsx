@@ -82,7 +82,8 @@ export default function FacultyUnits() {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`min-h-[40px] rounded px-4 text-body font-semibold transition-colors ${
+                aria-pressed={tab === t}
+                className={`min-h-[44px] rounded px-4 text-body font-semibold transition-colors ${
                   tab === t ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
                 }`}
               >
@@ -104,9 +105,10 @@ export default function FacultyUnits() {
         {!loaded ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
         ) : !data ? (
-          <p className="px-5 py-12 text-center text-body text-text-secondary">
-            Could not load units. Please refresh the page.
-          </p>
+          <div className="px-5 py-12 text-center text-body text-text-secondary">
+            <p>Could not load units. Please refresh the page.</p>
+            <button onClick={() => window.location.reload()} className="mt-3 min-h-[44px] rounded px-3 font-semibold text-umu-red hover:bg-[#FFF4F4]">Try again</button>
+          </div>
         ) : list.length === 0 ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">
             {search ? 'No matching users.' : `No ${tab} in this faculty yet.`}
@@ -144,7 +146,7 @@ export default function FacultyUnits() {
                         <div className="flex justify-end">
                           <Button
                             variant="secondary"
-                            className="min-h-[32px] px-3 py-1 text-body-sm"
+                            className="px-3 py-1 text-body-sm"
                             onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
                           >
                             Manage Units
@@ -201,9 +203,10 @@ export function FacultyUserUnits() {
 
   if (!data) {
     return (
-      <p className="py-12 text-center text-body text-text-secondary">
-        Could not load units. Please refresh the page.
-      </p>
+      <div className="py-12 text-center text-body text-text-secondary">
+        <p>Could not load units. Please refresh the page.</p>
+        <button onClick={() => window.location.reload()} className="mt-3 min-h-[44px] rounded px-3 font-semibold text-umu-red hover:bg-[#FFF4F4]">Try again</button>
+      </div>
     )
   }
 
@@ -211,8 +214,8 @@ export function FacultyUserUnits() {
     return (
       <div className="py-12 text-center">
         <p className="mb-4 text-body text-text-secondary">User not found in your faculty.</p>
-        <Link to="/faculty-admin/units">
-          <Button variant="secondary">Back to Units</Button>
+        <Link to="/faculty-admin/units" className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+          Back to Units
         </Link>
       </div>
     )
@@ -386,7 +389,7 @@ function UserUnitsEditor({
                   </div>
                   <Button
                     variant="secondary"
-                    className="min-h-[32px] shrink-0 px-3 py-1 text-body-sm"
+                    className="shrink-0 px-3 py-1 text-body-sm"
                     disabled={busy}
                     onClick={() => setPending({ kind: 'remove', recordId: c.id, unitName: c.courseUnit.name })}
                   >
@@ -421,7 +424,7 @@ function UserUnitsEditor({
             <Button
               fullWidth
               disabled={!courseUnitId || !globalPeriod}
-              className="!min-h-[40px]"
+              className=""
               onClick={() => {
                 const cu = available.find((x) => x.id === courseUnitId)
                 if (cu) setPending({ kind: 'add', unitId: cu.id, unitName: cu.name })
@@ -434,21 +437,19 @@ function UserUnitsEditor({
       </div>
 
       {/* Confirm modal */}
-      <Modal open={Boolean(pending)} onClose={() => setPending(null)}>
+      <Modal
+        open={Boolean(pending)}
+        onClose={() => setPending(null)}
+        closeOnOverlay={pending?.kind !== 'remove'}
+        closeOnEscape={pending?.kind !== 'remove'}
+        title={pending?.kind === 'remove' ? 'Remove this unit?' : 'Add this unit?'}
+        description={
+          pending?.kind === 'remove'
+            ? `Remove ${pending.unitName} from ${user.fullName}.`
+            : `Assign ${pendingUnit} to ${user.fullName} for ${academicYear}, semester ${semester}.`
+        }
+      >
         <div className="space-y-4">
-          <h2 className="text-h2 font-semibold">
-            {pending?.kind === 'remove' ? 'Remove this unit?' : 'Add this unit?'}
-          </h2>
-          <p className="text-body text-text-secondary">
-            {pending?.kind === 'remove' ? (
-              <>Remove <span className="font-semibold text-text-primary">{pending.unitName}</span> from {user.fullName}?</>
-            ) : (
-              <>
-                Assign <span className="font-semibold text-text-primary">{pendingUnit}</span> to {user.fullName} for{' '}
-                <span className="font-semibold text-text-primary">{academicYear} · Semester {semester}</span>?
-              </>
-            )}
-          </p>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>Cancel</Button>
             <Button

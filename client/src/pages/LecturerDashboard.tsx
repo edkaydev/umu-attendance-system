@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
 import { ApiClientError } from '../api/client'
 
 type Dashboard = Awaited<ReturnType<typeof dashboardApi.lecturer>>
@@ -51,8 +50,9 @@ export default function LecturerDashboard() {
 
   if (!loaded) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
       </div>
     )
   }
@@ -75,6 +75,9 @@ export default function LecturerDashboard() {
           </Card>
           <Card title="My Course Units">
             <p className="py-8 text-center text-body text-text-secondary">No units assigned yet. Contact your Faculty Admin.</p>
+            <button onClick={() => window.location.reload()} className="mx-auto block min-h-[44px] rounded px-4 text-body-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+              Try again
+            </button>
           </Card>
         </div>
       </div>
@@ -101,8 +104,8 @@ export default function LecturerDashboard() {
             })}
           </p>
         </div>
-        <Link to="/lecturer/sessions/new">
-          <Button>Open New Session</Button>
+        <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
+          Open New Session
         </Link>
       </div>
 
@@ -123,10 +126,8 @@ export default function LecturerDashboard() {
                 {' · '}
                 {openSessions[0].mode === 'online' ? 'Online' : (openSessions[0].venue ?? 'Physical')}
               </p>
-              <Link to={`/lecturer/sessions/${openSessions[0].id}/live`}>
-                <Button variant="secondary" className="border-success text-success hover:bg-success-light">
-                  Go Live
-                </Button>
+              <Link to={`/lecturer/sessions/${openSessions[0].id}/live`} className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-success bg-white px-6 py-3 text-sm font-semibold text-success hover:bg-success-light">
+                Go Live
               </Link>
             </div>
           ) : (
@@ -138,10 +139,8 @@ export default function LecturerDashboard() {
                     {' · '}
                     {s.mode === 'online' ? 'Online' : (s.venue ?? 'Physical')}
                   </p>
-                  <Link to={`/lecturer/sessions/${s.id}/live`}>
-                    <Button variant="secondary" className="min-h-[32px] border-success px-3 py-1 text-body-sm text-success hover:bg-success-light">
-                      Go Live
-                    </Button>
+                  <Link to={`/lecturer/sessions/${s.id}/live`} className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-success bg-white px-3 py-1 text-body-sm font-semibold text-success hover:bg-success-light">
+                    Go Live
                   </Link>
                 </li>
               ))}
@@ -173,8 +172,8 @@ export default function LecturerDashboard() {
                 Open a session to start collecting attendance.
               </p>
               <div className="mt-4">
-                <Link to="/lecturer/sessions/new">
-                  <Button variant="secondary">Open First Session</Button>
+                <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+                  Open First Session
                 </Link>
               </div>
             </div>
@@ -201,10 +200,9 @@ export default function LecturerDashboard() {
                           ? `/lecturer/sessions/${s.id}/live`
                           : `/lecturer/sessions/${s.id}`
                       }
+                      className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-3 py-1 text-body-sm font-semibold text-umu-red hover:bg-[#FFF4F4]"
                     >
-                      <Button variant="secondary" className="min-h-[34px] px-3 py-1 text-body-sm">
-                        {s.status === 'open' ? 'Live' : 'View'}
-                      </Button>
+                      {s.status === 'open' ? 'Live' : 'View'}
                     </Link>
                   </div>
                 </li>
@@ -234,10 +232,8 @@ export default function LecturerDashboard() {
                       {a.courseUnit.code} · {a.academicYear} · Sem {a.semester}
                     </p>
                   </div>
-                  <Link to={`/lecturer/sessions?unit=${a.courseUnit.id}`}>
-                    <Button variant="ghost" className="min-h-[34px] px-3 py-1 text-body-sm">
-                      Sessions
-                    </Button>
+                  <Link to={`/lecturer/sessions?unit=${a.courseUnit.id}`} className="inline-flex min-h-[44px] items-center justify-center rounded px-3 py-1 text-body-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+                    Sessions
                   </Link>
                 </li>
               ))}

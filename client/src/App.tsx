@@ -1,3 +1,4 @@
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
@@ -10,34 +11,48 @@ import Login from './pages/Login'
 import AccessDenied from './pages/AccessDenied'
 import ChangePassword from './pages/ChangePassword'
 import ProfileSetup from './pages/ProfileSetup'
-import StudentDashboard from './pages/StudentDashboard'
-import StudentAttendance from './pages/StudentAttendance'
-import LecturerDashboard from './pages/LecturerDashboard'
-import SessionsList from './pages/SessionsList'
-import OpenSession from './pages/OpenSession'
-import LiveSession from './pages/LiveSession'
-import SessionDetail from './pages/SessionDetail'
-import FacultyAdminDashboard from './pages/FacultyAdminDashboard'
-import FacultyAdminSessions from './pages/FacultyAdminSessions'
-import FacultyUnits, { FacultyUserUnits } from './pages/FacultyUnits'
-import ReportsPage from './pages/ReportsPage'
-import SystemAdminDashboard from './pages/SystemAdminDashboard'
-import AcademicSetup from './pages/AcademicSetup'
-import UserManagement from './pages/UserManagement'
-import ImportData from './pages/ImportData'
-import SystemLogPage from './pages/SystemLogPage'
-import GlobalSettings from './pages/GlobalSettings'
-import ResetPasswordPage from './pages/ResetPasswordPage'
-import UpdateSystemPage from './pages/UpdateSystemPage'
-import NotFound from './pages/NotFound'
+
+// Portal pages are loaded on demand so the sign-in experience does not download
+// reports, charts, and administration tools that the user may never open.
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
+const StudentAttendance = lazy(() => import('./pages/StudentAttendance'))
+const LecturerDashboard = lazy(() => import('./pages/LecturerDashboard'))
+const SessionsList = lazy(() => import('./pages/SessionsList'))
+const OpenSession = lazy(() => import('./pages/OpenSession'))
+const LiveSession = lazy(() => import('./pages/LiveSession'))
+const SessionDetail = lazy(() => import('./pages/SessionDetail'))
+const FacultyAdminDashboard = lazy(() => import('./pages/FacultyAdminDashboard'))
+const FacultyAdminSessions = lazy(() => import('./pages/FacultyAdminSessions'))
+const FacultyUnits = lazy(() => import('./pages/FacultyUnits'))
+const FacultyUserUnits = lazy(() => import('./pages/FacultyUnits').then((module) => ({ default: module.FacultyUserUnits })))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const SystemAdminDashboard = lazy(() => import('./pages/SystemAdminDashboard'))
+const AcademicSetup = lazy(() => import('./pages/AcademicSetup'))
+const UserManagement = lazy(() => import('./pages/UserManagement'))
+const ImportData = lazy(() => import('./pages/ImportData'))
+const SystemLogPage = lazy(() => import('./pages/SystemLogPage'))
+const GlobalSettings = lazy(() => import('./pages/GlobalSettings'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const UpdateSystemPage = lazy(() => import('./pages/UpdateSystemPage'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+
+function RouteLoading() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+      <p className="text-body-sm text-text-secondary">Loading page…</p>
+    </div>
+  )
+}
 
 function HomeRedirect() {
   const { user, loading } = useAuth()
   const location = useLocation()
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading UMU Attendance…</p>
       </div>
     )
   }
@@ -47,12 +62,52 @@ function HomeRedirect() {
   return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace state={{ from: location.pathname }} />
 }
 
+function DocumentTitle() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const title =
+      pathname === '/login' ? 'Sign in' :
+      pathname === '/access-denied' ? 'Access denied' :
+      pathname === '/profile/setup' ? 'Set up profile' :
+      pathname === '/password/change' ? 'Change password' :
+      pathname === '/student' ? 'Student dashboard' :
+      pathname === '/student/attendance' ? 'My attendance' :
+      pathname === '/student/profile' ? 'My profile' :
+      pathname.startsWith('/lecturer/sessions/new') ? 'Open session' :
+      pathname.endsWith('/live') ? 'Live session' :
+      pathname.startsWith('/lecturer/sessions/') ? 'Session details' :
+      pathname === '/lecturer/sessions' ? 'My sessions' :
+      pathname === '/lecturer' ? 'Lecturer dashboard' :
+      pathname === '/lecturer/profile' ? 'My profile' :
+      pathname === '/faculty-admin' ? 'Faculty dashboard' :
+      pathname.startsWith('/faculty-admin/reports') ? 'Faculty reports' :
+      pathname.startsWith('/faculty-admin/sessions') ? 'Faculty sessions' :
+      pathname.startsWith('/faculty-admin/units') ? 'Faculty units' :
+      pathname === '/system-admin' ? 'System dashboard' :
+      pathname.startsWith('/system-admin/academic') ? 'Academic setup' :
+      pathname.startsWith('/system-admin/users') ? 'User management' :
+      pathname === '/system-admin/reset-password' ? 'Reset user password' :
+      pathname.startsWith('/system-admin/imports') ? 'Data imports' :
+      pathname.startsWith('/system-admin/logs') ? 'System log' :
+      pathname.startsWith('/system-admin/settings') ? 'Global settings' :
+      pathname === '/system-admin/update' ? 'Update system' :
+      pathname === '/404' ? 'Page not found' :
+      'UMU Attendance'
+    document.title = `${title} | UMU Attendance`
+  }, [pathname])
+
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <AuthProvider>
         <ToastProvider>
-          <Routes>
+          <Suspense fallback={<RouteLoading />}>
+            <Routes>
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/login" element={<Login />} />
             <Route path="/access-denied" element={<AccessDenied />} />
@@ -359,8 +414,9 @@ export default function App() {
               }
             />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
           <InstallPrompt />
           <CookieBanner />
         </ToastProvider>

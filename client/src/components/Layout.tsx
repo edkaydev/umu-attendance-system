@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
+import { MobileAdminSummary } from './MobileAdminSummary'
 
 // ─── SVG icon components ─────────────────────────────────────────────────────
 
@@ -127,15 +128,6 @@ function IconLogOut() {
   )
 }
 
-function IconMonitor() {
-  return (
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2" y="3" width="20" height="14" rx="2"/>
-      <path d="M8 21h8M12 17v4"/>
-    </svg>
-  )
-}
-
 // ─── Nav config ──────────────────────────────────────────────────────────────
 
 type NavItem = { to: string; label: string; Icon: () => JSX.Element }
@@ -180,26 +172,8 @@ const ROLE_LABEL: Record<Role, string> = {
 // FA Admin and System Admin are data-heavy desktop tools.
 const MOBILE_ROLES: Role[] = ['student', 'lecturer']
 
-// ─── Desktop-only gate ───────────────────────────────────────────────────────
-// FA Admin and System Admin see this on narrow viewports instead of a broken layout.
-
-function DesktopOnlyGate({ role }: { role: Role }) {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-8 text-center">
-      <div className="text-text-secondary">
-        <IconMonitor />
-      </div>
-      <div>
-        <h1 className="text-h2 font-bold text-text-primary">Desktop required</h1>
-        <p className="mt-2 max-w-sm text-body text-text-secondary">
-          The <span className="font-semibold">{ROLE_LABEL[role]}</span> portal is designed for
-          larger screens. Please open this on a laptop or desktop browser.
-        </p>
-      </div>
-      <img src="/umu-logo.png" alt="UMU" className="h-10 w-auto opacity-60" />
-    </div>
-  )
-}
+// ─── Mobile admin summary ────────────────────────────────────────────────────
+// Data-heavy administration stays desktop-first; phones retain a read-only summary.
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
@@ -211,10 +185,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const nav = NAV_BY_ROLE[user.role] ?? []
   const isMobileRole = MOBILE_ROLES.includes(user.role)
 
-  // FA Admin / System Admin: block on narrow viewports
+  // FA Admin / System Admin: desktop tools plus a compact read-only phone summary.
   if (!isMobileRole) {
     return (
       <>
+        <a href="#desktop-main-content" className="hidden md:sr-only md:focus:fixed md:focus:left-4 md:focus:top-4 md:focus:z-[70] md:focus:not-sr-only md:focus:rounded md:focus:bg-white md:focus:px-4 md:focus:py-3 md:focus:text-body md:focus:font-semibold md:focus:text-umu-red md:focus:shadow-md">
+          Skip to main content
+        </a>
+        <a href="#mobile-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded focus:bg-white focus:px-4 focus:py-3 focus:text-body focus:font-semibold focus:text-umu-red focus:shadow-md md:hidden">
+          Skip to main content
+        </a>
         {/* Desktop layout — same as always */}
         <div className="hidden min-h-screen bg-white md:flex">
           {/* Sidebar */}
@@ -268,22 +248,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <button
                   onClick={logout}
                   aria-label="Log out"
-                  className="flex min-h-[36px] items-center gap-1.5 rounded px-3 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary"
+                  className="flex min-h-[44px] items-center gap-1.5 rounded px-3 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary"
                 >
                   <IconLogOut />
                   <span>Logout</span>
                 </button>
               </div>
             </header>
-            <main className="flex-1 p-8">
+            <main id="desktop-main-content" tabIndex={-1} className="flex-1 p-8">
               <div className="mx-auto w-full max-w-[1200px]">{children}</div>
             </main>
           </div>
         </div>
 
-        {/* Mobile gate */}
+        {/* Mobile summary */}
         <div className="md:hidden">
-          <DesktopOnlyGate role={user.role} />
+          <MobileAdminSummary role={user.role as Extract<Role, 'faculty_admin' | 'system_admin'>} />
         </div>
       </>
     )
@@ -292,6 +272,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // ── Student / Lecturer: full mobile + desktop layout ──
   return (
     <div className="flex min-h-screen bg-white">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded focus:bg-white focus:px-4 focus:py-3 focus:text-body focus:font-semibold focus:text-umu-red focus:shadow-md">
+        Skip to main content
+      </a>
 
       {/* Desktop sidebar (hidden on mobile) */}
       <aside className="hidden w-[240px] shrink-0 border-r border-border bg-white md:flex md:flex-col">
@@ -353,7 +336,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <button
               onClick={logout}
               aria-label="Log out"
-              className="flex min-h-[36px] items-center gap-1.5 rounded px-2 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary md:px-3"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-2 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary md:px-3"
             >
               <IconLogOut />
               <span className="hidden md:inline">Logout</span>
@@ -364,7 +347,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {/* Page content
             — On mobile, pb-20 ensures content clears the fixed bottom nav (h-16 + safe area)
             — On desktop, no bottom nav so normal padding */}
-        <main className="flex-1 overflow-x-hidden p-4 pb-24 md:p-8 md:pb-8">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-x-hidden p-4 pb-24 md:p-8 md:pb-8">
           <div className="mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
       </div>

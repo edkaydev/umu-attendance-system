@@ -616,7 +616,8 @@ export default function ReportsPage() {
           <button
             key={t.type}
             onClick={() => { setTab(t.type); setResult(null) }}
-            className={`min-h-[40px] rounded-sm px-4 py-2 text-body font-medium transition-colors ${
+            aria-pressed={tab === t.type}
+            className={`min-h-[44px] rounded-sm px-4 py-2 text-body font-medium transition-colors ${
               tab === t.type
                 ? 'bg-umu-red text-white'
                 : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary'

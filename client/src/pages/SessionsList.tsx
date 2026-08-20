@@ -4,7 +4,6 @@ import { sessionApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
 import { ApiClientError } from '../api/client'
 import type { Session } from '../types'
 
@@ -66,8 +65,8 @@ export default function SessionsList() {
               : 'All sessions for your assigned units'}
           </p>
         </div>
-        <Link to="/lecturer/sessions/new">
-          <Button>Open Session</Button>
+        <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
+          Open Session
         </Link>
       </div>
 
@@ -77,7 +76,8 @@ export default function SessionsList() {
           <button
             key={t}
             onClick={() => handleTabChange(t)}
-            className={`min-h-[36px] rounded px-5 text-body font-medium transition-colors capitalize ${
+            aria-pressed={tab === t}
+            className={`min-h-[44px] rounded px-5 text-body font-medium transition-colors capitalize ${
               tab === t
                 ? 'bg-white text-text-primary shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
@@ -99,8 +99,8 @@ export default function SessionsList() {
             <p className="text-body text-text-secondary">{emptyMsg}</p>
             {tab === 'today' && (
               <div className="mt-4">
-                <Link to="/lecturer/sessions/new">
-                  <Button variant="secondary">Open First Session</Button>
+                <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+                  Open First Session
                 </Link>
               </div>
             )}

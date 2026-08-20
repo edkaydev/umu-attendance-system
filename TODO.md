@@ -123,8 +123,39 @@ Status guide: `[ ]` = pending · `[x]` = done
 - [x] 99. Configure PWA: manifest (name, icons, theme #CC0000), service worker, install banner
 - [x] 100. Verify end-to-end: build client, docker compose up, migrations, smoke test, lint/typecheck
 
+## Phase 8 — UI/UX & Accessibility Improvements (101–120)
+
+### P0 — Accessibility and task completion
+
+- [x] 101. Upgrade the shared `Modal` component: add `role="dialog"`, `aria-modal`, and an accessible name/description.
+- [x] 102. Add focus management to `Modal`: move focus into it when opened, trap Tab/Shift+Tab inside it, close with Escape, and restore focus to the triggering control when closed.
+- [x] 103. Ensure destructive confirmation modals cannot be dismissed accidentally by an outside click, or provide an explicit safe dismissal policy per modal.
+- [x] 104. Associate every form label with its control, starting with Email and Password on the Login screen.
+- [x] 105. Use native radio inputs or an accessible radio group for the Physical / Online session-mode selector.
+- [x] 106. Add `aria-live="polite"` status announcements for check-in results, live-session attendance changes, loading outcomes, and relevant countdown expiry messages.
+
+### P1 — Mobile usability and clear feedback
+
+- [x] 107. Audit all interactive controls to meet a minimum 44 × 44 px tap target; enlarge the mobile logout and live-session Copy Code action as needed.
+- [x] 108. Provide a responsive, limited mobile experience for Faculty Admin and System Admin: at minimum, read-only dashboard summaries and essential alerts; retain desktop layouts for complex tables.
+- [x] 109. Rename or supplement time fields in Open Session to distinguish intent: “Class ends after” versus “Students can use the code for”.
+- [x] 110. Add examples/helper text to the time settings and validate incompatible or unexpected duration combinations before submission.
+- [x] 111. Improve countdown feedback: add clear non-colour warnings at one minute, 30 seconds, expiry, and class end.
+- [x] 112. Make copied-code feedback accessible with a toast or live-region announcement, not only the temporary “Copied!” label.
+- [x] 113. Review all empty states and add a next action where possible, such as Refresh, Contact Faculty Admin, or a help link.
+- [x] 114. Add visible, screen-reader-readable loading messages alongside spinners (for example, “Loading dashboard…”).
+
+### P2 — Inclusive navigation, reporting, and performance
+
+- [x] 115. Add a keyboard-visible “Skip to main content” link to the shared app layout.
+- [x] 116. Audit text links, icon controls, segmented controls, and table actions for clear focus-visible states and keyboard operation.
+- [x] 117. Ensure every attendance/status visual communicates meaning with text or icons in addition to red, amber, green, or chart colour.
+- [x] 118. Add a text/table alternative or concise accessible summary for the student attendance chart.
+- [x] 119. Review heading hierarchy, landmarks, and page titles across all role portals and modal flows.
+- [x] 120. Code-split heavy routes (reports, charts, and admin tools) and measure initial load performance on a mid-range mobile network.
+
 ---
 
 ## Progress
 
-Completed: **100** / 100
+Completed: **120** / 120

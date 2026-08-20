@@ -1,6 +1,11 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 export default function NotFound() {
+  useEffect(() => {
+    document.title = 'Page not found | UMU Attendance'
+  }, [])
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
       <h1 className="text-display font-bold text-text-primary">404</h1>

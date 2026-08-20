@@ -169,8 +169,9 @@ export default function SessionDetail() {
 
   if (!loaded) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+        <p className="text-body-sm text-text-secondary">Loading session…</p>
       </div>
     )
   }
@@ -223,8 +224,8 @@ export default function SessionDetail() {
         <div className="flex flex-wrap items-center gap-2">
           {isLecturer && session.lecturer.id === user?.id && (
             session.status === 'open' ? (
-              <Link to={`/lecturer/sessions/${sessionId}/live`}>
-                <Button variant="secondary">Live View</Button>
+              <Link to={`/lecturer/sessions/${sessionId}/live`} className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
+                Live View
               </Link>
             ) : (() => {
               // Reopen only allowed on the same calendar day (EAT = UTC+3)
@@ -344,7 +345,7 @@ export default function SessionDetail() {
                         {canEdit ? (
                           <Button
                             variant="ghost"
-                            className="min-h-[32px] px-3 py-1 text-body-sm"
+                            className="px-3 py-1 text-body-sm"
                             onClick={() => openEdit(r.id, r.student.fullName, r.status)}
                           >
                             Edit

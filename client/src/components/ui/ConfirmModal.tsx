@@ -1,5 +1,6 @@
-import { ReactNode } from 'react'
+import { ReactNode, useId, useRef } from 'react'
 import { Button } from './Button'
+import { useDialogAccessibility } from './useDialogAccessibility'
 
 interface ConfirmModalProps {
   open: boolean
@@ -24,20 +25,28 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const messageId = useId()
+  const { onKeyDown } = useDialogAccessibility(open, panelRef, onCancel)
+
   if (!open) return null
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
-      onClick={onCancel}
+      onClick={variant === 'danger' ? undefined : onCancel}
     >
       <div
+        ref={panelRef}
         className="w-full max-w-[440px] rounded-lg bg-white p-6 shadow-lg animate-[modalIn_200ms_ease]"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-message"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+        tabIndex={-1}
       >
         {/* Icon + title */}
         <div className="mb-3 flex items-start gap-3">
@@ -50,12 +59,12 @@ export function ConfirmModal({
               </svg>
             </span>
           )}
-          <h2 id="confirm-title" className="pt-1.5 text-body-lg font-semibold text-text-primary">
+          <h2 id={titleId} className="pt-1.5 text-body-lg font-semibold text-text-primary">
             {title}
           </h2>
         </div>
 
-        <p id="confirm-message" className="mb-6 text-body-sm text-text-secondary">
+        <p id={messageId} className="mb-6 text-body-sm text-text-secondary">
           {message}
         </p>
 

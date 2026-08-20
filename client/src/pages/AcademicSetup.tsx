@@ -209,7 +209,8 @@ export default function AcademicSetup() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`min-h-[40px] rounded px-4 py-2 text-sm font-medium transition-colors ${
+            aria-pressed={tab === t.id}
+            className={`min-h-[44px] rounded px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.id ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
             }`}
           >

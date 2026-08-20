@@ -113,7 +113,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className="pointer-events-auto flex items-start gap-2 rounded border border-border bg-white p-3.5 shadow-md"
             onClick={() => dismiss(t.id)}
-            role="alert"
+            role={t.type === 'error' ? 'alert' : 'status'}
+            aria-live={t.type === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
           >
             <span aria-hidden="true" className={`mt-0.5 shrink-0 ${iconByType[t.type].className}`}>
               {iconByType[t.type].icon}
