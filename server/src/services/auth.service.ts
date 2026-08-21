@@ -35,7 +35,7 @@ export function mapOAuthError(message: string): string {
 }
 
 function clientUrl(): string {
-  return process.env.CLIENT_URL || 'http://localhost:5173'
+  return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '')
 }
 
 interface AuthUser {
