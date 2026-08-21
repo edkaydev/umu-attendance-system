@@ -50,7 +50,6 @@ export const curriculumSchema = z.object({
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
   semester: z.number().int().min(1).max(2),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
 })
 
 export const updateFacultySchema = facultySchema.partial().extend({ isActive: z.boolean().optional() })
@@ -177,8 +176,7 @@ export async function deleteCourseUnitFaculty(req: Request, res: Response, next:
 export async function getCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const programmeId = (req.query.programmeId as string) || undefined
-    const academicYear = (req.query.academicYear as string) || undefined
-    ok(res, { curriculum: await listCurriculum({ programmeId, academicYear }) })
+    ok(res, { curriculum: await listCurriculum({ programmeId }) })
   } catch (e) {
     next(e)
   }

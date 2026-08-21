@@ -161,6 +161,7 @@ export async function getCurrentUser(userId: string): Promise<{
   semester: number | null
   academicYear: string | null
   regNumber: string | null
+  studentNumber: string | null
   isActive: boolean
 }> {
   const user = await prisma.user.findUnique({
@@ -180,6 +181,7 @@ export async function getCurrentUser(userId: string): Promise<{
       semester: true,
       academicYear: true,
       regNumber: true,
+      studentNumber: true,
       isActive: true,
     },
   })

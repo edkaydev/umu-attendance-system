@@ -26,6 +26,7 @@ export interface User {
   semester: number | null
   academicYear: string | null
   regNumber: string | null
+  studentNumber?: string | null
   isActive: boolean
   mustChangePassword: boolean
 }
@@ -137,7 +138,6 @@ export interface CurriculumUnitEntry {
   programmeId: string
   year: number
   semester: number
-  academicYear: string
   courseUnit: CourseUnit
   programme: Programme
 }
@@ -155,6 +155,7 @@ export interface ManagedUser {
   semester: number | null
   academicYear: string | null
   regNumber: string | null
+  studentNumber?: string | null
   isActive: boolean
   profileComplete: boolean
   createdAt: string

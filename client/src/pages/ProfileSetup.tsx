@@ -26,6 +26,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [programmeId, setProgrammeId] = useState('')
   const [year, setYear] = useState('')
   const [regNumber, setRegNumber] = useState('')
+  const [studentNumber, setStudentNumber] = useState('')
 
   useEffect(() => {
     if (edit && user) {
@@ -47,6 +48,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           setProgrammeId(user.programmeId ?? '')
           setYear(user.year ? String(user.year) : '')
           setRegNumber(user.regNumber ?? '')
+          setStudentNumber(user.studentNumber ?? '')
           if (user.facultyId) {
             for (const c of opts.campuses) {
               if (c.faculties.some((f) => f.id === user.facultyId)) {
@@ -94,7 +96,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       return
     }
     if (isStudent) {
-      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim()) {
+      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim() || !studentNumber.trim()) {
         toast.error('Please complete all fields')
         return
       }
@@ -109,6 +111,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         year: Number(year),
         semester: globalPeriod.semester,
         regNumber: regNumber.trim(),
+        studentNumber: studentNumber.trim(),
         academicYear: globalPeriod.academicYear,
       }
       setSaving(true)
@@ -204,6 +207,12 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
                 placeholder="e.g. BSCS/2024/0123"
                 value={regNumber}
                 onChange={(e) => setRegNumber(e.target.value)}
+              />
+              <Input
+                label="Student Number"
+                placeholder="e.g. 2024012301"
+                value={studentNumber}
+                onChange={(e) => setStudentNumber(e.target.value)}
               />
             </>
           ) : edit ? (

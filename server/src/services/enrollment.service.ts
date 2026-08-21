@@ -11,29 +11,67 @@ export interface EnrollmentInput {
 
 /**
  * Resolve the course units a (programme, year, semester) cohort takes.
- * Prefers the curriculum mapped for the exact academic year, then falls back
- * to the cohort's mapping from ANY academic year. This keeps auto-enrollment
- * working even when the global period moves to a year the curriculum file
- * hasn't been re-imported for yet (e.g. period 2026/2027 with a 2025/2026
- * curriculum).
+ * Curricula are standing (period-independent) sets maintained by admins.
  */
 export async function getCurriculumUnitIds(
   programmeId: string,
   year: number,
-  semester: number,
-  academicYear: string
+  semester: number
 ): Promise<string[]> {
-  const exact = await prisma.curriculumUnit.findMany({
-    where: { programmeId, year, semester, academicYear },
-    select: { courseUnitId: true },
-  })
-  if (exact.length > 0) return exact.map((c) => c.courseUnitId)
-
-  const fallback = await prisma.curriculumUnit.findMany({
+  const rows = await prisma.curriculumUnit.findMany({
     where: { programmeId, year, semester },
     select: { courseUnitId: true },
   })
-  return [...new Set(fallback.map((c) => c.courseUnitId))]
+  return [...new Set(rows.map((c) => c.courseUnitId))]
+}
+
+/**
+ * Re-apply the curriculum to every student on a path (programme + year) in
+ * the matching active cohort. Used after a Faculty Admin adds/removes a
+ * curriculum mapping so that ALL students in that path see the change — not
+ * just those who re-save their profile afterwards.
+ */
+export async function propagateCurriculumToCohort(
+  programmeId: string,
+  year: number,
+  semester: number
+): Promise<number> {
+  const curriculum = await getCurriculumUnitIds(programmeId, year, semester)
+
+  const students = await prisma.user.findMany({
+    where: {
+      role: 'student',
+      profileComplete: true,
+      programmeId,
+      year,
+      semester,
+    },
+    select: { id: true, academicYear: true },
+  })
+  const enrolledStudents = students.filter((s): s is typeof s & { academicYear: string } =>
+    Boolean(s.academicYear)
+  )
+  if (enrolledStudents.length === 0) return 0
+
+  await prisma.$transaction(async (tx) => {
+    for (const s of enrolledStudents) {
+      await tx.enrollment.deleteMany({
+        where: { studentId: s.id, academicYear: s.academicYear, semester },
+      })
+      if (curriculum.length > 0) {
+        await tx.enrollment.createMany({
+          data: curriculum.map((courseUnitId) => ({
+            studentId: s.id,
+            courseUnitId,
+            academicYear: s.academicYear,
+            semester,
+          })),
+        })
+      }
+    }
+  })
+
+  return enrolledStudents.length
 }
 
 /**

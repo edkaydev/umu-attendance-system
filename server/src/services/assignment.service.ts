@@ -39,17 +39,11 @@ export async function createAssignment(
 
   const courseUnit = await prisma.courseUnit.findUnique({
     where: { id: input.courseUnitId },
-    include: { sharedFaculties: { select: { facultyId: true } } },
   })
   if (!courseUnit) throw new ApiError('Course unit not found', 404)
 
-  const allowedFaculties = new Set([
-    courseUnit.facultyId,
-    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
-    throw new ApiError('Course unit is not available to your faculty', 403)
-  }
+  // No ownership gate: units like Ethics cut across faculties, and any
+  // faculty admin may assign a lecturer to a unit their programmes take.
 
   if (!/^\d{4}\/\d{4}$/.test(input.academicYear)) {
     throw new ApiError('Academic year must be like 2025/2026', 400)
@@ -109,24 +103,9 @@ export async function removeAssignment(id: string, facultyId: string) {
 
   const existing = await prisma.lecturerAssignment.findUnique({
     where: { id },
-    include: {
-      courseUnit: {
-        select: {
-          facultyId: true,
-          sharedFaculties: { select: { facultyId: true } },
-        },
-      },
-    },
+    include: { courseUnit: { select: { facultyId: true } } },
   })
   if (!existing) throw new ApiError('Assignment not found', 404)
-
-  const allowedFaculties = new Set([
-    existing.courseUnit.facultyId,
-    ...existing.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
-    throw new ApiError('Assignment is outside your faculty', 403)
-  }
 
   await prisma.lecturerAssignment.delete({ where: { id } })
   return existing
@@ -144,7 +123,7 @@ async function assertNoCohortClash(
   semester: number
 ) {
   const newUnitCohorts = await prisma.curriculumUnit.findMany({
-    where: { courseUnitId, academicYear, semester },
+    where: { courseUnitId, semester },
     select: { programmeId: true, year: true },
   })
   if (newUnitCohorts.length === 0) return
@@ -158,7 +137,6 @@ async function assertNoCohortClash(
   const existingCohorts = await prisma.curriculumUnit.findMany({
     where: {
       courseUnitId: { in: existing.map((e) => e.courseUnitId) },
-      academicYear,
       semester,
     },
     select: { programmeId: true, year: true },

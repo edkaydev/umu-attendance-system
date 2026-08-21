@@ -10,6 +10,7 @@ export interface StudentPathInput {
   year: number
   semester: number
   regNumber: string
+  studentNumber: string
   academicYear: string
 }
 
@@ -39,7 +40,7 @@ export async function recalculateEnrollments(
   studentId: string,
   { programmeId, year, semester, academicYear }: StudentPathInput
 ): Promise<number> {
-  const curriculum = await getCurriculumUnitIds(programmeId, year, semester, academicYear)
+  const curriculum = await getCurriculumUnitIds(programmeId, year, semester)
 
   await prisma.enrollment.deleteMany({
     where: { studentId, academicYear, semester },
@@ -59,6 +60,20 @@ export async function recalculateEnrollments(
   return curriculum.length
 }
 
+/** Map Prisma unique-violation errors to friendly messages. */
+export function friendlyUniqueError(e: unknown): never {
+  const target = (e as { code?: string; meta?: { target?: string[] } }).code === 'P2002'
+    ? (e as { meta?: { target?: string[] } }).meta?.target ?? []
+    : []
+  if (target.some((t) => t.includes('regNumber'))) {
+    throw new ApiError('That registration number is already used by another student', 409)
+  }
+  if (target.some((t) => t.includes('studentNumber'))) {
+    throw new ApiError('That student number is already used by another student', 409)
+  }
+  throw e as Error
+}
+
 /** First-time student profile completion (FR-02.2 → 02.4). */
 export async function completeStudentProfile(userId: string, input: StudentPathInput) {
   await validateStudentPath(input)
@@ -71,9 +86,10 @@ export async function completeStudentProfile(userId: string, input: StudentPathI
       semester: input.semester,
       academicYear: input.academicYear,
       regNumber: input.regNumber,
+      studentNumber: input.studentNumber,
       profileComplete: true,
     },
-  })
+  }).catch(friendlyUniqueError)
   const unitsEnrolled = await recalculateEnrollments(userId, input)
   return { unitsEnrolled }
 }
@@ -91,9 +107,10 @@ export async function updateStudentProfile(userId: string, input: StudentPathInp
       semester: input.semester,
       academicYear: input.academicYear,
       regNumber: input.regNumber,
+      studentNumber: input.studentNumber,
       profileComplete: true,
     },
-  })
+  }).catch(friendlyUniqueError)
   const unitsEnrolled = await recalculateEnrollments(userId, input)
   return { unitsEnrolled }
 }

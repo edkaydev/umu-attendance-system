@@ -232,12 +232,24 @@ export async function editAttendance(
     throw new ApiError('Status is already ' + newStatus, 400)
   }
 
+  if (record.session.status !== 'open' && editor.role === 'lecturer') {
+    // Records lock once a session closes — only admins may correct them
+    throw new ApiError('This session is closed. Ask your Faculty Admin to correct attendance.', 403)
+  }
+
   if (editor.role === 'lecturer') {
     if (record.session.lecturerId !== editor.id) {
       throw new ApiError('You can only edit attendance for your own sessions', 403)
     }
+  } else if (editor.role === 'faculty_admin') {
+    const allowedFaculties = new Set([
+      record.session.courseUnit.facultyId,
+      ...record.session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
+    ])
+    if (!editor.facultyId || !allowedFaculties.has(editor.facultyId)) {
+      throw new ApiError('This session is outside your faculty', 403)
+    }
   } else if (editor.role !== 'system_admin') {
-    // Faculty Admin is read-only — they monitor but cannot modify attendance
     throw new ApiError('Forbidden', 403)
   }
 

@@ -81,7 +81,6 @@ export default function AcademicSetup() {
   const [originalSharedFacultyIds, setOriginalSharedFacultyIds] = useState<string[]>([])
   const [year, setYear] = useState('1')
   const [semester, setSemester] = useState('1')
-  const [academicYear, setAcademicYear] = useState('')
 
   const loadAll = useCallback(async () => {
     try {
@@ -119,7 +118,6 @@ export default function AcademicSetup() {
     setOriginalSharedFacultyIds([])
     setYear('1')
     setSemester('1')
-    setAcademicYear(globalPeriod?.academicYear ?? '')
   }
 
   function openEdit(kind: string, item: { id: string } & Partial<Campus & Faculty & Programme & CourseUnit>) {
@@ -132,7 +130,6 @@ export default function AcademicSetup() {
     const shared = (item.sharedFaculties ?? []).map((sf) => sf.facultyId)
     setSharedFacultyIds(shared)
     setOriginalSharedFacultyIds(shared)
-    setAcademicYear(globalPeriod?.academicYear ?? '')
   }
 
   async function handleSave() {
@@ -169,7 +166,6 @@ export default function AcademicSetup() {
           programmeId,
           year: Number(year),
           semester: Number(semester),
-          academicYear,
         })
       }
       toast.success('Saved')
@@ -297,7 +293,6 @@ export default function AcademicSetup() {
                       <th className="py-2 pr-4">Programme</th>
                       <th className="py-2 pr-4">Year</th>
                       <th className="py-2 pr-4">Semester</th>
-                      <th className="py-2 pr-4">Academic Year</th>
                       <th className="py-2" />
                     </tr>
                   </thead>
@@ -311,7 +306,6 @@ export default function AcademicSetup() {
                         <td className="py-3 pr-4 text-text-secondary">{c.programme.name}</td>
                         <td className="py-3 pr-4 text-text-secondary">Year {c.year}</td>
                         <td className="py-3 pr-4 text-text-secondary">Sem {c.semester}</td>
-                        <td className="py-3 pr-4 text-text-secondary">{c.academicYear}</td>
                         <td className="py-3 text-right">
                           <button
                             onClick={() => removeCurriculum(c.id)}
@@ -411,12 +405,6 @@ export default function AcademicSetup() {
                   { value: '1', label: 'Sem 1' },
                   { value: '2', label: 'Sem 2' },
                 ]}
-              />
-              <Input
-                label="Acad. Year"
-                placeholder="e.g. 2025/2026"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
               />
             </div>
           </>

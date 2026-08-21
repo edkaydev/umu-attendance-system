@@ -4,7 +4,7 @@ import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
-import { validateStudentPath, recalculateEnrollments } from './profile.service'
+import { validateStudentPath, recalculateEnrollments, friendlyUniqueError } from './profile.service'
 
 export interface ListUsersParams {
   role?: Role
@@ -87,6 +87,7 @@ export interface CreateUserInput {
   semester?: number
   academicYear?: string
   regNumber?: string
+  studentNumber?: string
 }
 
 /**
@@ -123,6 +124,7 @@ export async function createUser(input: CreateUserInput) {
     semester?: number | null
     academicYear?: string | null
     regNumber?: string | null
+    studentNumber?: string | null
     profileComplete: boolean
     mustChangePassword: boolean
   } = {
@@ -137,7 +139,8 @@ export async function createUser(input: CreateUserInput) {
   if (input.role === Role.student) {
     if (
       !input.campusCode || !input.facultyId || !input.programmeId ||
-      !input.year || !input.semester || !input.academicYear || !input.regNumber
+      !input.year || !input.semester || !input.academicYear || !input.regNumber ||
+      !input.studentNumber
     ) {
       throw new ApiError('Student academic details are required', 400)
     }
@@ -149,6 +152,7 @@ export async function createUser(input: CreateUserInput) {
       semester: input.semester,
       academicYear: input.academicYear,
       regNumber: input.regNumber,
+      studentNumber: input.studentNumber,
     })
     data.facultyId = input.facultyId
     data.programmeId = input.programmeId
@@ -156,6 +160,7 @@ export async function createUser(input: CreateUserInput) {
     data.semester = input.semester
     data.academicYear = input.academicYear
     data.regNumber = input.regNumber
+    data.studentNumber = input.studentNumber
     data.profileComplete = true
   } else if (input.role === Role.lecturer || input.role === Role.faculty_admin) {
     const facultyId = input.facultyId ?? null
@@ -172,7 +177,7 @@ export async function createUser(input: CreateUserInput) {
     data.profileComplete = facultyId !== null
   }
 
-  const user = await prisma.user.create({ data })
+  const user = await prisma.user.create({ data }).catch(friendlyUniqueError)
 
   if (input.role === Role.student) {
     await recalculateEnrollments(user.id, {
@@ -183,6 +188,7 @@ export async function createUser(input: CreateUserInput) {
       semester: input.semester!,
       academicYear: input.academicYear!,
       regNumber: input.regNumber!,
+      studentNumber: input.studentNumber!,
     })
   }
 
@@ -350,6 +356,7 @@ export interface AdminUserUpdateInput {
   semester?: number
   academicYear?: string
   regNumber?: string
+  studentNumber?: string
 }
 
 /**
@@ -374,6 +381,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
     semester?: number | null
     academicYear?: string | null
     regNumber?: string | null
+    studentNumber?: string | null
     profileComplete?: boolean
   } = {
     fullName: input.fullName,
@@ -383,7 +391,8 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
   if (user.role === 'student') {
     if (
       !input.campusCode || !input.facultyId || !input.programmeId ||
-      !input.year || !input.semester || !input.academicYear || !input.regNumber
+      !input.year || !input.semester || !input.academicYear || !input.regNumber ||
+      !input.studentNumber
     ) {
       throw new ApiError('Student academic details are required', 400)
     }
@@ -395,6 +404,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
       semester: input.semester,
       academicYear: input.academicYear,
       regNumber: input.regNumber,
+      studentNumber: input.studentNumber,
     })
     data.facultyId = input.facultyId
     data.programmeId = input.programmeId
@@ -402,6 +412,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
     data.semester = input.semester
     data.academicYear = input.academicYear
     data.regNumber = input.regNumber
+    data.studentNumber = input.studentNumber
     data.profileComplete = true
   } else if (user.role === 'lecturer' || user.role === 'faculty_admin') {
     const facultyId = input.facultyId ?? null
@@ -417,7 +428,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
     data.facultyId = facultyId
   }
 
-  const updated = await prisma.user.update({ where: { id }, data })
+  const updated = await prisma.user.update({ where: { id }, data }).catch(friendlyUniqueError)
 
   if (user.role === 'student') {
     await recalculateEnrollments(id, {
@@ -428,6 +439,7 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
       semester: input.semester!,
       academicYear: input.academicYear!,
       regNumber: input.regNumber!,
+      studentNumber: input.studentNumber!,
     })
   }
 

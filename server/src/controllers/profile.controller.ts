@@ -16,6 +16,7 @@ export const studentProfileSchema = z.object({
   year: z.number().int().min(1).max(6),
   semester: z.number().int().min(1).max(2),
   regNumber: z.string().min(1).max(30),
+  studentNumber: z.string().min(1).max(30),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
 })
 

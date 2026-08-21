@@ -33,7 +33,7 @@ const ImportData = lazy(() => import('./pages/ImportData'))
 const SystemLogPage = lazy(() => import('./pages/SystemLogPage'))
 const GlobalSettings = lazy(() => import('./pages/GlobalSettings'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
-const UpdateSystemPage = lazy(() => import('./pages/UpdateSystemPage'))
+
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 function RouteLoading() {
@@ -91,7 +91,6 @@ function DocumentTitle() {
       pathname.startsWith('/system-admin/imports') ? 'Data imports' :
       pathname.startsWith('/system-admin/logs') ? 'System log' :
       pathname.startsWith('/system-admin/settings') ? 'Global settings' :
-      pathname === '/system-admin/update' ? 'Update system' :
       pathname === '/404' ? 'Page not found' :
       'UMU Attendance'
     document.title = `${title} | UMU Attendance`
@@ -401,21 +400,7 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/system-admin/update"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['system_admin']}>
-                    <AppLayout>
-                      <UpdateSystemPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Route path="*" element={<NotFound />} />            </Routes>
           </Suspense>
           <InstallPrompt />
           <CookieBanner />

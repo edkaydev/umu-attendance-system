@@ -73,7 +73,7 @@ function normalizeRow(row: Row): Row {
  *   faculties:    name, code, campusCode
  *   programmes:   name, code, facultyCode
  *   course_units: name, code, facultyCode
- *   curriculum:   courseUnitCode, programmeCode, year, semester, academicYear
+ *   curriculum:   courseUnitCode, programmeCode, year, semester
  */
 export async function importStructure(
   buffer: Buffer,
@@ -176,44 +176,48 @@ async function importCurriculumRow(row: Row): Promise<void> {
   const programmeCode = normalizeCode(row['programmeCode'])
   const year = Number(row['year'])
   const semester = Number(row['semester'])
-  const academicYear = row['academicYear']?.trim()
 
   if (!courseUnitCode || !programmeCode || !Number.isInteger(year) || !Number.isInteger(semester)) {
     throw new Error('Missing courseUnitCode, programmeCode, year or semester')
   }
-  if (!academicYear || !/^\d{4}\/\d{4}$/.test(academicYear)) {
-    throw new Error(`Invalid academicYear "${academicYear}"`)
-  }
+  if (year < 1 || year > 6) throw new Error(`Invalid year "${year}"`)
+  if (semester < 1 || semester > 2) throw new Error(`Invalid semester "${semester}"`)
 
-  const courseUnit = await prisma.courseUnit.findFirst({ where: { code: courseUnitCode } })
-  if (!courseUnit) throw new Error(`Course unit "${courseUnitCode}" not found`)
   const programme = await prisma.programme.findFirst({ where: { code: programmeCode } })
   if (!programme) throw new Error(`Programme "${programmeCode}" not found`)
-  if (courseUnit.facultyId !== programme.facultyId) {
-    throw new Error('Course unit and programme must belong to the same faculty')
+
+  // Resolve the unit within the programme's faculty first, then any faculty —
+  // cross-faculty units like Ethics are mapped by code, not ownership.
+  let courseUnit = await prisma.courseUnit.findFirst({
+    where: { code: courseUnitCode, facultyId: programme.facultyId },
+  })
+  if (!courseUnit) {
+    courseUnit = await prisma.courseUnit.findFirst({ where: { code: courseUnitCode } })
   }
+  if (!courseUnit) throw new Error(`Course unit "${courseUnitCode}" not found`)
 
   await prisma.curriculumUnit.upsert({
     where: {
-      courseUnitId_programmeId_year_semester_academicYear: {
+      courseUnitId_programmeId_year_semester: {
         courseUnitId: courseUnit.id,
         programmeId: programme.id,
         year,
         semester,
-        academicYear,
       },
     },
-    create: { courseUnitId: courseUnit.id, programmeId: programme.id, year, semester, academicYear },
+    create: { courseUnitId: courseUnit.id, programmeId: programme.id, year, semester },
     update: {},
   })
 }
 
 /**
  * Import staff accounts from CSV (FR-03.6).
- * Columns: name, email, role (lecturer | faculty_admin), facultyCode, password (optional).
- * Staff are linked to the faculty named by facultyCode. Lecturers receive no
- * course-unit assignments during import; those remain the Faculty Admin's job.
- * Each faculty may have only one Faculty Admin.
+ * Columns: email, role (lecturer | faculty_admin), facultyCode.
+ * Names are filled in from the staff member's Google profile at first sign-in;
+ * a placeholder derived from the email is used until then. Accounts start with
+ * the system default password and must change it at first login. Lecturers
+ * receive no course-unit assignments during import; those remain the Faculty
+ * Admin's job. Each faculty may have only one Faculty Admin.
  */
 export async function importStaff(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -229,18 +233,13 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
     const row = rows[i]
     const line = i + 2
     try {
-      const name = row['name']
       const email = row['email']?.trim().toLowerCase()
       const roleRaw = normalizeCode(row['role'])
       const facultyCode = normalizeCode(row['facultyCode'])
-      const plainPassword = row['password']?.trim()
 
-      if (!name || !email || !facultyCode) throw new Error('Missing name, email or facultyCode')
+      if (!email || !facultyCode) throw new Error('Missing email or facultyCode')
       if (!email.endsWith('@umu.ac.ug')) {
         throw new Error(`Email must be @umu.ac.ug`)
-      }
-      if (plainPassword && plainPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters')
       }
 
       const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
@@ -265,30 +264,26 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
         }
       }
 
+      // Placeholder display name until Google provides the real one.
+      const fullName = email.split('@')[0]
+
       if (existing) {
         await prisma.user.update({
           where: { email },
           data: {
-            fullName: name,
             role,
             facultyId: faculty.id,
             profileComplete: true,
             isActive: true,
-            ...(plainPassword
-              ? { password: await hashPassword(plainPassword), mustChangePassword: true }
-              : {}),
           },
         })
       } else {
-        const password = plainPassword
-          ? await hashPassword(plainPassword)
-          : await getDefaultUserPasswordHash()
         await prisma.user.create({
           data: {
             email,
-            password,
+            password: await getDefaultUserPasswordHash(),
             mustChangePassword: true,
-            fullName: name,
+            fullName,
             role,
             facultyId: faculty.id,
             profileComplete: true,
@@ -307,33 +302,13 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 }
 
 /**
- * Import student accounts from CSV with full academic provisioning.
- *
- * Two formats are accepted:
- * 1. Native:      name, email, facultyCode, programmeCode, regNumber (optional),
- *                 password (optional, defaults to the system default).
- * 2. Zeevarsity:  firstname, lastname, registrationNo (or regNo), programCode,
- *                 yearOfStudy, academicYear, studentNo, status — plus optional
- *                 email and facultyCode. Emails are generated as
- *                 firstname.lastname@stud.umu.ac.ug when not provided.
- * Headers are matched case-insensitively with spaces/underscores ignored.
- *
- * When regNumber is blank, the numeric local part of the email
- * (e.g. "2023001001" in 2023001001@stud.umu.ac.ug) is used as the reg number,
- * otherwise one is auto-generated.
- * academicYear, semester and year of study are NOT per-row values: academicYear
- * and semester always come from the system-wide current period set by the
- * System Admin in Global Settings, and the year of study is computed from the
- * student's intake year (first 4 digits of the reg number) against the current
- * period's academic year (falling back to the yearOfStudy column, then Year 1).
- * So every imported student lands in the same active period at the correct year.
- *
- * Students are fully provisioned at import time: linked to their faculty and
- * programme, stamped with year/regNumber and the global period, marked
- * profileComplete, and auto-enrolled in every course unit from the curriculum
- * mapping for their programme/year/semester/academicYear. This is optimised
- * for bulk uploads (thousands of rows): reference data and existing users are
- * preloaded once, and users/enrollments are written with createMany batches.
+ * Import student accounts from CSV — email only.
+ * Columns: email. Names are filled in automatically from the student's Google
+ * profile the first time they sign in; until then a placeholder derived from
+ * the email is shown. Accounts start with the system default password and are
+ * flagged to change it at first login. Each student then completes their own
+ * academic profile on the Welcome screen (campus, faculty, programme, year,
+ * reg number, student number), which auto-enrolls them from the curriculum.
  */
 export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
@@ -346,65 +321,26 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   }
   if (rows.length === 0) return result
 
-  // Preload reference data + existing users once so 4000 rows don't mean 4000 lookups.
-  const [faculties, programmes, existingUsers, currentPeriod] = await Promise.all([
-    prisma.faculty.findMany(),
-    prisma.programme.findMany(),
-    prisma.user.findMany({ select: { id: true, email: true, role: true } }),
-    getCurrentPeriod(),
-  ])
-
-  const facultyByCode = new Map(faculties.map((f) => [f.code.toUpperCase(), f]))
-  const programmeByCode = new Map(programmes.map((p) => [p.code.toUpperCase(), p]))
+  // Preload existing users once so duplicate emails don't mean per-row lookups.
+  const existingUsers = await prisma.user.findMany({ select: { id: true, email: true, role: true } })
   const existingByEmail = new Map(existingUsers.map((u) => [u.email.toLowerCase(), u]))
 
   const defaultPasswordHash = await getDefaultUserPasswordHash()
 
-  const semester = currentPeriod.semester
-  const academicYear = currentPeriod.academicYear
-
-  // Counter for auto-generated registration numbers.
-  const regSeq = { n: 0 }
-
-  interface StudentRow {
-    line: number
-    email: string
-    fullName: string
-    faculty: { id: string; campusCode: string }
-    programmeId: string
-    programmeCode: string
-    year: number
-    semester: number
-    academicYear: string
-    regNumber: string
-    plainPassword?: string
-    courseUnitIds: string[]
-  }
-
-  const students: StudentRow[] = []
   const seenEmails = new Set<string>()
+  interface NewStudent { email: string; fullName: string }
+  const newStudents: NewStudent[] = []
+  const reactivations: string[] = []
 
-  // Phase 1 — parse + validate every row in memory.
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     const line = i + 2 // header is row 1
     try {
       const r = normalizeRow(row)
-      const firstName = r['firstName']
-      const lastName = r['lastName']
-      const fullName = firstName && lastName ? `${firstName} ${lastName}` : r['name']
-      const email =
-        r['email']?.toLowerCase() ||
-        (firstName && lastName ? `${firstName}.${lastName}@stud.umu.ac.ug`.toLowerCase() : '')
-      const facultyCode = normalizeCode(r['facultyCode'])
-      const programmeCode = normalizeCode(r['programmeCode'])
-      const regNumber = r['regNumber']
-      const yearOfStudyRaw = r['yearOfStudy']
-      const plainPassword = r['password']
+      const email = r['email']?.toLowerCase()
 
-      if (!fullName || !email) throw new Error('Missing name or email')
+      if (!email) throw new Error('Missing email')
       if (!email.endsWith('@stud.umu.ac.ug')) throw new Error('Email must end in @stud.umu.ac.ug')
-      if (plainPassword && plainPassword.length < 6) throw new Error('Password must be at least 6 characters')
       if (seenEmails.has(email)) throw new Error('Duplicate email within the file')
       seenEmails.add(email)
 
@@ -413,198 +349,42 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
         throw new Error('Email is already used by a non-student account')
       }
 
-      if (!programmeCode) throw new Error('Missing programmeCode (or programCode)')
-      const programme = programmeByCode.get(programmeCode)
-      if (!programme) throw new Error(`Programme "${programmeCode}" not found`)
-
-      // facultyCode is optional: when absent, derive it from the programme.
-      let faculty = facultyCode ? facultyByCode.get(facultyCode) : undefined
-      if (!faculty) faculty = faculties.find((f) => f.id === programme.facultyId)
-      if (!faculty) throw new Error(`Faculty "${facultyCode ?? programmeCode}" not found`)
-      if (!faculty.isActive) throw new Error(`Faculty "${faculty.code}" is not active`)
-      if (facultyCode && programme.facultyId !== faculty.id) {
-        throw new Error(`Programme "${programmeCode}" does not belong to faculty "${facultyCode}"`)
+      if (existing) {
+        reactivations.push(existing.id)
+        result.imported++
+      } else {
+        // Placeholder display name until Google provides the real one.
+        newStudents.push({ email, fullName: email.split('@')[0] })
       }
-
-      // Year of study is derived by the system from the student's intake year
-      // (first 4 digits of the reg number / numeric email local part) and the
-      // current period's academic year, falling back to a yearOfStudy column.
-      const emailLocal = email.split('@')[0]
-      const numericRegNumber = /^\d+$/.test(emailLocal) ? emailLocal : undefined
-      const intakeMatch = (regNumber || numericRegNumber || '').match(/^(\d{4})/)
-      const intakeYear = intakeMatch ? Number(intakeMatch[1]) : null
-      const periodStartYear = Number.parseInt(academicYear.split('/')[0], 10)
-      const year =
-        intakeYear && Number.isInteger(periodStartYear)
-          ? Math.min(6, Math.max(1, periodStartYear - intakeYear + 1))
-          : yearOfStudyRaw
-            ? Number(yearOfStudyRaw.replace(/\D/g, ''))
-            : 1
-      if (!Number.isInteger(year) || year < 1 || year > 6) {
-        throw new Error('year of study must be an integer between 1 and 6')
-      }
-
-      const finalRegNumber = regNumber || numericRegNumber || `${programmeCode}-${year}-${String(++regSeq.n).padStart(4, '0')}`
-
-      students.push({
-        line,
-        email,
-        fullName,
-        faculty: { id: faculty.id, campusCode: faculty.campusCode },
-        programmeId: programme.id,
-        programmeCode,
-        year,
-        semester,
-        academicYear,
-        regNumber: finalRegNumber,
-        ...(plainPassword ? { plainPassword } : {}),
-        courseUnitIds: [],
-      })
     } catch (error) {
       result.failed++
       result.errors.push({ row: line, message: (error as Error).message })
     }
   }
 
-  // Phase 1.5 — hash each distinct plain password exactly once. bcrypt is slow
-  // (~100ms per hash), so hashing one password per row made a 4,000-row import
-  // take minutes and time out. A file of identical passwords now hashes once.
-  const passwordHashByPassword = new Map<string, string>()
-  const uniquePasswords = [...new Set(students.map((s) => s.plainPassword).filter((p): p is string => Boolean(p)))]
-  for (const p of uniquePasswords) {
-    passwordHashByPassword.set(p, await hashPassword(p))
-  }
-  const hashOf = (plainPassword?: string) =>
-    plainPassword ? passwordHashByPassword.get(plainPassword) : undefined
-
-  // Phase 2 — resolve course units from the curriculum mapping, one query per
-  // distinct (programme, year, semester, academicYear) combination.
-  const combos = new Map<string, string[]>()
-  for (const s of students) {
-    const key = `${s.programmeId}|${s.year}|${s.semester}|${s.academicYear}`
-    let unitIds = combos.get(key)
-    if (!unitIds) {
-      unitIds = await getCurriculumUnitIds(s.programmeId, s.year, s.semester, s.academicYear)
-      combos.set(key, unitIds)
-    }
-    s.courseUnitIds = unitIds
-  }
-
-  // Phase 3 — create new users in bulk, update existing ones.
-  const newStudents = students.filter((s) => !existingByEmail.has(s.email))
-  const updateStudents = students.filter((s) => existingByEmail.has(s.email))
-
-  if (newStudents.length > 0) {
-    const createData = newStudents.map((s) => ({
-      email: s.email,
-      password: hashOf(s.plainPassword) ?? defaultPasswordHash,
-      mustChangePassword: true,
-      fullName: s.fullName,
-      role: Role.student,
-      facultyId: s.faculty.id,
-      programmeId: s.programmeId,
-      year: s.year,
-      semester: s.semester,
-      academicYear: s.academicYear,
-      regNumber: s.regNumber,
-      profileComplete: true,
-      isActive: true,
-    }))
-    for (let i = 0; i < createData.length; i += 200) {
-      await prisma.user.createMany({
-        data: createData.slice(i, i + 200),
-        skipDuplicates: true,
-      })
-    }
-  }
-
-  // Re-fetch created users so we have their IDs for enrollments.
-  const createdIds = new Map<string, string>()
-  if (newStudents.length > 0) {
-    const created = await prisma.user.findMany({
-      where: { email: { in: newStudents.map((s) => s.email) } },
-      select: { id: true, email: true },
+  // Bulk-create accounts; names arrive via Google, profiles completed at login.
+  for (let i = 0; i < newStudents.length; i += 200) {
+    await prisma.user.createMany({
+      data: newStudents.slice(i, i + 200).map((s) => ({
+        email: s.email,
+        password: defaultPasswordHash,
+        mustChangePassword: true,
+        fullName: s.fullName,
+        role: Role.student,
+        profileComplete: false,
+        isActive: true,
+      })),
+      skipDuplicates: true,
     })
-    for (const u of created) createdIds.set(u.email.toLowerCase(), u.id)
+    result.imported += Math.min(200, newStudents.length - i)
   }
 
-  const enrolled: Array<{ studentId: string; line: number; academicYear: string; semester: number; courseUnitIds: string[] }> = []
-
-  for (const s of newStudents) {
-    const id = createdIds.get(s.email)
-    if (!id) {
-      result.failed++
-      result.errors.push({ row: s.line, message: 'Could not create user' })
-      continue
-    }
-    result.imported++
-    enrolled.push({ studentId: id, line: s.line, academicYear: s.academicYear, semester: s.semester, courseUnitIds: s.courseUnitIds })
-  }
-
-  for (const s of updateStudents) {
-    const existing = existingByEmail.get(s.email)!
-    try {
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          fullName: s.fullName,
-          facultyId: s.faculty.id,
-          programmeId: s.programmeId,
-          year: s.year,
-          semester: s.semester,
-          academicYear: s.academicYear,
-          regNumber: s.regNumber,
-          profileComplete: true,
-          isActive: true,
-          ...(hashOf(s.plainPassword) ? { password: hashOf(s.plainPassword), mustChangePassword: true } : {}),
-        },
-      })
-      result.imported++
-      enrolled.push({ studentId: existing.id, line: s.line, academicYear: s.academicYear, semester: s.semester, courseUnitIds: s.courseUnitIds })
-    } catch (error) {
-      result.failed++
-      result.errors.push({ row: s.line, message: (error as Error).message })
-    }
-  }
-
-  // Phase 4 — replace the imported period's enrollments, then bulk-insert.
-  if (enrolled.length > 0) {
-    const updateIds = updateStudents.map((s) => existingByEmail.get(s.email)!.id)
-    const periodPairs = [
-      ...new Set(enrolled.map((e) => `${e.academicYear}|${e.semester}`)),
-    ].map((pair) => {
-      const [academicYear, semester] = pair.split('|')
-      return { academicYear, semester: Number(semester) }
+  // Existing students: make sure the account is usable.
+  if (reactivations.length > 0) {
+    await prisma.user.updateMany({
+      where: { id: { in: reactivations } },
+      data: { isActive: true },
     })
-    await prisma.enrollment.deleteMany({
-      where: {
-        studentId: { in: updateIds },
-        OR: periodPairs,
-      },
-    })
-
-    const enrollmentData: Array<{
-      studentId: string
-      courseUnitId: string
-      academicYear: string
-      semester: number
-    }> = []
-    for (const e of enrolled) {
-      for (const courseUnitId of e.courseUnitIds) {
-        enrollmentData.push({
-          studentId: e.studentId,
-          courseUnitId,
-          academicYear: e.academicYear,
-          semester: e.semester,
-        })
-      }
-    }
-    for (let i = 0; i < enrollmentData.length; i += 1000) {
-      await prisma.enrollment.createMany({
-        data: enrollmentData.slice(i, i + 1000),
-        skipDuplicates: true,
-      })
-    }
   }
 
   return result

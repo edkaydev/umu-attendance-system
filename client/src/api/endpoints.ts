@@ -53,6 +53,7 @@ export interface StudentProfileInput {
   year: number
   semester: number
   regNumber: string
+  studentNumber: string
   academicYear: string
 }
 
@@ -325,7 +326,6 @@ export const academicApi = {
     programmeId: string
     year: number
     semester: number
-    academicYear: string
   }) => http.post<{ curriculumUnit: CurriculumUnitEntry }>('/api/academic/curriculum', data),
   removeCurriculum: (id: string) => http.del<{ message: string }>(`/api/academic/curriculum/${id}`),
 }
@@ -530,8 +530,4 @@ export const settingsApi = {
     http.post<{ message: string; result: Record<string, number> }>('/api/settings/reset-database'),
   clearCache: () =>
     http.post<{ message: string }>('/api/settings/clear-cache'),
-  updateSystem: () =>
-    http.post<{ message: string }>('/api/settings/update-system'),
-  updateLog: () =>
-    http.get<{ log: string; done: boolean }>('/api/settings/update-log'),
 }

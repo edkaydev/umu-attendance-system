@@ -91,10 +91,9 @@ model CurriculumUnit {
   programme    Programme  @relation(fields: [programmeId], references: [id])
   year         Int        @db.TinyInt
   semester     Int        @db.TinyInt
-  academicYear String     @db.VarChar(10)
   createdAt    DateTime   @default(now())
 
-  @@unique([courseUnitId, programmeId, year, semester, academicYear])
+  @@unique([courseUnitId, programmeId, year, semester])
   @@map("curriculum_units")
 }
 
@@ -118,7 +117,8 @@ model User {
   year            Int?       @db.TinyInt
   semester        Int?       @db.TinyInt
   academicYear    String?    @db.VarChar(10)
-  regNumber       String?    @db.VarChar(30)
+  regNumber       String?    @unique @db.VarChar(30)
+  studentNumber   String?    @unique @db.VarChar(30)
   // Profile state
   profileComplete Boolean  @default(false)
   isActive        Boolean  @default(true)

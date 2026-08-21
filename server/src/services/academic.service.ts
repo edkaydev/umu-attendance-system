@@ -1,6 +1,7 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { CAMPUSES, isValidCampusCode, campusName } from '../constants/campuses'
+import { propagateCurriculumToCohort } from './enrollment.service'
 
 // ─────────────────────────────────────────────
 // CAMPUS (fixed locations, defined in code)
@@ -199,37 +200,24 @@ export interface CurriculumInput {
   programmeId: string
   year: number
   semester: number
-  academicYear: string
 }
 
 /**
- * Create a curriculum mapping.
+ * Create a curriculum mapping. Path sets are standing — they persist across
+ * academic periods until an admin changes them.
+ *
+ * Any faculty may map any existing course unit into their programmes: units
+ * like Ethics legitimately cut across faculties, so no share-first gate.
  * @param actorFacultyId  When provided (faculty_admin), the programme must belong
- *                        to the actor's faculty and the course unit must be owned
- *                        by or shared with that faculty.
+ *                        to the actor's faculty.
  */
 export async function createCurriculumMapping(data: CurriculumInput, actorFacultyId?: string | null) {
   const [courseUnit, programme] = await Promise.all([
-    prisma.courseUnit.findUnique({
-      where: { id: data.courseUnitId },
-      include: { sharedFaculties: { select: { facultyId: true } } },
-    }),
+    prisma.courseUnit.findUnique({ where: { id: data.courseUnitId } }),
     prisma.programme.findUnique({ where: { id: data.programmeId } }),
   ])
   if (!courseUnit) throw new ApiError('Course unit not found', 404)
   if (!programme) throw new ApiError('Programme not found', 404)
-
-  // Allow mapping if the course unit is owned by OR shared with the programme's faculty
-  const allowedFaculties = new Set([
-    courseUnit.facultyId,
-    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(programme.facultyId)) {
-    throw new ApiError(
-      "Course unit is not available to this programme's faculty. Share the course unit first.",
-      400
-    )
-  }
 
   // Faculty Admin scoping: programme must belong to their faculty
   if (actorFacultyId) {
@@ -238,7 +226,15 @@ export async function createCurriculumMapping(data: CurriculumInput, actorFacult
     }
   }
 
-  return prisma.curriculumUnit.create({ data })
+  const mapping = await prisma.curriculumUnit.create({ data })
+
+  const affected = await propagateCurriculumToCohort(
+    data.programmeId,
+    data.year,
+    data.semester
+  )
+
+  return { ...mapping, studentsAffected: affected }
 }
 
 export async function removeCurriculumMapping(id: string, actorFacultyId?: string | null) {
@@ -254,10 +250,17 @@ export async function removeCurriculumMapping(id: string, actorFacultyId?: strin
   }
 
   await prisma.curriculumUnit.delete({ where: { id } })
-  return existing
+
+  const studentsAffected = await propagateCurriculumToCohort(
+    existing.programmeId,
+    existing.year,
+    existing.semester
+  )
+
+  return { ...existing, studentsAffected }
 }
 
-export function listCurriculum(filters?: { programmeId?: string; academicYear?: string; facultyId?: string }) {
+export function listCurriculum(filters?: { programmeId?: string; facultyId?: string }) {
   const { facultyId, ...rest } = filters ?? {}
   return prisma.curriculumUnit.findMany({
     where: {

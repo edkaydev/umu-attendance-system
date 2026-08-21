@@ -38,7 +38,11 @@ passport.use(
           if (existing) {
             user = await prisma.user.update({
               where: { email },
-              data: { googleId: profile.id },
+              data: {
+                googleId: profile.id,
+                // Imported accounts carry a placeholder name — take the real one.
+                fullName: profile.displayName || existing.fullName,
+              },
             })
           } else if (isStaff) {
             return done(new Error('NOT_REGISTERED'), undefined)

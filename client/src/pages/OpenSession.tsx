@@ -43,7 +43,7 @@ export default function OpenSession() {
   const [venue, setVenue]             = useState('')
   const [startsAt, setStartsAt]       = useState('')
   const [classDuration, setClassDuration] = useState('60')
-  const [codeTtl, setCodeTtl]         = useState('5')
+  const [codeTtl, setCodeTtl]         = useState('10')
   const [submitting, setSubmitting]   = useState(false)
   const [geoStatus, setGeoStatus]     = useState<'idle' | 'locating' | 'ready' | 'error'>('idle')
   const [geoError, setGeoError]       = useState<string | null>(null)

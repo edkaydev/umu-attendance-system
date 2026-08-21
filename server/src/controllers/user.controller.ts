@@ -34,6 +34,7 @@ const createUserSchema = z.object({
   semester: z.number().int().min(1).max(2).optional(),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/).optional(),
   regNumber: z.string().trim().min(1).max(30).optional(),
+  studentNumber: z.string().trim().min(1).max(30).optional(),
 })
 
 const commonProfileFields = {
@@ -49,6 +50,7 @@ const studentAcademicFields = {
   semester: z.number().int().min(1).max(2),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
   regNumber: z.string().trim().min(1, 'Reg number is required').max(30),
+  studentNumber: z.string().trim().min(1, 'Student number is required').max(30),
 }
 
 const staffFacultyField = {

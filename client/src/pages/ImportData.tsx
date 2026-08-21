@@ -20,8 +20,8 @@ const TEMPLATES: Record<string, string> = {
   curriculum: 'courseUnitCode,programmeCode,year,semester,academicYear',
 }
 
-const STAFF_TEMPLATE = 'name,email,role,facultyCode,password'
-const STUDENT_TEMPLATE = 'name,email,facultyCode,programmeCode,regNumber,password'
+const STAFF_TEMPLATE = 'email,role,facultyCode'
+const STUDENT_TEMPLATE = 'email'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
@@ -207,7 +207,8 @@ export default function ImportData() {
           {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STAFF_TEMPLATE}</code>{' '}
-            (role: lecturer | faculty_admin; facultyCode is required)
+            (role: lecturer | faculty_admin). Names come from Google at first
+            sign-in; accounts start with the default password.
           </p>
         </Card>
 
@@ -248,7 +249,10 @@ export default function ImportData() {
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}
-            (or a Zeevarsity export; password optional, period &amp; year come from the system)
+            — one student email per row (@stud.umu.ac.ug). Names come from
+            Google at first sign-in; students pick their faculty, programme,
+            year and enter their reg/student numbers at first login, which
+            enrolls them in their units.
           </p>
         </Card>
       </div>
