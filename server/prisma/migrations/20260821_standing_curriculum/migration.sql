@@ -8,6 +8,9 @@ JOIN curriculum_units c2
  AND c1.semester = c2.semester
  AND c1.id > c2.id;
 -- 2) Swap the unique constraint to the period-free one and drop the column.
-ALTER TABLE `curriculum_units` DROP INDEX `curriculum_units_courseUnitId_programmeId_year_semester_acad_key`;
+-- Add the replacement index BEFORE dropping the old one: the FKs on
+-- courseUnitId/programmeId rely on prefixes of the old composite index
+-- (MySQL error 1553 otherwise).
 ALTER TABLE `curriculum_units` ADD UNIQUE INDEX `courseUnitId_programmeId_year_semester_key`(`courseUnitId`, `programmeId`, `year`, `semester`);
+ALTER TABLE `curriculum_units` DROP INDEX `curriculum_units_courseUnitId_programmeId_year_semester_acad_key`;
 ALTER TABLE `curriculum_units` DROP COLUMN `academicYear`;
