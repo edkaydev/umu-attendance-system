@@ -6,8 +6,10 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { Session, SessionStatus } from '../types'
+import { Spinner } from '../components/ui/Spinner'
+import { formatDayLabel, formatTime } from '../utils/datetime'
 
 type FacultySession = Session & {
   lecturer: { id: string; fullName: string }
@@ -35,13 +37,11 @@ export default function FacultyAdminSessions() {
     sessionApi
       .facultySessions(params)
       .then(setSessions)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load sessions'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load sessions')))
       .finally(() => setLoading(false))
   }, [globalPeriod, statusFilter, todayOnly, toast])
 
-  const todayLabel = new Date().toLocaleDateString(undefined, {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
+  const todayLabel = formatDayLabel()
 
   return (
     <div className="space-y-6">
@@ -97,7 +97,7 @@ export default function FacultyAdminSessions() {
       <Card noPadding={sessions.length > 0 && !loading}>
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+            <Spinner size="md" />
           </div>
         ) : sessions.length === 0 ? (
           <p className="py-12 text-center text-body-sm text-text-secondary">
@@ -133,12 +133,12 @@ export default function FacultyAdminSessions() {
                       <td className="px-4 py-3 text-body text-text-secondary">{s.lecturer.fullName}</td>
                       <td className="px-4 py-3 text-body text-text-secondary">
                         {todayOnly
-                          ? new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          ? formatTime(s.openedAt)
                           : (
                             <>
                               {new Date(s.openedAt).toLocaleDateString()}{' '}
                               <span className="text-xs text-text-disabled">
-                                {new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatTime(s.openedAt)}
                               </span>
                             </>
                           )}

@@ -5,7 +5,8 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
 
 export default function StudentAttendance() {
   const toast = useToast()
@@ -17,7 +18,7 @@ export default function StudentAttendance() {
     attendanceApi
       .my()
       .then(setData)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load attendance'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load attendance')))
       .finally(() => setLoaded(true))
 
     checkinApi
@@ -28,10 +29,7 @@ export default function StudentAttendance() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading attendance…</p>
-      </div>
+      <LoadingState label="Loading attendance…" />
     )
   }
 

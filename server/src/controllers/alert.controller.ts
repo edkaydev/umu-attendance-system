@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ok } from '../utils/apiResponse'
+import { actorFromRequest } from '../utils/actor'
 import { listAlerts } from '../services/alert-list.service'
 
 const listQuerySchema = z.object({
@@ -13,10 +14,7 @@ const listQuerySchema = z.object({
 export async function listAlertsController(req: Request, res: Response, next: NextFunction) {
   try {
     const filters = listQuerySchema.parse(req.query)
-    const result = await listAlerts(
-      { id: req.user!.id, role: req.user!.role, facultyId: req.user!.facultyId ?? null },
-      filters
-    )
+    const result = await listAlerts(actorFromRequest(req), filters)
     ok(res, result)
   } catch (e) {
     next(e)

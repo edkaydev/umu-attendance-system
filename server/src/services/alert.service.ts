@@ -1,6 +1,6 @@
 import { AlertType } from '@prisma/client'
 import { prisma } from '../config/db'
-import { attendancePercentage, ALERT_THRESHOLDS, alertLevelsForPct } from '../utils/attendanceCalc'
+import { attendancePercentage, ALERT_THRESHOLDS, alertLevelsForPct, isAttended } from '../utils/attendanceCalc'
 import { notifyAlertRecipients } from './email.service'
 
 /**
@@ -37,7 +37,7 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
 
   const counts = new Map<string, number>()
   for (const r of records) {
-    if (r.status === 'present' || r.status === 'excused') {
+    if (isAttended(r)) {
       counts.set(r.studentId, (counts.get(r.studentId) ?? 0) + 1)
     }
   }

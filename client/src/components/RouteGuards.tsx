@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
+import { LoadingState } from './ui/Spinner'
 
 export const DASHBOARD_BY_ROLE: Record<Role, string> = {
   student: '/student',
@@ -12,10 +13,7 @@ export const DASHBOARD_BY_ROLE: Record<Role, string> = {
 
 function FullScreenLoader() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-      <p className="text-body-sm text-text-secondary">Loading your account…</p>
-    </div>
+    <LoadingState label="Loading your account…" fullScreen />
   )
 }
 

@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 
 const PAGE_SIZE = 25
 
@@ -20,7 +20,7 @@ export default function AuditLogPage() {
     auditLogApi
       .list({ page: String(page), limit: String(PAGE_SIZE), ...(action ? { action } : {}) })
       .then(setLogs)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load audit log'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load audit log')))
       .finally(() => setLoading(false))
   }, [toast, page, action])
 

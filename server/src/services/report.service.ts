@@ -1,23 +1,10 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
-import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
+import { attendancePercentage, attendanceStatus, isAttended } from '../utils/attendanceCalc'
+import { Actor } from '../utils/actor'
+import { Period } from '../utils/period'
 
-interface ReportPeriod {
-  academicYear: string
-  semester: number
-}
-
-interface ReportActor {
-  id: string
-  role: string
-  facultyId: string | null
-}
-
-function isGood(r: { status: string }): boolean {
-  return r.status === 'present' || r.status === 'excused'
-}
-
-async function assertFacultyAdminAccess(actor: ReportActor, facultyId: string | null) {
+async function assertFacultyAdminAccess(actor: Actor, facultyId: string | null) {
   if (actor.role !== 'faculty_admin') {
     throw new ApiError('Faculty Admin access required', 403)
   }
@@ -27,7 +14,7 @@ async function assertFacultyAdminAccess(actor: ReportActor, facultyId: string | 
 }
 
 /** FR-10.6: lecturer report — units taught, sessions held, avg class attendance. */
-export async function getLecturerReport(actor: ReportActor, lecturerId: string, period: ReportPeriod) {
+export async function getLecturerReport(actor: Actor, lecturerId: string, period: Period) {
   const lecturer = await prisma.user.findUnique({
     where: { id: lecturerId },
     select: { id: true, fullName: true, email: true, facultyId: true, role: true },
@@ -62,7 +49,7 @@ export async function getLecturerReport(actor: ReportActor, lecturerId: string, 
     const st = unitStats.get(s.courseUnitId) ?? { held: 0, present: 0, total: 0 }
     st.held++
     st.total += s.attendanceRecords.length
-    for (const r of s.attendanceRecords) if (isGood(r)) st.present++
+    for (const r of s.attendanceRecords) if (isAttended(r)) st.present++
     unitStats.set(s.courseUnitId, st)
     if (s.closedAt) {
       timeTaughtMinutes += Math.round((s.closedAt.getTime() - s.openedAt.getTime()) / 60_000)
@@ -104,7 +91,7 @@ export async function getLecturerReport(actor: ReportActor, lecturerId: string, 
 }
 
 /** FR-10.7: programme report — enrolled students, avg attendance, units below threshold. */
-export async function getProgrammeReport(actor: ReportActor, programmeId: string, period: ReportPeriod) {
+export async function getProgrammeReport(actor: Actor, programmeId: string, period: Period) {
   const programme = await prisma.programme.findUnique({
     where: { id: programmeId },
     select: { id: true, code: true, name: true, facultyId: true },
@@ -138,7 +125,7 @@ export async function getProgrammeReport(actor: ReportActor, programmeId: string
     st.held++
     st.total += s.attendanceRecords.length
     for (const r of s.attendanceRecords) {
-      if (isGood(r)) {
+      if (isAttended(r)) {
         st.present++
         present++
       }
@@ -181,7 +168,7 @@ export async function getProgrammeReport(actor: ReportActor, programmeId: string
 }
 
 /** FR-10.8: course unit report — enrolled students, sessions held, per-student attendance. */
-export async function getCourseUnitReport(actor: ReportActor, courseUnitId: string, period: ReportPeriod) {
+export async function getCourseUnitReport(actor: Actor, courseUnitId: string, period: Period) {
   const unit = await prisma.courseUnit.findUnique({
     where: { id: courseUnitId },
     select: { id: true, code: true, name: true, facultyId: true },
@@ -238,7 +225,7 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
   for (const s of closedSessions) {
     total += s.attendanceRecords.length
     for (const r of s.attendanceRecords) {
-      if (isGood(r)) {
+      if (isAttended(r)) {
         present++
         presentByStudent.set(r.studentId, (presentByStudent.get(r.studentId) ?? 0) + 1)
       }
@@ -296,7 +283,7 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
 }
 
 /** FR-10.9: student report — units, % per unit, weekly chart, eligibility. */
-export async function getStudentReport(actor: ReportActor, studentId: string, period: ReportPeriod) {
+export async function getStudentReport(actor: Actor, studentId: string, period: Period) {
   const student = await prisma.user.findUnique({
     where: { id: studentId },
     select: { id: true, fullName: true, email: true, regNumber: true, facultyId: true, role: true },
@@ -332,7 +319,7 @@ export async function getStudentReport(actor: ReportActor, studentId: string, pe
   const attendedByUnit = new Map<string, number>()
   for (const r of records) {
     const unitId = sessionToUnit.get(r.sessionId)
-    if (unitId && isGood(r)) {
+    if (unitId && isAttended(r)) {
       attendedByUnit.set(unitId, (attendedByUnit.get(unitId) ?? 0) + 1)
     }
   }
@@ -362,7 +349,7 @@ export async function getStudentReport(actor: ReportActor, studentId: string, pe
     const dayIds = new Set(daySessions.map((s) => s.id))
     let attended = 0
     for (const r of records) {
-      if (dayIds.has(r.sessionId) && isGood(r)) attended++
+      if (dayIds.has(r.sessionId) && isAttended(r)) attended++
     }
     weeklyChart.push({
       date: start.toISOString().slice(0, 10),

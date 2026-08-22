@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { authApi } from '../api/endpoints'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { PasswordInput } from '../components/ui/PasswordInput'
 import { Card } from '../components/ui/Card'
@@ -36,7 +36,7 @@ export default function ChangePassword() {
       // (dashboard if profileComplete, /profile/setup if not).
       await refresh()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to change password')
+      toast.error(errorMessage(e, 'Failed to change password'))
     } finally {
       setSaving(false)
     }

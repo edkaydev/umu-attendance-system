@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { academicYearField, semesterField } from '../utils/period'
 import { ok } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
 import {
@@ -14,10 +15,10 @@ export const studentProfileSchema = z.object({
   facultyId: z.string().uuid(),
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
-  semester: z.number().int().min(1).max(2),
+  semester: semesterField,
   regNumber: z.string().min(1).max(30),
   studentNumber: z.string().min(1).max(30),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
+  academicYear: academicYearField,
 })
 
 export const lecturerProfileSchema = z.object({

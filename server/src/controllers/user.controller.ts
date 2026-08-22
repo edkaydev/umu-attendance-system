@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { academicYearField, semesterField } from '../utils/period'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
@@ -31,8 +32,8 @@ const createUserSchema = z.object({
   campusCode: z.string().min(1).max(20).optional(),
   programmeId: z.string().uuid().optional(),
   year: z.number().int().min(1).max(6).optional(),
-  semester: z.number().int().min(1).max(2).optional(),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/).optional(),
+  semester: semesterField.optional(),
+  academicYear: academicYearField.optional(),
   regNumber: z.string().trim().min(1).max(30).optional(),
   studentNumber: z.string().trim().min(1).max(30).optional(),
 })
@@ -47,8 +48,8 @@ const studentAcademicFields = {
   facultyId: z.string().uuid(),
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
-  semester: z.number().int().min(1).max(2),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
+  semester: semesterField,
+  academicYear: academicYearField,
   regNumber: z.string().trim().min(1, 'Reg number is required').max(30),
   studentNumber: z.string().trim().min(1, 'Student number is required').max(30),
 }

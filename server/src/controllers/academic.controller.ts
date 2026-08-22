@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { semesterField } from '../utils/period'
 import { ok, created, noContent } from '../utils/apiResponse'
 import {
   listCampuses,
@@ -49,7 +50,7 @@ export const curriculumSchema = z.object({
   courseUnitId: z.string().uuid(),
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
-  semester: z.number().int().min(1).max(2),
+  semester: semesterField,
 })
 
 export const updateFacultySchema = facultySchema.partial().extend({ isActive: z.boolean().optional() })

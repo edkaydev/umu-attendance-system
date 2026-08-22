@@ -5,32 +5,12 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
+import { Stat } from '../components/ui/Stat'
+import { formatTime } from '../utils/datetime'
 
 type Dashboard = Awaited<ReturnType<typeof dashboardApi.lecturer>>
-
-function Stat({
-  label,
-  value,
-  variant = 'default',
-}: {
-  label: string
-  value: number | string
-  variant?: 'default' | 'danger' | 'success'
-}) {
-  const colour =
-    variant === 'danger'
-      ? 'text-danger'
-      : variant === 'success'
-      ? 'text-success'
-      : 'text-text-primary'
-  return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-white p-4">
-      <span className={`text-h2 font-bold leading-none ${colour}`}>{value}</span>
-      <span className="text-body-sm text-text-secondary">{label}</span>
-    </div>
-  )
-}
 
 export default function LecturerDashboard() {
   const { user } = useAuth()
@@ -43,17 +23,14 @@ export default function LecturerDashboard() {
       .lecturer()
       .then(setData)
       .catch((e) =>
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
+        toast.error(errorMessage(e, 'Failed to load dashboard'))
       )
       .finally(() => setLoaded(true))
   }, [toast])
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
-      </div>
+      <LoadingState label="Loading dashboard…" />
     )
   }
 
@@ -186,7 +163,7 @@ export default function LecturerDashboard() {
                       {s.courseUnit.name}
                     </p>
                     <p className="text-body-sm text-text-secondary">
-                      {new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(s.openedAt)}
                       {s.venue ? ` · ${s.venue}` : ''}
                       {' · '}
                       <span className="font-medium">{s._count?.attendanceRecords ?? 0}</span> checked in

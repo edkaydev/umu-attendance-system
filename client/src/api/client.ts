@@ -15,6 +15,11 @@ export class ApiClientError extends Error {
   }
 }
 
+/** Server-supplied message for a failed request, or `fallback` for anything else. */
+export function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiClientError ? error.message : fallback
+}
+
 let unauthorizedHandler: (() => void) | null = null
 
 /** Register a handler called when a request fails auth even after a refresh. */

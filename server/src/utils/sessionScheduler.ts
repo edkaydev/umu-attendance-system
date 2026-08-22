@@ -16,8 +16,9 @@
  */
 
 import { prisma } from '../config/db'
-import { AttendanceStatus, SessionStatus } from '@prisma/client'
+import { SessionStatus } from '@prisma/client'
 import { writeAuditLog } from './audit'
+import { markAbsentees } from './sessionClose'
 import { tryRedis } from '../config/redis'
 import { randomUUID } from 'crypto'
 
@@ -44,43 +45,17 @@ async function closeSingleSession(sessionId: string): Promise<void> {
   })
   if (!session) return
 
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      courseUnitId: session.courseUnitId,
-      academicYear: session.academicYear,
-      semester: session.semester,
-    },
-    select: { studentId: true },
-  })
-
-  const existing = await prisma.attendanceRecord.findMany({
-    where: { sessionId },
-    select: { studentId: true },
-  })
-  const checkedInIds = new Set(existing.map((r) => r.studentId))
-  const absentIds = enrollments
-    .map((e) => e.studentId)
-    .filter((id) => !checkedInIds.has(id))
-
-  if (absentIds.length > 0) {
-    await prisma.attendanceRecord.createMany({
-      data: absentIds.map((studentId) => ({
-        sessionId,
-        studentId,
-        status: AttendanceStatus.absent,
-      })),
-    })
-  }
+  const absenteesAutoMarked = await markAbsentees(sessionId, session)
 
   await writeAuditLog(
     session.lecturerId,
     'SESSION_AUTO_CLOSE',
     'session',
     sessionId,
-    { absenteesAutoMarked: absentIds.length, reason: 'classDuration elapsed' }
+    { absenteesAutoMarked, reason: 'classDuration elapsed' }
   )
 
-  console.log(`[scheduler] auto-closed session ${sessionId} (${absentIds.length} absent records created)`)
+  console.log(`[scheduler] auto-closed session ${sessionId} (${absenteesAutoMarked} absent records created)`)
 }
 
 async function tick(): Promise<void> {

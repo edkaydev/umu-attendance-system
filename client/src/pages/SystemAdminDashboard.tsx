@@ -15,7 +15,8 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { PasswordInput } from '../components/ui/PasswordInput'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.systemAdmin>>
 
@@ -116,7 +117,7 @@ export default function SystemAdminDashboard() {
       .systemAdmin()
       .then(setData)
       .catch((e) =>
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
+        toast.error(errorMessage(e, 'Failed to load dashboard'))
       )
       .finally(() => setLoaded(true))
     settingsApi
@@ -141,7 +142,7 @@ export default function SystemAdminDashboard() {
       setProfileEditing(res.enabled)
       toast.success(res.message)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update setting')
+      toast.error(errorMessage(e, 'Failed to update setting'))
     } finally {
       setToggling(null)
     }
@@ -165,7 +166,7 @@ export default function SystemAdminDashboard() {
       toast.success(res.message)
       setPeriodModalOpen(false)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to set period')
+      toast.error(errorMessage(e, 'Failed to set period'))
     } finally {
       setSavingPeriod(false)
     }
@@ -187,7 +188,7 @@ export default function SystemAdminDashboard() {
       toast.success(res.message)
       setDefaultPasswordModalOpen(false)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update default password')
+      toast.error(errorMessage(e, 'Failed to update default password'))
     } finally {
       setSavingDefaultPassword(false)
     }
@@ -195,10 +196,7 @@ export default function SystemAdminDashboard() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading system dashboard…</p>
-      </div>
+      <LoadingState label="Loading system dashboard…" />
     )
   }
 

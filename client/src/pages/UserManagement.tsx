@@ -15,7 +15,7 @@ import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { Role, ManagedUser, Faculty } from '../types'
 
 const PAGE_SIZE = 20
@@ -84,7 +84,7 @@ function CreateUserModal({
       toast.success(`${fullName.trim()} created`)
       onCreated()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to create user')
+      toast.error(errorMessage(e, 'Failed to create user'))
     } finally {
       setSaving(false)
     }
@@ -202,7 +202,7 @@ function EditUserModal({
       toast.success(`${user.fullName} updated`)
       onSaved()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update user')
+      toast.error(errorMessage(e, 'Failed to update user'))
     } finally {
       setSaving(false)
     }
@@ -215,7 +215,7 @@ function EditUserModal({
       toast.success(message)
       setShowResetConfirm(false)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reset password')
+      toast.error(errorMessage(e, 'Failed to reset password'))
     } finally {
       setResettingPassword(false)
     }
@@ -331,7 +331,7 @@ export default function UserManagement() {
     userApi
       .list(buildParams())
       .then(setData)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load users'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load users')))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, search, page])
 
@@ -347,7 +347,7 @@ export default function UserManagement() {
       toast.success(user.isActive ? `${user.fullName} deactivated` : `${user.fullName} activated`)
       await reload()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Operation failed')
+      toast.error(errorMessage(e, 'Operation failed'))
     }
   }
 
@@ -379,7 +379,7 @@ export default function UserManagement() {
           setSelectedIds((ids) => ids.filter((id) => id !== user.id))
           await reload()
         } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete user')
+          toast.error(errorMessage(e, 'Could not delete user'))
         } finally {
           setDeleting(false)
           setConfirm(null)
@@ -402,7 +402,7 @@ export default function UserManagement() {
           if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
           await reload()
         } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete selected users')
+          toast.error(errorMessage(e, 'Could not delete selected users'))
         } finally {
           setDeleting(false)
           setConfirm(null)
@@ -429,7 +429,7 @@ export default function UserManagement() {
           if (result.errors.length) toast.error(`${result.errors.length} user(s) could not be deleted because they have linked records.`)
           await reload()
         } catch (e) {
-          toast.error(e instanceof ApiClientError ? e.message : 'Could not delete users')
+          toast.error(errorMessage(e, 'Could not delete users'))
         } finally {
           setDeleting(false)
           setConfirm(null)
@@ -456,7 +456,7 @@ export default function UserManagement() {
       setAssignTarget(null)
       await reload()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to assign faculty')
+      toast.error(errorMessage(e, 'Failed to assign faculty'))
     } finally {
       setAssigning(false)
     }

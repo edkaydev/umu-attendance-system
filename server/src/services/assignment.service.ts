@@ -1,6 +1,7 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isProfileEditingEnabled } from './settings.service'
+import { assertValidPeriod } from '../utils/period'
 
 export interface AssignmentInput {
   lecturerId: string
@@ -45,12 +46,7 @@ export async function createAssignment(
   // No ownership gate: units like Ethics cut across faculties, and any
   // faculty admin may assign a lecturer to a unit their programmes take.
 
-  if (!/^\d{4}\/\d{4}$/.test(input.academicYear)) {
-    throw new ApiError('Academic year must be like 2025/2026', 400)
-  }
-  if (!Number.isInteger(input.semester) || input.semester < 1 || input.semester > 2) {
-    throw new ApiError('Semester must be 1 or 2', 400)
-  }
+  assertValidPeriod(input.academicYear, input.semester)
 
   await assertNoCohortClash(input.lecturerId, input.courseUnitId, input.academicYear, input.semester)
 

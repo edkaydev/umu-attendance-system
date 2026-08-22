@@ -6,7 +6,7 @@ import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 
 const STRUCTURE_TYPES = [
   { value: 'faculties', label: 'Faculties' },
@@ -110,7 +110,7 @@ export default function ImportData() {
       setResult(res.result)
       toast.success('Import finished')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
+      toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
       setTimeout(() => setUploadProgress(0), 1000)
@@ -137,7 +137,7 @@ export default function ImportData() {
       setStaffResult(res.result)
       toast.success('Import finished')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
+      toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
       setTimeout(() => setUploadProgress(0), 1000)
@@ -164,7 +164,7 @@ export default function ImportData() {
       setStudentResult(res.result)
       toast.success('Import finished')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
+      toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
       setTimeout(() => setUploadProgress(0), 1000)

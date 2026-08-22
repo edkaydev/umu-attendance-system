@@ -1,14 +1,16 @@
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
-import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
+import { attendancePercentage, attendanceStatus, countAttendedBy } from '../utils/attendanceCalc'
 import { writeAuditLog } from '../utils/audit'
+import { Actor } from '../utils/actor'
+import { assertSessionScope } from '../utils/scope'
 
 /** All records of a session with student details (FR-05.12 / FR-07.5).
  *  Lecturer must own the session; Faculty Admin must be in the same or shared faculty. */
 export async function getSessionAttendance(
   sessionId: string,
-  actor: { id: string; role: string; facultyId: string | null }
+  actor: Actor
 ) {
   // Fetch session with faculty info for scope check
   const session = await prisma.session.findUnique({
@@ -25,21 +27,11 @@ export async function getSessionAttendance(
   })
   if (!session) throw new ApiError('Session not found', 404)
 
-  if (actor.role === 'lecturer') {
+  await assertSessionScope(actor, session.courseUnit, () => {
     if (session.lecturerId !== actor.id) {
       throw new ApiError('You can only view attendance for your own sessions', 403)
     }
-  } else if (actor.role === 'faculty_admin') {
-    const allowed = new Set([
-      session.courseUnit.facultyId,
-      ...session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-    ])
-    if (!actor.facultyId || !allowed.has(actor.facultyId)) {
-      throw new ApiError('Session is outside your faculty', 403)
-    }
-  } else if (actor.role !== 'system_admin') {
-    throw new ApiError('Forbidden', 403)
-  }
+  })
 
   const records = await prisma.attendanceRecord.findMany({
     where: { sessionId },
@@ -128,13 +120,7 @@ export async function getMyAttendance(studentId: string) {
     select: { sessionId: true, status: true },
   })
 
-  const presentExcusedByUnit = new Map<string, number>()
-  for (const r of records) {
-    const unitId = sessionToUnit.get(r.sessionId)
-    if (unitId && (r.status === 'present' || r.status === 'excused')) {
-      presentExcusedByUnit.set(unitId, (presentExcusedByUnit.get(unitId) ?? 0) + 1)
-    }
-  }
+  const presentExcusedByUnit = countAttendedBy(records, (r) => sessionToUnit.get(r.sessionId))
 
   return {
     period: { academicYear, semester },
@@ -175,12 +161,7 @@ export async function getUnitSummary(courseUnitId: string, academicYear: string,
     select: { sessionId: true, studentId: true, status: true },
   })
 
-  const studentPresentExcused = new Map<string, number>()
-  for (const r of records) {
-    if (r.status === 'present' || r.status === 'excused') {
-      studentPresentExcused.set(r.studentId, (studentPresentExcused.get(r.studentId) ?? 0) + 1)
-    }
-  }
+  const studentPresentExcused = countAttendedBy(records, (r) => r.studentId)
 
   return {
     courseUnitId,
@@ -206,7 +187,7 @@ export async function editAttendance(
   recordId: string,
   newStatus: AttendanceStatus,
   reason: string,
-  editor: { id: string; role: string; facultyId: string | null }
+  editor: Actor
 ) {
   if (!reason.trim()) {
     throw new ApiError('A reason is required for attendance edits', 400)
@@ -237,21 +218,16 @@ export async function editAttendance(
     throw new ApiError('This session is closed. Ask your Faculty Admin to correct attendance.', 403)
   }
 
-  if (editor.role === 'lecturer') {
-    if (record.session.lecturerId !== editor.id) {
-      throw new ApiError('You can only edit attendance for your own sessions', 403)
-    }
-  } else if (editor.role === 'faculty_admin') {
-    const allowedFaculties = new Set([
-      record.session.courseUnit.facultyId,
-      ...record.session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-    ])
-    if (!editor.facultyId || !allowedFaculties.has(editor.facultyId)) {
-      throw new ApiError('This session is outside your faculty', 403)
-    }
-  } else if (editor.role !== 'system_admin') {
-    throw new ApiError('Forbidden', 403)
-  }
+  await assertSessionScope(
+    editor,
+    record.session.courseUnit,
+    () => {
+      if (record.session.lecturerId !== editor.id) {
+        throw new ApiError('You can only edit attendance for your own sessions', 403)
+      }
+    },
+    'This session is outside your faculty'
+  )
 
   const updated = await prisma.$transaction([
     prisma.attendanceRecord.update({

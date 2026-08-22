@@ -4,8 +4,10 @@ import { sessionApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { Session } from '../types'
+import { Spinner } from '../components/ui/Spinner'
+import { formatDayLabel, formatShortDate, formatTime } from '../utils/datetime'
 
 type Tab = 'today' | 'all'
 
@@ -42,7 +44,7 @@ export default function SessionsList() {
       .then((all) => {
         setSessions(unitFilter ? all.filter((s) => s.courseUnitId === unitFilter) : all)
       })
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load sessions'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load sessions')))
       .finally(() => setLoading(false))
   }, [tab, unitFilter, toast])
 
@@ -61,7 +63,7 @@ export default function SessionsList() {
           <p className="text-body-sm text-text-secondary">
             {unitFilter ? 'Filtered to one course unit · ' : ''}
             {tab === 'today'
-              ? new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+              ? formatDayLabel()
               : 'All sessions for your assigned units'}
           </p>
         </div>
@@ -92,7 +94,7 @@ export default function SessionsList() {
       <Card noPadding={sessions.length > 0 && !loading}>
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
+            <Spinner size="md" />
           </div>
         ) : sessions.length === 0 ? (
           <div className="py-12 text-center">
@@ -140,15 +142,8 @@ export default function SessionsList() {
                     </td>
                     <td className="px-4 py-3 text-body text-text-secondary">
                       {tab === 'today'
-                        ? new Date(s.startsAt ?? s.openedAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : new Date(s.startsAt ?? s.openedAt).toLocaleDateString(undefined, {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+                        ? formatTime(s.startsAt ?? s.openedAt)
+                        : formatShortDate(s.startsAt ?? s.openedAt)}
                     </td>
                     <td className="px-4 py-3 text-body text-text-secondary capitalize">
                       {s.mode === 'online' ? 'Online' : s.venue ?? 'Physical'}

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
-import { ApiClientError } from '../api/client'
+import { ApiClientError, errorMessage } from '../api/client'
 import { getCurrentPosition, GeoError } from '../utils/geo'
 import type { SessionMode } from '../types'
 
@@ -55,7 +55,7 @@ export default function OpenSession() {
         setAssignments(d.units)
         if (d.units.length === 1) setSelectedId(d.units[0].courseUnit.id)
       })
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load your units'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load your units')))
   }, [toast])
 
   const assignment = assignments.find((a) => a.courseUnit.id === selectedId) ?? null
@@ -115,7 +115,7 @@ export default function OpenSession() {
       toast.success('Session opened — code ' + res.session.code)
       navigate(`/lecturer/sessions/${res.session.id}/live`)
     } catch (e) {
-      const msg = e instanceof ApiClientError ? e.message : 'Failed to open session'
+      const msg = errorMessage(e, 'Failed to open session')
       // Geo-related server rejections — show inline rather than toast
       if (e instanceof ApiClientError && (
         e.code === 'LECTURER_OUTSIDE_CAMPUS' || e.code === 'LOCATION_REQUIRED'

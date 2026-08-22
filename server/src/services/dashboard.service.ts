@@ -1,19 +1,14 @@
 import { prisma } from '../config/db'
 
-import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
-
-function dayRange(daysAgo: number): { start: Date; end: Date } {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - daysAgo)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
-  return { start, end }
-}
-
-function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
+import {
+  attendancePercentage,
+  attendanceStatus,
+  averagePercentage,
+  countAttendedBy,
+  isAttended,
+  tallyAttendance,
+} from '../utils/attendanceCalc'
+import { dayRange, isoDay, startOfToday } from '../utils/dateRange'
 
 /** ─── Student dashboard (FR-09) ─── */
 export async function getStudentDashboard(studentId: string) {
@@ -57,13 +52,7 @@ export async function getStudentDashboard(studentId: string) {
     select: { sessionId: true, status: true },
   })
 
-  const attendedByUnit = new Map<string, number>()
-  for (const r of records) {
-    const unitId = sessionToUnit.get(r.sessionId)
-    if (unitId && (r.status === 'present' || r.status === 'excused')) {
-      attendedByUnit.set(unitId, (attendedByUnit.get(unitId) ?? 0) + 1)
-    }
-  }
+  const attendedByUnit = countAttendedBy(records, (r) => sessionToUnit.get(r.sessionId))
 
   const unitsSummary = units.map((u) => {
     const total = totalByUnit.get(u.courseUnitId) ?? 0
@@ -107,12 +96,7 @@ export async function getStudentDashboard(studentId: string) {
       (s) => s.openedAt >= start && s.openedAt < end
     )
     const dayIds = new Set(daySessions.map((s) => s.id))
-    let attended = 0
-    for (const r of records) {
-      if (dayIds.has(r.sessionId) && (r.status === 'present' || r.status === 'excused')) {
-        attended++
-      }
-    }
+    const attended = records.filter((r) => dayIds.has(r.sessionId) && isAttended(r)).length
     weeklyChart.push({
       date: isoDay(start),
       sessionsHeld: daySessions.length,
@@ -142,7 +126,7 @@ export async function getLecturerDashboard(lecturerId: string) {
   })
   const unitIds = assignments.map((a) => a.courseUnitId)
 
-  const { start: todayStart } = dayRange(0)
+  const todayStart = startOfToday()
 
   // Fetch today's sessions WITHOUT _count to avoid Prisma version quirks,
   // then count attendance records separately.
@@ -203,7 +187,7 @@ export async function getFacultyAdminDashboard(adminId: string) {
 
   const facultyId = admin.facultyId
 
-  const { start: todayStart } = dayRange(0)
+  const todayStart = startOfToday()
 
   const [unitCount, studentCount, lecturerCount, sessionsToday, activeAlerts] = await Promise.all([
     prisma.courseUnit.count({ where: { facultyId } }),
@@ -234,21 +218,16 @@ export async function getFacultyAdminDashboard(adminId: string) {
         select: { attendanceRecords: { select: { status: true } } },
       }),
     ])
-    let present = 0
-    let total = 0
-    for (const s of closedSessions) {
-      total += s.attendanceRecords.length
-      for (const r of s.attendanceRecords) {
-        if (r.status === 'present' || r.status === 'excused') present++
-      }
-    }
+    const { attended, total } = tallyAttendance(
+      closedSessions.flatMap((s) => s.attendanceRecords)
+    )
     lecturerSummary.push({
       id: l.id,
       fullName: l.fullName,
       email: l.email,
       units,
       sessions: closedSessions.length,
-      avgAttendance: total ? Number(((present / total) * 100).toFixed(2)) : null,
+      avgAttendance: averagePercentage(attended, total),
     })
   }
 
@@ -280,14 +259,11 @@ export async function getFacultyAdminDashboard(adminId: string) {
     const unitStats = new Map<string, { present: number; total: number }>()
     for (const s of sessions) {
       const stats = unitStats.get(s.courseUnitId) ?? { present: 0, total: 0 }
-      stats.total += s.attendanceRecords.length
-      for (const r of s.attendanceRecords) {
-        if (r.status === 'present' || r.status === 'excused') {
-          stats.present++
-          present++
-        }
-      }
-      total += s.attendanceRecords.length
+      const sessionTally = tallyAttendance(s.attendanceRecords)
+      stats.present += sessionTally.attended
+      stats.total += sessionTally.total
+      present += sessionTally.attended
+      total += sessionTally.total
       unitStats.set(s.courseUnitId, stats)
     }
     let unitsBelow = 0
@@ -298,7 +274,7 @@ export async function getFacultyAdminDashboard(adminId: string) {
     programmeSummary.push({
       programme: p,
       students,
-      avgAttendance: total ? Number(((present / total) * 100).toFixed(2)) : null,
+      avgAttendance: averagePercentage(present, total),
       unitsBelowThreshold: unitsBelow,
     })
   }
@@ -344,7 +320,7 @@ export async function getFacultyAdminDashboard(adminId: string) {
 
 /** ─── System Admin dashboard (FR-09) ─── */
 export async function getSystemAdminDashboard() {
-  const { start: todayStart } = dayRange(0)
+  const todayStart = startOfToday()
 
   const [students, lecturers, facultyAdmins, admins, activeSessionsToday, recentImports, recentActivity] =
     await Promise.all([

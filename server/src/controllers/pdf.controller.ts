@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { prisma } from '../config/db'
-import { ApiError } from '../utils/apiResponse'
+import { actorFromRequest } from '../utils/actor'
+import { parsePeriodQuery } from '../utils/period'
 import { reportToPdf, statusPill, PdfTable, PdfHeader } from '../services/pdf.service'
 import {
   getLecturerReport,
@@ -9,22 +10,6 @@ import {
   getCourseUnitReport,
   getStudentReport,
 } from '../services/report.service'
-
-function parsePeriod(query: Record<string, unknown>): { academicYear: string; semester: number } {
-  const academicYear = String(query.academicYear ?? '')
-  const semester = Number(query.semester ?? '')
-  if (!/^\d{4}\/\d{4}$/.test(academicYear)) {
-    throw new ApiError('academicYear is required (e.g. 2025/2026)', 400)
-  }
-  if (!Number.isInteger(semester) || semester < 1 || semester > 2) {
-    throw new ApiError('semester is required (1 or 2)', 400)
-  }
-  return { academicYear, semester }
-}
-
-function actor(req: Request) {
-  return { id: req.user!.id, role: req.user!.role, facultyId: req.user!.facultyId ?? null }
-}
 
 function today(): string {
   return new Date().toLocaleDateString('en-UG', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -56,8 +41,8 @@ async function sendPdf(res: Response, pdf: Buffer, filename: string) {
 export async function lecturerPdfController(req: Request, res: Response, next: NextFunction) {
   try {
     const { lecturerId } = z.object({ lecturerId: z.string().uuid() }).parse(req.params)
-    const period = parsePeriod(req.query)
-    const data = await getLecturerReport(actor(req), lecturerId, period)
+    const period = parsePeriodQuery(req.query)
+    const data = await getLecturerReport(actorFromRequest(req), lecturerId, period)
     const header: PdfHeader = {
       title: 'Lecturer Attendance Report',
       facultyName: await facultyName(data.lecturer.facultyId),
@@ -105,8 +90,8 @@ export async function lecturerPdfController(req: Request, res: Response, next: N
 export async function programmePdfController(req: Request, res: Response, next: NextFunction) {
   try {
     const { programmeId } = z.object({ programmeId: z.string().uuid() }).parse(req.params)
-    const period = parsePeriod(req.query)
-    const data = await getProgrammeReport(actor(req), programmeId, period)
+    const period = parsePeriodQuery(req.query)
+    const data = await getProgrammeReport(actorFromRequest(req), programmeId, period)
     const header: PdfHeader = {
       title: 'Programme Attendance Report',
       facultyName: await facultyName(data.programme.facultyId),
@@ -144,8 +129,8 @@ export async function programmePdfController(req: Request, res: Response, next: 
 export async function courseUnitPdfController(req: Request, res: Response, next: NextFunction) {
   try {
     const { courseUnitId } = z.object({ courseUnitId: z.string().uuid() }).parse(req.params)
-    const period = parsePeriod(req.query)
-    const data = await getCourseUnitReport(actor(req), courseUnitId, period)
+    const period = parsePeriodQuery(req.query)
+    const data = await getCourseUnitReport(actorFromRequest(req), courseUnitId, period)
     const header: PdfHeader = {
       title: 'Course Unit Attendance Report',
       facultyName: await facultyName(data.courseUnit.facultyId),
@@ -196,8 +181,8 @@ export async function courseUnitPdfController(req: Request, res: Response, next:
 export async function studentPdfController(req: Request, res: Response, next: NextFunction) {
   try {
     const { studentId } = z.object({ studentId: z.string().uuid() }).parse(req.params)
-    const period = parsePeriod(req.query)
-    const data = await getStudentReport(actor(req), studentId, period)
+    const period = parsePeriodQuery(req.query)
+    const data = await getStudentReport(actorFromRequest(req), studentId, period)
     const header: PdfHeader = {
       title: 'Student Attendance Report',
       facultyName: await facultyName(data.student.facultyId),

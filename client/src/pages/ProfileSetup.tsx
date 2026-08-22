@@ -7,7 +7,8 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
 
 const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
 
@@ -59,7 +60,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           }
         }
       })
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load profile options. Please refresh the page.'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load profile options. Please refresh the page.')))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit])
@@ -83,10 +84,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading profile options…</p>
-      </div>
+      <LoadingState label="Loading profile options…" fullScreen />
     )
   }
 
@@ -121,7 +119,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         toast.success('Profile saved')
         // RequireAuth will redirect to the dashboard once profileComplete = true
       } catch (e) {
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
+        toast.error(errorMessage(e, 'Failed to save profile'))
       } finally {
         setSaving(false)
       }
@@ -137,7 +135,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         toast.success('Profile saved')
         // RequireAuth will redirect to /lecturer once profileComplete = true
       } catch (e) {
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
+        toast.error(errorMessage(e, 'Failed to save profile'))
       } finally {
         setSaving(false)
       }

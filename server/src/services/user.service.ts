@@ -4,7 +4,12 @@ import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
-import { validateStudentPath, recalculateEnrollments, friendlyUniqueError } from './profile.service'
+import {
+  validateStudentPath,
+  recalculateEnrollments,
+  friendlyUniqueError,
+  StudentPathInput,
+} from './profile.service'
 
 export interface ListUsersParams {
   role?: Role
@@ -45,10 +50,9 @@ async function assertFacultyAvailableForAdmin(facultyId: string, excludeUserId?:
   }
 }
 
-export async function listUsers({ role, search, page = 1, limit = 20 }: ListUsersParams) {
-  const skip = (page - 1) * limit
-
-  const where = {
+/** Prisma filter for the managed-user list: role plus a name/email/regNumber search. */
+function userSearchWhere({ role, search }: Pick<ListUsersParams, 'role' | 'search'>) {
+  return {
     ...(role ? { role } : {}),
     ...(search
       ? {
@@ -60,6 +64,81 @@ export async function listUsers({ role, search, page = 1, limit = 20 }: ListUser
         }
       : {}),
   }
+}
+
+/** Faculty an account can be linked to — must exist, be active and (for FAs) be free. */
+async function assertAssignableFaculty(
+  facultyId: string,
+  role: Role,
+  excludeUserId?: string
+): Promise<void> {
+  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
+  if (!faculty) throw new ApiError('Faculty not found', 404)
+  if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
+  if (role === Role.faculty_admin) await assertFacultyAvailableForAdmin(facultyId, excludeUserId)
+}
+
+/** The faculty a staff account must keep, rejecting an unset one. */
+function requireStaffFaculty(facultyId: string | null | undefined, role: Role): string {
+  if (!facultyId) {
+    throw new ApiError(
+      `${role === Role.faculty_admin ? 'Faculty Admin' : 'Lecturer'} must be assigned to a faculty`,
+      400
+    )
+  }
+  return facultyId
+}
+
+/** Validated academic path of a student account, rejecting incomplete input. */
+async function requireStudentPath(input: {
+  campusCode?: string
+  facultyId?: string | null
+  programmeId?: string
+  year?: number
+  semester?: number
+  academicYear?: string
+  regNumber?: string
+  studentNumber?: string
+}): Promise<StudentPathInput> {
+  if (
+    !input.campusCode || !input.facultyId || !input.programmeId ||
+    !input.year || !input.semester || !input.academicYear || !input.regNumber ||
+    !input.studentNumber
+  ) {
+    throw new ApiError('Student academic details are required', 400)
+  }
+  const path: StudentPathInput = {
+    campusCode: input.campusCode,
+    facultyId: input.facultyId,
+    programmeId: input.programmeId,
+    year: input.year,
+    semester: input.semester,
+    academicYear: input.academicYear,
+    regNumber: input.regNumber,
+    studentNumber: input.studentNumber,
+  }
+  await validateStudentPath(path)
+  return path
+}
+
+/** User columns written from a validated student path (campusCode is not stored). */
+function studentUserFields(path: StudentPathInput) {
+  return {
+    facultyId: path.facultyId,
+    programmeId: path.programmeId,
+    year: path.year,
+    semester: path.semester,
+    academicYear: path.academicYear,
+    regNumber: path.regNumber,
+    studentNumber: path.studentNumber,
+    profileComplete: true,
+  }
+}
+
+export async function listUsers({ role, search, page = 1, limit = 20 }: ListUsersParams) {
+  const skip = (page - 1) * limit
+
+  const where = userSearchWhere({ role, search })
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -136,60 +215,21 @@ export async function createUser(input: CreateUserInput) {
     mustChangePassword: true,
   }
 
+  let studentPath: StudentPathInput | null = null
   if (input.role === Role.student) {
-    if (
-      !input.campusCode || !input.facultyId || !input.programmeId ||
-      !input.year || !input.semester || !input.academicYear || !input.regNumber ||
-      !input.studentNumber
-    ) {
-      throw new ApiError('Student academic details are required', 400)
-    }
-    await validateStudentPath({
-      campusCode: input.campusCode,
-      facultyId: input.facultyId,
-      programmeId: input.programmeId,
-      year: input.year,
-      semester: input.semester,
-      academicYear: input.academicYear,
-      regNumber: input.regNumber,
-      studentNumber: input.studentNumber,
-    })
-    data.facultyId = input.facultyId
-    data.programmeId = input.programmeId
-    data.year = input.year
-    data.semester = input.semester
-    data.academicYear = input.academicYear
-    data.regNumber = input.regNumber
-    data.studentNumber = input.studentNumber
-    data.profileComplete = true
+    studentPath = await requireStudentPath(input)
+    Object.assign(data, studentUserFields(studentPath))
   } else if (input.role === Role.lecturer || input.role === Role.faculty_admin) {
-    const facultyId = input.facultyId ?? null
-    if (facultyId === null) {
-      throw new ApiError(`${input.role === Role.faculty_admin ? 'Faculty Admin' : 'Lecturer'} must be assigned to a faculty`, 400)
-    }
-    if (facultyId !== null) {
-      const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-      if (!faculty) throw new ApiError('Faculty not found', 404)
-      if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
-      if (input.role === Role.faculty_admin) await assertFacultyAvailableForAdmin(facultyId)
-    }
+    const facultyId = requireStaffFaculty(input.facultyId, input.role)
+    await assertAssignableFaculty(facultyId, input.role)
     data.facultyId = facultyId
-    data.profileComplete = facultyId !== null
+    data.profileComplete = true
   }
 
   const user = await prisma.user.create({ data }).catch(friendlyUniqueError)
 
-  if (input.role === Role.student) {
-    await recalculateEnrollments(user.id, {
-      campusCode: input.campusCode!,
-      facultyId: input.facultyId!,
-      programmeId: input.programmeId!,
-      year: input.year!,
-      semester: input.semester!,
-      academicYear: input.academicYear!,
-      regNumber: input.regNumber!,
-      studentNumber: input.studentNumber!,
-    })
+  if (studentPath) {
+    await recalculateEnrollments(user.id, studentPath)
   }
 
   return prisma.user.findUnique({ where: { id: user.id }, select: managedUserSelect })
@@ -270,18 +310,7 @@ export async function deleteUsers(
 
 export async function listUserIds({ role, search }: Pick<ListUsersParams, 'role' | 'search'>) {
   const users = await prisma.user.findMany({
-    where: {
-      ...(role ? { role } : {}),
-      ...(search
-        ? {
-            OR: [
-              { fullName: { contains: search } },
-              { email: { contains: search } },
-              { regNumber: { contains: search } },
-            ],
-          }
-        : {}),
-    },
+    where: userSearchWhere({ role, search }),
     select: { id: true },
   })
   return users.map((user) => user.id)
@@ -326,12 +355,7 @@ export async function assignFaculty(userId: string, facultyId: string | null) {
     throw new ApiError(`${user.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} must remain assigned to a faculty`, 400)
   }
 
-  if (facultyId !== null) {
-    const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-    if (!faculty) throw new ApiError('Faculty not found', 404)
-    if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
-    if (user.role === 'faculty_admin') await assertFacultyAvailableForAdmin(facultyId, user.id)
-  }
+  await assertAssignableFaculty(facultyId, user.role, user.id)
 
   return prisma.user.update({
     where: { id: userId },
@@ -388,59 +412,20 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
     email: input.email,
   }
 
+  let studentPath: StudentPathInput | null = null
   if (user.role === 'student') {
-    if (
-      !input.campusCode || !input.facultyId || !input.programmeId ||
-      !input.year || !input.semester || !input.academicYear || !input.regNumber ||
-      !input.studentNumber
-    ) {
-      throw new ApiError('Student academic details are required', 400)
-    }
-    await validateStudentPath({
-      campusCode: input.campusCode,
-      facultyId: input.facultyId,
-      programmeId: input.programmeId,
-      year: input.year,
-      semester: input.semester,
-      academicYear: input.academicYear,
-      regNumber: input.regNumber,
-      studentNumber: input.studentNumber,
-    })
-    data.facultyId = input.facultyId
-    data.programmeId = input.programmeId
-    data.year = input.year
-    data.semester = input.semester
-    data.academicYear = input.academicYear
-    data.regNumber = input.regNumber
-    data.studentNumber = input.studentNumber
-    data.profileComplete = true
+    studentPath = await requireStudentPath(input)
+    Object.assign(data, studentUserFields(studentPath))
   } else if (user.role === 'lecturer' || user.role === 'faculty_admin') {
-    const facultyId = input.facultyId ?? null
-    if (facultyId === null) {
-      throw new ApiError(`${user.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} must be assigned to a faculty`, 400)
-    }
-    if (facultyId !== null) {
-      const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-      if (!faculty) throw new ApiError('Faculty not found', 404)
-      if (!faculty.isActive) throw new ApiError('Faculty is not active', 400)
-      if (user.role === 'faculty_admin') await assertFacultyAvailableForAdmin(facultyId, user.id)
-    }
+    const facultyId = requireStaffFaculty(input.facultyId, user.role)
+    await assertAssignableFaculty(facultyId, user.role, user.id)
     data.facultyId = facultyId
   }
 
   const updated = await prisma.user.update({ where: { id }, data }).catch(friendlyUniqueError)
 
-  if (user.role === 'student') {
-    await recalculateEnrollments(id, {
-      campusCode: input.campusCode!,
-      facultyId: input.facultyId!,
-      programmeId: input.programmeId!,
-      year: input.year!,
-      semester: input.semester!,
-      academicYear: input.academicYear!,
-      regNumber: input.regNumber!,
-      studentNumber: input.studentNumber!,
-    })
+  if (studentPath) {
+    await recalculateEnrollments(id, studentPath)
   }
 
   return prisma.user.findUnique({ where: { id: updated.id }, select: managedUserSelect })
