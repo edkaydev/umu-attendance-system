@@ -2,6 +2,7 @@ import { parse } from 'csv-parse/sync'
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { errorMessage } from '../utils/errors'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash, getCurrentPeriod } from './settings.service'
 import { isValidCampusCode } from '../constants/campuses'
@@ -85,7 +86,7 @@ export async function importStructure(
   try {
     rows = parseCsv(buffer)
   } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+    throw new ApiError(`Could not parse CSV: ${errorMessage(error, 'invalid CSV')}`, 400)
   }
 
   for (let i = 0; i < rows.length; i++) {
@@ -109,7 +110,7 @@ export async function importStructure(
       result.imported++
     } catch (error) {
       result.failed++
-      result.errors.push({ row: line, message: (error as Error).message })
+      result.errors.push({ row: line, message: errorMessage(error, 'Row could not be imported') })
     }
   }
 
@@ -226,7 +227,7 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
   try {
     rows = parseCsv(buffer)
   } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+    throw new ApiError(`Could not parse CSV: ${errorMessage(error, 'invalid CSV')}`, 400)
   }
 
   for (let i = 0; i < rows.length; i++) {
@@ -294,7 +295,7 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
       result.imported++
     } catch (error) {
       result.failed++
-      result.errors.push({ row: line, message: (error as Error).message })
+      result.errors.push({ row: line, message: errorMessage(error, 'Row could not be imported') })
     }
   }
 
@@ -317,7 +318,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   try {
     rows = parseCsv(buffer)
   } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+    throw new ApiError(`Could not parse CSV: ${errorMessage(error, 'invalid CSV')}`, 400)
   }
   if (rows.length === 0) return result
 
@@ -358,7 +359,7 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       }
     } catch (error) {
       result.failed++
-      result.errors.push({ row: line, message: (error as Error).message })
+      result.errors.push({ row: line, message: errorMessage(error, 'Row could not be imported') })
     }
   }
 

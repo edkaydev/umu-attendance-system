@@ -510,7 +510,9 @@ export default function ReportsPage() {
         for (const a of assignments) seen.set(a.courseUnit.id, a.courseUnit)
         setCourseUnits([...seen.values()])
       })
-      .catch(() => {})
+      .catch((e) =>
+        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load course units')
+      )
   }, [toast])
 
   // When course unit changes, load students for the student report selector

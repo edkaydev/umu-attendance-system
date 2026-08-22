@@ -18,6 +18,7 @@
 import { prisma } from '../config/db'
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { writeAuditLog } from './audit'
+import { logError } from './errors'
 
 const TICK_MS = 60_000 // 1 minute
 
@@ -101,14 +102,20 @@ async function tick(): Promise<void> {
 
     for (const s of candidateSessions) {
       const autoCloseAt = new Date(s.openedAt.getTime() + s.classDuration! * 60_000)
-      if (autoCloseAt <= now) {
+      if (autoCloseAt > now) continue
+      try {
         await closeSingleSession(s.id)
+      } catch (err) {
+        // Isolate per session: one session that cannot be closed (missing
+        // enrollment data, constraint violation) must not stop the others in
+        // this tick from closing.
+        logError('scheduler:close-session', err, { sessionId: s.id })
       }
     }
   } catch (err) {
     // Log but never crash the process — a missed tick is better than a
     // server restart taking down the entire app.
-    console.error('[scheduler] tick error:', err)
+    logError('scheduler:tick', err)
   }
 }
 

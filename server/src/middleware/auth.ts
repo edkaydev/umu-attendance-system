@@ -92,6 +92,13 @@ export async function authenticate(
       res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' })
       return
     }
-    res.status(401).json({ error: 'Invalid token' })
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.NotBeforeError) {
+      res.status(401).json({ error: 'Invalid token' })
+      return
+    }
+    // Anything else (database down, missing JWT secret, …) is not an auth
+    // problem: reporting it as "Invalid token" would send users into a
+    // pointless re-login loop and hide the real failure.
+    next(error)
   }
 }

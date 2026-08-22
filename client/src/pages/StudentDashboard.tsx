@@ -22,6 +22,7 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
 import { getCurrentPosition, GeoError } from '../utils/geo'
+import { logNonCriticalError } from '../utils/errors'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -148,11 +149,20 @@ export default function StudentDashboard() {
       toast.success(`Checked in to ${res.courseUnit.name} (${res.status})`)
       setModalCode('')
       setSelected(null)
-      checkinApi.live().then(setLive).catch(() => {})
-      dashboardApi.student().then(setData).catch(() => {})
+      checkinApi
+        .live()
+        .then(setLive)
+        .catch((err) => logNonCriticalError('student-dashboard:refresh-live', err))
+      dashboardApi
+        .student()
+        .then(setData)
+        .catch((err) => logNonCriticalError('student-dashboard:refresh-summary', err))
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Check-in failed')
-      checkinApi.live().then(setLive).catch(() => {})
+      checkinApi
+        .live()
+        .then(setLive)
+        .catch((err) => logNonCriticalError('student-dashboard:refresh-live', err))
     } finally {
       setCheckingIn(false)
     }

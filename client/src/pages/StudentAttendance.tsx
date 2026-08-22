@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { ApiClientError } from '../api/client'
+import { logNonCriticalError } from '../utils/errors'
 
 export default function StudentAttendance() {
   const toast = useToast()
@@ -22,8 +23,10 @@ export default function StudentAttendance() {
 
     checkinApi
       .live()
+      // Non-critical — pending indicators just won't show, but the failure is
+      // still recorded instead of disappearing.
       .then(setLive)
-      .catch(() => {}) // non-critical — pending indicators just won't show
+      .catch((e) => logNonCriticalError('student-attendance:live', e))
   }, [toast])
 
   if (!loaded) {

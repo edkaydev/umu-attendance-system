@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import puppeteer from 'puppeteer'
+import { logError } from '../utils/errors'
 
 /**
  * Embed the UMU badge in PDF templates as base64 (FR-10.5).
@@ -99,7 +100,13 @@ export async function renderPdf(html: string): Promise<Buffer> {
     })
     return Buffer.from(pdf)
   } finally {
-    await browser.close()
+    // A failing close must not replace the original rendering error with a
+    // confusing browser-teardown error.
+    try {
+      await browser.close()
+    } catch (closeError) {
+      logError('pdf:browser-close', closeError)
+    }
   }
 }
 

@@ -3,7 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/google-oauth'
-import { startSessionScheduler } from './utils/sessionScheduler'
+import { startSessionScheduler, stopSessionScheduler } from './utils/sessionScheduler'
+import { logError } from './utils/errors'
 import authRoutes from './routes/auth.routes'
 import academicRoutes from './routes/academic.routes'
 import userRoutes from './routes/user.routes'
@@ -59,7 +60,30 @@ app.use(notFoundHandler)
 app.use(errorHandler)
 
 const PORT = Number(process.env.PORT) || 4000
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`UMU Attendance API listening on http://localhost:${PORT}`)
   startSessionScheduler()
+})
+
+// Without this a failed bind (port already in use, no permission) is thrown as
+// an unhandled 'error' event and the process dies with no explanation.
+server.on('error', (err) => {
+  logError('server:listen', err, { port: PORT })
+  process.exit(1)
+})
+
+// A rejected promise nobody awaited must not disappear — log it with its stack
+// so background work (scheduler, mailer, PDF rendering) can be diagnosed.
+process.on('unhandledRejection', (reason) => {
+  logError('unhandledRejection', reason)
+})
+
+// The process state is undefined after an uncaught exception; log it and let
+// the supervisor (Docker / systemd) restart with a clean slate.
+process.on('uncaughtException', (err) => {
+  logError('uncaughtException', err)
+  stopSessionScheduler()
+  server.close(() => process.exit(1))
+  // Don't hang forever if connections stay open.
+  setTimeout(() => process.exit(1), 5_000).unref()
 })
