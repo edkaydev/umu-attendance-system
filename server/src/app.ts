@@ -4,6 +4,9 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/google-oauth'
 import { startSessionScheduler } from './utils/sessionScheduler'
+import { securityHeaders, customSecurityHeaders } from './middleware/security'
+import { csrfToken, csrfProtection } from './middleware/csrf'
+import { securityEventLogger } from './middleware/securityLogger'
 import authRoutes from './routes/auth.routes'
 import academicRoutes from './routes/academic.routes'
 import userRoutes from './routes/user.routes'
@@ -24,6 +27,10 @@ const app = express()
 
 app.set('trust proxy', 1)
 
+// Security headers
+app.use(securityHeaders)
+app.use(customSecurityHeaders)
+
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -34,6 +41,13 @@ app.use(
 app.use(express.json())
 app.use(cookieParser())
 app.use(passport.initialize())
+
+// Security event logging
+app.use(securityEventLogger)
+
+// CSRF protection - generate token for GET requests, validate for others
+app.use(csrfToken)
+app.use(csrfProtection)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

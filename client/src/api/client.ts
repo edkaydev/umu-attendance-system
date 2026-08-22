@@ -22,6 +22,18 @@ export function setUnauthorizedHandler(fn: () => void): void {
   unauthorizedHandler = fn
 }
 
+/** Get CSRF token from cookie */
+function getCsrfTokenFromCookie(): string | null {
+  const cookies = document.cookie.split(';')
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=')
+    if (name === 'csrf_token') {
+      return decodeURIComponent(value)
+    }
+  }
+  return null
+}
+
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
 }
@@ -30,6 +42,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const headers = new Headers(options.headers)
   if (options.body !== undefined && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
+  }
+
+  // Add CSRF token for state-changing requests
+  if (options.method && options.method !== 'GET' && options.method !== 'HEAD') {
+    // Get CSRF token from cookie
+    const csrfToken = getCsrfTokenFromCookie()
+    if (csrfToken) {
+      headers.set('x-csrf-token', csrfToken)
+    }
   }
 
   const init: RequestInit = {

@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
+import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { ApiClientError } from '../api/client'
 import type { Campus, Faculty, Programme, CourseUnit, CurriculumUnitEntry } from '../types'
 
@@ -190,6 +191,7 @@ export default function AcademicSetup() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb customLabel="Academic Setup" />
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-h2 font-bold text-text-primary">Academic Setup</h1>

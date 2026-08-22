@@ -1,22 +1,31 @@
-export function ProgressBar({ percentage }: { percentage: number }) {
-  const color = percentage >= 80 ? 'bg-success' : percentage >= 75 ? 'bg-warning' : 'bg-danger'
-  const width = Math.min(100, Math.max(0, percentage))
-  const status = width >= 80 ? 'Good attendance' : width >= 75 ? 'Attendance warning' : 'Attendance critical'
+interface ProgressBarProps {
+  progress?: number
+  percentage?: number // For backward compatibility
+  label?: string
+  showPercentage?: boolean
+}
+
+export function ProgressBar({ progress, percentage, label, showPercentage = true }: ProgressBarProps) {
+  const actualProgress = percentage !== undefined ? percentage : (progress ?? 0)
+  
   return (
-    <div
-      className="h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]"
-      role="progressbar"
-      aria-label="Attendance percentage"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={width}
-      aria-valuetext={`${width}% — ${status}`}
-    >
-      <div
-        className={`h-full rounded-full transition-all duration-600 ${color}`}
-        style={{ width: `${width}%` }}
-      />
-      <span className="sr-only">{status}</span>
+    <div className="w-full">
+      {label && (
+        <div className="mb-1 flex justify-between text-xs text-text-secondary">
+          <span>{label}</span>
+          {showPercentage && <span>{Math.round(actualProgress)}%</span>}
+        </div>
+      )}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full rounded-full bg-umu-red transition-all duration-300 ease-out"
+          style={{ width: `${Math.min(actualProgress, 100)}%` }}
+          role="progressbar"
+          aria-valuenow={actualProgress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        />
+      </div>
     </div>
   )
 }
