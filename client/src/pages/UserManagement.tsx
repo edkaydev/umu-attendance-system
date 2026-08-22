@@ -14,6 +14,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { ApiClientError } from '../api/client'
 import type { Role, ManagedUser, Faculty } from '../types'
 
@@ -469,6 +470,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb customLabel="User Management" />
 
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">

@@ -6,6 +6,8 @@ import { RequireAuth, RequireRole, DASHBOARD_BY_ROLE } from './components/RouteG
 import { AppLayout } from './components/Layout'
 import { InstallPrompt } from './components/InstallPrompt'
 import { CookieBanner } from './components/CookieBanner'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { PageTransition } from './components/ui/PageTransition'
 
 import Login from './pages/Login'
 import AccessDenied from './pages/AccessDenied'
@@ -105,7 +107,9 @@ export default function App() {
       <DocumentTitle />
       <AuthProvider>
         <ToastProvider>
+          <ErrorBoundary>
           <Suspense fallback={<RouteLoading />}>
+            <PageTransition>
             <Routes>
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/login" element={<Login />} />
@@ -400,8 +404,11 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route path="*" element={<NotFound />} />            </Routes>
+            <Route path="*" element={<NotFound />} />
+            </Routes>
+            </PageTransition>
           </Suspense>
+          </ErrorBoundary>
           <InstallPrompt />
           <CookieBanner />
         </ToastProvider>
