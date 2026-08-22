@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { tryRedis } from '../config/redis'
+
+const REDIS_EVENT_KEY = 'security:events'
+const REDIS_EVENT_LIMIT = 10_000
 
 /**
  * Security Event Logger
@@ -49,10 +53,19 @@ class SecurityLogger {
     if (!this.isEnabled) return
 
     const logEntry = JSON.stringify(event) + '\n'
-    
+
     try {
       fs.appendFileSync(this.logFile, logEntry)
-      
+
+      // Mirror to Redis so events from every replica land in one place.
+      void tryRedis(
+        async (r) => {
+          await r.rpush(REDIS_EVENT_KEY, JSON.stringify(event))
+          await r.ltrim(REDIS_EVENT_KEY, -REDIS_EVENT_LIMIT, -1)
+        },
+        null as void | null
+      )
+
       // Also log to console for immediate visibility
       const consolePrefix = {
         critical: '🚨 CRITICAL',
@@ -60,7 +73,7 @@ class SecurityLogger {
         medium: '⚡ MEDIUM',
         low: 'ℹ️  LOW'
       }[event.severity]
-      
+
       console.log(`${consolePrefix}: ${event.type} - ${event.path}`)
     } catch (error) {
       console.error('Failed to write security log:', error)

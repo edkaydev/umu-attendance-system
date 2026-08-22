@@ -18,8 +18,13 @@
 import { prisma } from '../config/db'
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { writeAuditLog } from './audit'
+import { tryRedis } from '../config/redis'
+import { randomUUID } from 'crypto'
 
 const TICK_MS = 60_000 // 1 minute
+const LEADER_LOCK_KEY = 'scheduler:leader'
+const LEADER_LOCK_TTL_MS = 90_000
+const INSTANCE_ID = `${process.pid}-${randomUUID().slice(0, 8)}`
 
 async function closeSingleSession(sessionId: string): Promise<void> {
   // Atomically mark the session closed only if it is still open.
@@ -114,13 +119,34 @@ async function tick(): Promise<void> {
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null
 
+/**
+ * Leader election: when multiple app replicas run, only the lock holder
+ * ticks. Correctness never depends on this — closeSingleSession() is
+ * idempotent via its status-guarded updateMany — it just avoids
+ * duplicated queries and log noise.
+ */
+function isLeader(): Promise<boolean> {
+  return tryRedis(
+    (r) =>
+      r.set(LEADER_LOCK_KEY, INSTANCE_ID, 'PX', LEADER_LOCK_TTL_MS, 'NX').then((ok) => {
+        if (ok) return true
+        return r.get(LEADER_LOCK_KEY).then((holder) => holder === INSTANCE_ID)
+      }),
+    true // no Redis → every process runs (single-node default)
+  )
+}
+
 /** Start the auto-close scheduler.  Safe to call multiple times — only one interval runs. */
 export function startSessionScheduler(): void {
   if (intervalHandle !== null) return
-  intervalHandle = setInterval(() => void tick(), TICK_MS)
+  intervalHandle = setInterval(() => {
+    void isLeader().then((leader) => {
+      if (leader) void tick()
+    })
+  }, TICK_MS)
   // Run once immediately so sessions overdue at startup are handled right away.
   void tick()
-  console.log('[scheduler] session auto-close scheduler started (tick every 60 s)')
+  console.log(`[scheduler] started on ${INSTANCE_ID} (tick every 60 s, Redis leader election ${process.env.REDIS_URL ? 'enabled' : 'off'})`)
 }
 
 /** Stop the scheduler (used in tests). */
