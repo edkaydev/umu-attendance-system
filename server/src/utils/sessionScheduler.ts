@@ -18,6 +18,7 @@
 import { prisma } from '../config/db'
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { writeAuditLog } from './audit'
+import { logError } from './errors'
 import { tryRedis } from '../config/redis'
 import { randomUUID } from 'crypto'
 
@@ -106,14 +107,20 @@ async function tick(): Promise<void> {
 
     for (const s of candidateSessions) {
       const autoCloseAt = new Date(s.openedAt.getTime() + s.classDuration! * 60_000)
-      if (autoCloseAt <= now) {
+      if (autoCloseAt > now) continue
+      try {
         await closeSingleSession(s.id)
+      } catch (err) {
+        // Isolate per session: one session that cannot be closed (missing
+        // enrollment data, constraint violation) must not stop the others in
+        // this tick from closing.
+        logError('scheduler:close-session', err, { sessionId: s.id })
       }
     }
   } catch (err) {
     // Log but never crash the process — a missed tick is better than a
     // server restart taking down the entire app.
-    console.error('[scheduler] tick error:', err)
+    logError('scheduler:tick', err)
   }
 }
 
@@ -140,9 +147,11 @@ function isLeader(): Promise<boolean> {
 export function startSessionScheduler(): void {
   if (intervalHandle !== null) return
   intervalHandle = setInterval(() => {
-    void isLeader().then((leader) => {
-      if (leader) void tick()
-    })
+    void isLeader()
+      .then((leader) => {
+        if (leader) return tick()
+      })
+      .catch((err) => logError('scheduler:leader-election', err))
   }, TICK_MS)
   // Run once immediately so sessions overdue at startup are handled right away.
   void tick()

@@ -12,6 +12,7 @@ import {
   extendSessionTime,
 } from '../services/session.service'
 import { evaluateAttendanceAlerts } from '../services/alert.service'
+import { logError } from '../utils/errors'
 
 const openSessionSchema = z.object({
   courseUnitId: z.string().uuid(),
@@ -115,12 +116,23 @@ export async function getLiveSessionController(req: Request, res: Response, next
 export async function closeSessionController(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await closeSession(req.params.sessionId, req.user!.id)
-    await evaluateAttendanceAlerts(
-      result.session.courseUnitId,
-      result.session.academicYear,
-      result.session.semester
-    )
-    ok(res, { message: 'Session closed', ...result })
+    // The session is already closed at this point, so a failure while
+    // evaluating alerts must not turn a successful close into a 500 (the
+    // lecturer would retry against an already-closed session). Report it in
+    // the response instead and log it with its stack.
+    let alerts: { evaluated: boolean; notificationsFailed?: number }
+    try {
+      const evaluation = await evaluateAttendanceAlerts(
+        result.session.courseUnitId,
+        result.session.academicYear,
+        result.session.semester
+      )
+      alerts = { evaluated: true, notificationsFailed: evaluation.notificationsFailed }
+    } catch (e) {
+      logError('alerts:evaluate', e, { sessionId: result.session.id })
+      alerts = { evaluated: false }
+    }
+    ok(res, { message: 'Session closed', ...result, alerts })
   } catch (e) {
     next(e)
   }

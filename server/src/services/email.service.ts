@@ -1,6 +1,7 @@
 import { AlertType } from '@prisma/client'
 import { sendEmail } from '../config/mailer'
 import { prisma } from '../config/db'
+import { errorMessage, logError } from '../utils/errors'
 
 const alertLabels: Record<AlertType, string> = {
   warning: 'WARNING',
@@ -45,59 +46,80 @@ function buildAlertHtml(data: AlertEmailData): string {
   </div>`
 }
 
-/** FR-08.3: notify the student, the unit's lecturers, and the Faculty Admin. */
+export type NotifyResult =
+  | { sent: true }
+  | { sent: false; reason: 'incomplete_recipient_data' }
+  | { sent: false; reason: 'delivery_failed'; message: string }
+
+/**
+ * FR-08.3: notify the student, the unit's lecturers, and the Faculty Admin.
+ *
+ * Only mail *delivery* is treated as non-fatal (SMTP outages must not undo a
+ * closed session); the caller is told about it through the return value.
+ * Database and programming errors propagate so they surface as real failures
+ * instead of a log line nobody reads.
+ */
 export async function notifyAlertRecipients(
   studentId: string,
   courseUnitId: string,
   alertType: AlertType,
   pct: number,
   sessionsMissed: number
-): Promise<void> {
+): Promise<NotifyResult> {
+  const [student, courseUnit, lecturers] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: studentId },
+      select: { fullName: true, regNumber: true, email: true },
+    }),
+    prisma.courseUnit.findUnique({
+      where: { id: courseUnitId },
+      select: { id: true, code: true, name: true, facultyId: true },
+    }),
+    prisma.lecturerAssignment.findMany({
+      where: { courseUnitId },
+      select: { lecturer: { select: { email: true, fullName: true } } },
+    }),
+  ])
+
+  if (!student || !courseUnit || !student.email || !student.regNumber) {
+    return { sent: false, reason: 'incomplete_recipient_data' }
+  }
+
+  const html = buildAlertHtml({
+    studentName: student.fullName,
+    regNumber: student.regNumber,
+    courseUnitName: courseUnit.name,
+    courseUnitCode: courseUnit.code,
+    pct,
+    sessionsMissed,
+    alertType,
+  })
+
+  const recipients = new Set<string>([student.email])
+  for (const l of lecturers) if (l.lecturer.email) recipients.add(l.lecturer.email)
+
+  // Faculty Admin(s) of the unit's faculty
+  const admins = await prisma.user.findMany({
+    where: { role: 'faculty_admin', facultyId: courseUnit.facultyId, isActive: true },
+    select: { email: true },
+  })
+  for (const a of admins) if (a.email) recipients.add(a.email)
+
   try {
-    const [student, courseUnit, lecturers] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: studentId },
-        select: { fullName: true, regNumber: true, email: true },
-      }),
-      prisma.courseUnit.findUnique({
-        where: { id: courseUnitId },
-        select: { id: true, code: true, name: true, facultyId: true },
-      }),
-      prisma.lecturerAssignment.findMany({
-        where: { courseUnitId },
-        select: { lecturer: { select: { email: true, fullName: true } } },
-      }),
-    ])
-
-    if (!student || !courseUnit || !student.email) return
-    if (!student.regNumber) return
-
-    const html = buildAlertHtml({
-      studentName: student.fullName,
-      regNumber: student.regNumber,
-      courseUnitName: courseUnit.name,
-      courseUnitCode: courseUnit.code,
-      pct,
-      sessionsMissed,
-      alertType,
-    })
-
-    const recipients = new Set<string>([student.email])
-    for (const l of lecturers) if (l.lecturer.email) recipients.add(l.lecturer.email)
-
-    // Faculty Admin(s) of the unit's faculty
-    const admins = await prisma.user.findMany({
-      where: { role: 'faculty_admin', facultyId: courseUnit.facultyId, isActive: true },
-      select: { email: true },
-    })
-    for (const a of admins) if (a.email) recipients.add(a.email)
-
     await sendEmail({
       to: Array.from(recipients),
       subject: `[UMU Attendance] ${alertLabels[alertType]} — ${courseUnit.code}`,
       html,
     })
   } catch (error) {
-    console.warn('[email] alert notification failed:', (error as Error).message)
+    logError('email:alert-delivery', error, {
+      studentId,
+      courseUnitId,
+      alertType,
+      recipients: recipients.size,
+    })
+    return { sent: false, reason: 'delivery_failed', message: errorMessage(error, 'Email delivery failed') }
   }
+
+  return { sent: true }
 }

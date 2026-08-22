@@ -23,7 +23,7 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
     select: { id: true },
   })
   const totalSessions = closedSessions.length
-  if (totalSessions === 0) return { created: [], resolved: [] }
+  if (totalSessions === 0) return { created: [], resolved: 0, notificationsFailed: 0 }
 
   const enrollments = await prisma.enrollment.findMany({
     where: { courseUnitId, academicYear, semester },
@@ -99,16 +99,20 @@ export async function evaluateAttendanceAlerts(courseUnitId: string, academicYea
     })
   }
 
-  // FR-08.3 / FR-08.7: email the student, lecturers, and Faculty Admin
+  // FR-08.3 / FR-08.7: email the student, lecturers, and Faculty Admin.
+  // A failed notification is reported back to the caller (and logged with its
+  // stack by the email service) rather than being dropped.
+  let notificationsFailed = 0
   for (const alert of created) {
-    await notifyAlertRecipients(
+    const result = await notifyAlertRecipients(
       alert.studentId,
       courseUnitId,
       alert.alertType,
       alert.attendancePct,
       alert.sessionsMissed
     )
+    if (!result.sent) notificationsFailed++
   }
 
-  return { created, resolved: resolvedIds.length }
+  return { created, resolved: resolvedIds.length, notificationsFailed }
 }

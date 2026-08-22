@@ -337,7 +337,13 @@ export default function UserManagement() {
 
   // Load faculties once for the assign modal
   useEffect(() => {
-    academicApi.faculties().then(setFaculties).catch(() => {})
+    academicApi
+      .faculties()
+      .then(setFaculties)
+      .catch((e) =>
+        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load faculties')
+      )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function toggleActive(user: ManagedUser) {

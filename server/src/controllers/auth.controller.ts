@@ -14,6 +14,7 @@ import {
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
+import { logError } from '../utils/errors'
 import { prisma } from '../config/db'
 import { securityLogger } from '../middleware/securityLogger'
 
@@ -68,6 +69,12 @@ export function googleCallback(req: Request, res: Response, next: NextFunction):
   passport.authenticate('google', { session: false }, (err: Error | null, user: Express.User | undefined) => {
     if (err || !user) {
       const reason = err instanceof Error ? mapOAuthError(err.message) : 'error'
+      // Expected rejections (wrong domain, disabled account) are conveyed by the
+      // reason code; anything unmapped is a real failure and must be logged
+      // rather than vanishing behind a generic access-denied redirect.
+      if (reason === 'error') {
+        logError('auth:google-callback', err ?? new Error('Google returned no user'))
+      }
       const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
       res.redirect(`${clientUrl}/access-denied?reason=${reason}`)
       return

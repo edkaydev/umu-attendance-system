@@ -1,6 +1,7 @@
 import { Prisma, Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
+import { errorMessage } from '../utils/errors'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
@@ -261,7 +262,7 @@ export async function deleteUsers(
       await deleteUser(id, actorId)
       result.deleted++
     } catch (error) {
-      result.errors.push({ id, message: error instanceof Error ? error.message : 'Could not delete user' })
+      result.errors.push({ id, message: errorMessage(error, 'Could not delete user') })
     }
   }
 

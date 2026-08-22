@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import type { User } from '../types'
 import { authApi } from '../api/endpoints'
-import { setUnauthorizedHandler } from '../api/client'
+import { ApiClientError, setUnauthorizedHandler } from '../api/client'
+import { logNonCriticalError } from '../utils/errors'
 
 interface AuthContextValue {
   user: User | null
@@ -25,7 +26,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await authApi.me()
       setUser(me)
-    } catch {
+    } catch (error) {
+      // 401/403 simply means "not signed in"; anything else (server down,
+      // unreadable response) is a real problem worth surfacing in the console
+      // rather than being indistinguishable from a logged-out visitor.
+      if (!(error instanceof ApiClientError) || error.status >= 500 || error.status === 0) {
+        logNonCriticalError('auth:refresh', error)
+      }
       setUser(null)
     } finally {
       setLoading(false)
@@ -40,8 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await authApi.logout()
-    } catch {
-      // ignore — cookies cleared client side regardless
+    } catch (error) {
+      // The local session is dropped either way, but a failed server-side
+      // logout (token not revoked) must not go unnoticed.
+      logNonCriticalError('auth:logout', error)
     }
     setUser(null)
     window.location.assign('/login')
