@@ -61,7 +61,7 @@ export default function Login() {
         {/* Email + password sign in */}
         <form
           onSubmit={handleLogin}
-          className="mt-10 w-full max-w-sm rounded-md border border-border bg-surface-1 p-6"
+          className="mt-10 w-full max-w-sm rounded-md bg-surface-1 p-6 shadow-sm"
         >
           <label htmlFor="login-email" className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
             Email
@@ -74,7 +74,7 @@ export default function Login() {
             placeholder="name@umu.ac.ug"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mb-4 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+            className="mb-4 min-h-[44px] w-full rounded border border-border bg-white px-3 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none focus:ring-2 focus:ring-umu-red/20"
           />
 
           <label htmlFor="login-password" className="mb-1 block text-label font-semibold uppercase tracking-wide text-text-secondary">
@@ -90,7 +90,7 @@ export default function Login() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="min-h-[44px] w-full rounded border border-border bg-white px-3 pr-12 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none"
+              className="min-h-[44px] w-full rounded border border-border bg-white px-3 pr-12 text-body text-text-primary placeholder:text-text-disabled focus:border-umu-red focus:outline-none focus:ring-2 focus:ring-umu-red/20"
             />
             <button
               type="button"
@@ -146,7 +146,7 @@ export default function Login() {
 
         {/* Developer bypass — only in dev mode */}
         {import.meta.env.DEV && (
-          <div className="mt-10 w-full max-w-sm rounded-md border border-border bg-surface-1 p-5">
+          <div className="mt-10 w-full max-w-sm rounded-md bg-surface-1 p-5 shadow-sm">
             <p className="mb-3 text-center text-label font-semibold uppercase tracking-wide text-text-secondary">
               Dev login — no Google needed
             </p>

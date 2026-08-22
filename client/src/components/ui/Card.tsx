@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       className={[
-        'rounded-md border border-border bg-white',
+        'rounded-md bg-white shadow-sm',
         noPadding ? '' : 'p-5',
         interactive
           ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-1'

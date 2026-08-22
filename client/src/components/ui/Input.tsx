@@ -16,7 +16,7 @@ export function Input({ label, error, className = '', id, ...rest }: InputProps)
       )}
       <input
         id={inputId}
-        className={`w-full rounded border-[1.5px] bg-surface-1 px-4 py-3 text-sm text-[#1A1A1A] placeholder:text-[#94A3B8] focus:border-umu-red focus:outline-none focus:shadow-[0_0_0_3px_rgba(204,0,0,0.12)] ${error ? 'border-danger' : 'border-border'} ${className}`}
+        className={`w-full rounded border bg-surface-1 px-4 py-3 text-sm text-[#1A1A1A] placeholder:text-[#94A3B8] focus:border-umu-red focus:outline-none focus:ring-2 focus:ring-umu-red/20 transition-all duration-200 ${error ? 'border-danger' : 'border-border'} ${className}`}
         {...rest}
       />
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}

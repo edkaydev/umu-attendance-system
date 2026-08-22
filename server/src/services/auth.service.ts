@@ -1,6 +1,6 @@
 import { Response } from 'express'
 import { Role, User } from '@prisma/client'
-import { prisma } from '../config/db'
+import { userRepository } from '../repositories/user.repository'
 import { signAccessToken, setAuthCookies, clearAuthCookies } from './jwt.service'
 import { createRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from './refresh-token.service'
 import { ApiError } from '../utils/apiResponse'
@@ -68,7 +68,7 @@ export async function finalizeLogin(user: AuthUser, res: Response): Promise<stri
 export async function refreshSession(rawRefreshToken: string, res: Response): Promise<void> {
   const { refreshToken, userId } = await rotateRefreshToken(rawRefreshToken)
 
-  const user = await prisma.user.findUnique({ where: { id: userId } })
+  const user = await userRepository.findById(userId)
   if (!user) {
     throw new ApiError('Account not found', 401)
   }
@@ -89,7 +89,7 @@ export async function logoutSession(userId: string, res: Response): Promise<void
  * not match the account's role (students must be @stud.umu.ac.ug).
  */
 export async function loginWithPassword(email: string, password: string): Promise<AuthUser> {
-  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+  const user = await userRepository.findByEmail(email.trim().toLowerCase())
 
   if (!user) {
     throw new ApiError('This email is not registered. Please contact system support.', 404)
@@ -127,7 +127,7 @@ export async function changePassword(
     throw new ApiError('Password must be at least 6 characters', 400)
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } })
+  const user = await userRepository.findById(userId)
   if (!user) {
     throw new ApiError('Account not found', 404)
   }
@@ -138,9 +138,9 @@ export async function changePassword(
     throw new ApiError('New password must be different from the current one', 400)
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: await hashPassword(newPassword), mustChangePassword: false },
+  await userRepository.update(userId, {
+    password: await hashPassword(newPassword),
+    mustChangePassword: false,
   })
   await revokeAllRefreshTokens(userId)
 }
@@ -164,27 +164,7 @@ export async function getCurrentUser(userId: string): Promise<{
   studentNumber: string | null
   isActive: boolean
 }> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      fullName: true,
-      role: true,
-      profileComplete: true,
-      mustChangePassword: true,
-      facultyId: true,
-      faculty: { select: { id: true, name: true, code: true } },
-      programmeId: true,
-      programme: { select: { id: true, name: true, code: true } },
-      year: true,
-      semester: true,
-      academicYear: true,
-      regNumber: true,
-      studentNumber: true,
-      isActive: true,
-    },
-  })
+  const user = await userRepository.findFullProfile(userId)
 
   if (!user) {
     throw new ApiError('Account not found', 404)

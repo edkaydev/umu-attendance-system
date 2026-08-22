@@ -154,14 +154,14 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
 
         <Card>
           {editingDisabled && (
-            <div className="mb-4 rounded border border-warning-border bg-warning-light px-4 py-3 text-body-sm text-warning">
+            <div className="mb-4 rounded bg-warning-light px-4 py-3 text-body-sm text-warning">
               Profile editing is currently disabled by the System Admin.
             </div>
           )}
 
           {/* Read-only current period banner */}
           {isStudent && globalPeriod && (
-            <div className="mb-4 rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
+            <div className="mb-4 rounded bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
               Academic period:{' '}
               <span className="font-semibold text-text-primary">
                 {globalPeriod.academicYear} · Semester {globalPeriod.semester}
@@ -218,7 +218,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
             <>
               <div className="mb-4">
                 <p className="mb-1 text-body-sm font-medium text-text-secondary">Faculty</p>
-                <div className="rounded border border-border bg-surface-1 px-3 py-2 text-body text-text-primary">
+                <div className="rounded bg-surface-1 px-3 py-2 text-body text-text-primary">
                   {(options?.campuses ?? [])
                     .flatMap((c) => c.faculties)
                     .find((f) => f.id === facultyId)?.name ?? (

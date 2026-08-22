@@ -1,47 +1,64 @@
 /**
- * Lightweight in-process rate limiter middleware.
+ * Distributed-ready sliding-window rate limiter middleware.
  *
- * Uses a sliding-window counter keyed on an arbitrary string (typically
- * userId or IP).  Counters are stored in a Map and expired lazily.
- *
- * This is intentionally simple — no Redis, no extra dependencies.
- * It is sufficient for single-process deployments.  If the app is ever
- * horizontally scaled, swap this for a Redis-backed limiter.
+ * Two interchangeable stores behind one interface:
+ * - Redis (REDIS_URL set): counters/bans are shared across all app
+ *   instances, so limits hold no matter which replica receives a request.
+ * - In-memory Map: automatic fallback for single-process deployments,
+ *   dev environments, or while Redis is briefly unreachable.
  */
 
 import { Request, Response, NextFunction } from 'express'
+import { securityLogger } from './securityLogger'
+import { tryRedis } from '../config/redis'
 
 interface WindowEntry {
   count: number
   windowStart: number
+  blockedUntil?: number // For temporary bans
 }
 
-/**
- * Create a rate-limiting middleware.
- *
- * Each call to rateLimiter() creates its own isolated Map store so that
- * different limiters (login, refresh, checkin, …) never share key-space
- * and cannot interfere with each other.
- *
- * @param windowMs    Length of the sliding window in milliseconds.
- * @param maxRequests Max requests allowed per key within the window.
- * @param keyFn       Function that extracts a string key from the request.
- *                    Defaults to userId (authenticated) falling back to IP.
- */
+interface RateLimiterOptions {
+  /** Enable temporary ban after repeated violations */
+  enableBan?: boolean
+  /** Number of violations before temporary ban */
+  banThreshold?: number
+  /** Duration of temporary ban in milliseconds */
+  banDuration?: number
+  /** Skip rate limiting for trusted IPs */
+  trustedIps?: string[]
+}
+
+const BAN_PREFIX = 'rl:ban:'
+const COUNT_PREFIX = 'rl:cnt:'
+const VIOLATION_PREFIX = 'rl:vio:'
+
 export function rateLimiter(
   windowMs: number,
   maxRequests: number,
-  keyFn?: (req: Request) => string
+  keyFn?: (req: Request) => string,
+  options: RateLimiterOptions = {}
 ): (req: Request, res: Response, next: NextFunction) => void {
-  // Each limiter instance gets its own isolated store — no shared key-space.
+  const {
+    enableBan = true,
+    banThreshold = 5,
+    banDuration = 15 * 60 * 1000, // 15 minutes
+    trustedIps = [],
+  } = options
+
   const store = new Map<string, WindowEntry>()
+  const violationCount = new Map<string, number>()
 
   const defaultKey = (req: Request): string =>
     req.user?.id ?? req.ip ?? 'anonymous'
 
   const getKey = keyFn ?? defaultKey
 
-  // Purge expired entries for this limiter's store every 5 minutes.
+  const isTrusted = (req: Request): boolean => {
+    const ip = req.ip
+    return trustedIps.includes(ip || '')
+  }
+
   setInterval(() => {
     const cutoff = Date.now() - windowMs
     for (const [key, entry] of store.entries()) {
@@ -49,14 +66,78 @@ export function rateLimiter(
     }
   }, 5 * 60_000)
 
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const key = getKey(req)
-    const now = Date.now()
+  function respondBanned(res: Response, retryAfterSec: number): void {
+    res.setHeader('Retry-After', String(retryAfterSec))
+    res.status(429).json({
+      success: false,
+      message: 'Too many violations — temporarily blocked.',
+      code: 'RATE_LIMIT_BANNED',
+      retryAfter: retryAfterSec,
+    })
+  }
 
+  async function checkRedis(
+    req: Request,
+    res: Response,
+    key: string
+  ): Promise<boolean | null> {
+    return tryRedis(async (r) => {
+      const banKey = BAN_PREFIX + key
+
+      const banned = await r.exists(banKey)
+      if (banned) {
+        const ttlSec = Math.ceil((await r.pttl(banKey)) / 1000)
+        respondBanned(res, ttlSec > 0 ? ttlSec : Math.ceil(banDuration / 1000))
+        return true
+      }
+
+      const countKey = COUNT_PREFIX + key
+      const count = await r.incr(countKey)
+      if (count === 1) await r.pexpire(countKey, windowMs)
+
+      if (count > maxRequests) {
+        if (enableBan) {
+          const vioKey = VIOLATION_PREFIX + key
+          const violations = await r.incr(vioKey)
+          if (violations === 1) await r.pexpire(vioKey, windowMs * 2)
+          if (violations >= banThreshold) {
+            await r.psetex(banKey, banDuration, '1')
+            securityLogger.logRateLimitBanned(req, key, banDuration)
+            respondBanned(res, Math.ceil(banDuration / 1000))
+            return true
+          }
+        }
+        securityLogger.logRateLimitExceeded(req, key)
+        const retryAfterSec = Math.ceil((windowMs - ((count - 1) * windowMs) / maxRequests) / 1000)
+        res.setHeader('Retry-After', String(Math.max(retryAfterSec, 1)))
+        res.status(429).json({
+          success: false,
+          message: 'Too many requests — please wait before trying again.',
+          code: 'RATE_LIMITED',
+          retryAfter: Math.max(retryAfterSec, 1),
+        })
+        return true
+      }
+
+      return false
+    }, null)
+  }
+
+  function checkMemory(req: Request, res: Response, key: string, next: NextFunction): void {
+    const now = Date.now()
     const entry = store.get(key)
 
+    if (entry?.blockedUntil && now < entry.blockedUntil) {
+      respondBanned(res, Math.ceil((entry.blockedUntil - now) / 1000))
+      return
+    }
+
+    if (entry?.blockedUntil && now >= entry.blockedUntil) {
+      entry.blockedUntil = undefined
+      violationCount.delete(key)
+    }
+
     if (!entry || now - entry.windowStart >= windowMs) {
-      // Start a new window
       store.set(key, { count: 1, windowStart: now })
       next()
       return
@@ -66,6 +147,20 @@ export function rateLimiter(
 
     if (entry.count > maxRequests) {
       const retryAfterSec = Math.ceil((windowMs - (now - entry.windowStart)) / 1000)
+
+      if (enableBan) {
+        const violations = (violationCount.get(key) || 0) + 1
+        violationCount.set(key, violations)
+
+        if (violations >= banThreshold) {
+          entry.blockedUntil = now + banDuration
+          securityLogger.logRateLimitBanned(req, key, banDuration)
+          respondBanned(res, Math.ceil(banDuration / 1000))
+          return
+        }
+      }
+
+      securityLogger.logRateLimitExceeded(req, key)
       res.setHeader('Retry-After', String(retryAfterSec))
       res.status(429).json({
         success: false,
@@ -77,5 +172,19 @@ export function rateLimiter(
     }
 
     next()
+  }
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (isTrusted(req)) {
+      next()
+      return
+    }
+
+    const key = getKey(req)
+
+    void checkRedis(req, res, key).then((handledByRedis) => {
+      if (handledByRedis !== null) return
+      checkMemory(req, res, key, next)
+    })
   }
 }

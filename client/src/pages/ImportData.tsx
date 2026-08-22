@@ -4,6 +4,8 @@ import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
+import { Breadcrumb } from '../components/ui/Breadcrumb'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import { errorMessage } from '../api/client'
 
 const STRUCTURE_TYPES = [
@@ -25,7 +27,7 @@ const STUDENT_TEMPLATE = 'email'
 
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
-    <div className="mt-4 rounded border border-border bg-surface-1 p-4">
+    <div className="mt-4 rounded bg-surface-1 p-4">
       <p className="text-sm font-medium text-text-primary">
         {label}: {result.imported} imported, {result.failed} failed
       </p>
@@ -49,6 +51,7 @@ export default function ImportData() {
   const [staffFile, setStaffFile] = useState<File | null>(null)
   const [studentFile, setStudentFile] = useState<File | null>(null)
   const [loading, setLoading] = useState<'structure' | 'staff' | 'students' | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [staffResult, setStaffResult] = useState<ImportResult | null>(null)
   const [studentResult, setStudentResult] = useState<ImportResult | null>(null)
@@ -92,14 +95,25 @@ export default function ImportData() {
       return
     }
     setLoading('structure')
+    setUploadProgress(0)
     try {
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+      
       const res = await importApi.structure(type, file)
+      
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+      
       setResult(res.result)
       toast.success('Import finished')
     } catch (e) {
       toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
+      setTimeout(() => setUploadProgress(0), 1000)
     }
   }
 
@@ -109,14 +123,24 @@ export default function ImportData() {
       return
     }
     setLoading('staff')
+    setUploadProgress(0)
     try {
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+      
       const res = await importApi.staff(staffFile)
+      
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+      
       setStaffResult(res.result)
       toast.success('Import finished')
     } catch (e) {
       toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
+      setTimeout(() => setUploadProgress(0), 1000)
     }
   }
 
@@ -126,19 +150,30 @@ export default function ImportData() {
       return
     }
     setLoading('students')
+    setUploadProgress(0)
     try {
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+      
       const res = await importApi.students(studentFile)
+      
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+      
       setStudentResult(res.result)
       toast.success('Import finished')
     } catch (e) {
       toast.error(errorMessage(e, 'Import failed'))
     } finally {
       setLoading(null)
+      setTimeout(() => setUploadProgress(0), 1000)
     }
   }
 
   return (
     <div className="space-y-6">
+      <Breadcrumb customLabel="CSV Imports" />
       <div>
         <h1 className="text-h2 font-bold text-text-primary">CSV Imports</h1>
         <p className="text-body-sm text-text-secondary">Bulk-load academic structure and staff accounts.</p>
@@ -173,6 +208,9 @@ export default function ImportData() {
               Download Template
             </Button>
           </div>
+          {loading === 'structure' && (
+            <ProgressBar progress={uploadProgress} label="Uploading..." />
+          )}
           {result && <ResultPanel result={result} label="Structure import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{TEMPLATES[type]}</code>
@@ -204,6 +242,9 @@ export default function ImportData() {
               Download Template
             </Button>
           </div>
+          {loading === 'staff' && (
+            <ProgressBar progress={uploadProgress} label="Uploading..." />
+          )}
           {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STAFF_TEMPLATE}</code>{' '}
@@ -246,6 +287,9 @@ export default function ImportData() {
               Download Template
             </Button>
           </div>
+          {loading === 'students' && (
+            <ProgressBar progress={uploadProgress} label="Uploading..." />
+          )}
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">
             Template columns: <code className="code-font">{STUDENT_TEMPLATE}</code>{' '}

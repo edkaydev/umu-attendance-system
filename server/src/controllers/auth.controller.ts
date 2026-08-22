@@ -15,6 +15,7 @@ import {
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
 import { prisma } from '../config/db'
+import { securityLogger } from '../middleware/securityLogger'
 
 const OAUTH_SCOPES = ['profile', 'email']
 
@@ -33,9 +34,11 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
   try {
     const { email, password } = loginSchema.parse(req.body)
     const user = await loginWithPassword(email, password)
+    securityLogger.logAuthSuccess(req, user.id)
     const redirect = await finalizeLogin(user, res)
     ok(res, { user: await getCurrentUser(user.id), redirect })
   } catch (error) {
+    securityLogger.logAuthFailure(req, error instanceof Error ? error.message : 'Unknown error')
     next(error)
   }
 }
