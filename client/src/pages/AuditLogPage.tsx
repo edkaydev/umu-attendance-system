@@ -3,8 +3,23 @@ import { auditLogApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { ApiClientError } from '../api/client'
+
+const ACTION_OPTIONS = [
+  { value: '', label: 'All actions' },
+  { value: 'ATTENDANCE_EDIT', label: 'Attendance edited' },
+  { value: 'SESSION_OPEN', label: 'Session opened' },
+  { value: 'SESSION_CLOSE', label: 'Session closed' },
+  { value: 'SESSION_REOPEN', label: 'Session reopened' },
+  { value: 'IMPORT', label: 'CSV import' },
+  { value: 'USER_CREATE', label: 'User created' },
+  { value: 'USER_UPDATE', label: 'User updated' },
+  { value: 'USER_DELETE', label: 'User deleted' },
+  { value: 'ROLE_CHANGE', label: 'Role changed' },
+  { value: 'SETTINGS_UPDATE', label: 'Settings changed' },
+  { value: 'DB_RESET', label: 'Database reset' },
+]
 
 const PAGE_SIZE = 25
 
@@ -20,7 +35,7 @@ export default function AuditLogPage() {
     auditLogApi
       .list({ page: String(page), limit: String(PAGE_SIZE), ...(action ? { action } : {}) })
       .then(setLogs)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load audit log'))
+      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Could not load the activity log — please refresh'))
       .finally(() => setLoading(false))
   }, [toast, page, action])
 
@@ -29,21 +44,18 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-h2 font-bold text-text-primary">Audit Log</h1>
+        <h1 className="text-h2 font-bold text-text-primary">Activity Log</h1>
         <p className="text-body-sm text-text-secondary">Every sensitive action is recorded for accountability.</p>
       </div>
 
       <Card>
         <div className="flex flex-wrap items-end gap-3">
-          <Input
+          <Select
             label="Filter by action"
-            placeholder="e.g. ATTENDANCE_EDIT, SESSION_CLOSE, IMPORT"
             value={action}
-            onChange={(e) => {
-              setAction(e.target.value)
-              setPage(1)
-            }}
-            className="mb-0 md:w-80"
+            onChange={(e) => { setAction(e.target.value); setPage(1) }}
+            options={ACTION_OPTIONS}
+            className="mb-0 md:w-72"
           />
         </div>
       </Card>

@@ -347,7 +347,7 @@ export default function UserManagement() {
       toast.success(user.isActive ? `${user.fullName} deactivated` : `${user.fullName} activated`)
       await reload()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Operation failed')
+      toast.error(e instanceof ApiClientError ? e.message : 'Something went wrong — please try again')
     }
   }
 

@@ -101,7 +101,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         return
       }
       if (!globalPeriod) {
-        toast.error('System period not loaded yet, please wait')
+        toast.error('Academic year not set yet — please wait a moment and try again')
         return
       }
       const data: StudentProfileInput = {

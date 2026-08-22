@@ -55,7 +55,7 @@ export default function GlobalSettings() {
       setPeriod(result.period)
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to save academic period')
+      toast.error(error instanceof ApiClientError ? error.message : 'Could not save academic period — please try again')
     } finally { setSaving(null) }
   }
 
@@ -67,7 +67,7 @@ export default function GlobalSettings() {
       setProfileEditing(result.enabled)
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to update profile setting')
+      toast.error(error instanceof ApiClientError ? error.message : 'Could not update setting — please try again')
     } finally { setSaving(null) }
   }
 
@@ -82,7 +82,7 @@ export default function GlobalSettings() {
       setConfirmPassword('')
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to update default password')
+      toast.error(error instanceof ApiClientError ? error.message : 'Could not save the default password — please try again')
     } finally { setSaving(null) }
   }
 
@@ -104,7 +104,7 @@ export default function GlobalSettings() {
   }
 
   async function handleReset() {
-    if (resetConfirmText !== 'RESET') return
+    if (resetConfirmText !== 'DELETE EVERYTHING') return
     setResetting(true)
     try {
       const { message } = await settingsApi.resetDatabase()
@@ -112,7 +112,7 @@ export default function GlobalSettings() {
       setShowResetModal(false)
       setResetConfirmText('')
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Reset failed')
+      toast.error(error instanceof ApiClientError ? error.message : 'Reset did not complete — please try again')
     } finally {
       setResetting(false)
     }
@@ -156,7 +156,7 @@ export default function GlobalSettings() {
         {period && <p className="mt-3 text-body-sm text-text-disabled">Currently: {period.academicYear}, Semester {period.semester}</p>}
       </Card>}
 
-      {activeTab === 'access' && <><Card title="Profile Editing Access" noPadding>
+      {activeTab === 'access' && <><Card title="Who can edit their profile?" noPadding>
         {PROFILE_SCOPES.map(({ scope, label, description }) => {
           const enabled = profileEditing?.[scope] ?? false
           return <div key={scope} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 last:border-b-0">
@@ -263,13 +263,13 @@ export default function GlobalSettings() {
           {/* Typed confirmation */}
           <div>
             <label className="mb-1.5 block text-body-sm font-medium text-text-primary">
-              Type <span className="font-mono font-bold text-danger">RESET</span> to confirm
+              Type <span className="font-mono font-bold text-danger">DELETE EVERYTHING</span> to confirm
             </label>
             <input
               type="text"
               value={resetConfirmText}
               onChange={(e) => setResetConfirmText(e.target.value)}
-              placeholder="RESET"
+              placeholder="DELETE EVERYTHING"
               disabled={resetting}
               className="w-full rounded border border-border bg-surface-0 px-3 py-2 text-body font-mono text-text-primary placeholder:text-text-disabled focus:border-danger focus:outline-none disabled:opacity-50"
             />
@@ -282,7 +282,7 @@ export default function GlobalSettings() {
             <Button
               variant="danger"
               loading={resetting}
-              disabled={resetConfirmText !== 'RESET'}
+              disabled={resetConfirmText !== 'DELETE EVERYTHING'}
               onClick={handleReset}
             >
               Reset Everything

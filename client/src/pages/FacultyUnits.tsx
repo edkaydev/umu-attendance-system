@@ -301,7 +301,7 @@ function UserUnitsEditor({
 
   async function runAdd() {
     if (!pending || pending.kind !== 'add') return
-    if (!globalPeriod) { toast.error('System period not loaded'); return }
+    if (!globalPeriod) { toast.error('Academic year not set yet — please wait a moment and try again'); return }
     setBusy(true)
     try {
       if (student) {

@@ -187,7 +187,7 @@ export default function SystemAdminDashboard() {
       toast.success(res.message)
       setDefaultPasswordModalOpen(false)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update default password')
+      toast.error(e instanceof ApiClientError ? e.message : 'Could not save the default password — please try again')
     } finally {
       setSavingDefaultPassword(false)
     }

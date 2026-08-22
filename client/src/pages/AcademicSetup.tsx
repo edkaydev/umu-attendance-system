@@ -98,7 +98,7 @@ export default function AcademicSetup() {
       setCourseUnits(u)
       setCurriculum(cur)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load academic structure')
+      toast.error(e instanceof ApiClientError ? e.message : 'Could not load university setup — please refresh the page')
     }
   }, [toast])
 
