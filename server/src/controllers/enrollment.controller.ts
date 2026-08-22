@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ok, created, noContent } from '../utils/apiResponse'
-import { ApiError } from '../utils/apiResponse'
+import { requireFacultyScope } from '../utils/actor'
+import { academicYearField, semesterField } from '../utils/period'
 import {
   getFacultyUnitOverview,
   createEnrollment,
@@ -11,17 +12,9 @@ import {
 const enrollmentSchema = z.object({
   studentId: z.string().uuid(),
   courseUnitId: z.string().uuid(),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
-  semester: z.number().int().min(1).max(2),
+  academicYear: academicYearField,
+  semester: semesterField,
 })
-
-function requireFaculty(req: Request): { facultyId: string } {
-  const facultyId = req.user?.facultyId
-  if (!facultyId) {
-    throw new ApiError('You are not linked to a faculty', 403)
-  }
-  return { facultyId }
-}
 
 /** GET /api/enrollments/overview — students, lecturers and units in the admin's faculty. */
 export async function getUnitOverview(
@@ -30,7 +23,7 @@ export async function getUnitOverview(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { facultyId } = requireFaculty(req)
+    const { facultyId } = requireFacultyScope(req)
     ok(res, await getFacultyUnitOverview(facultyId))
   } catch (e) {
     next(e)
@@ -44,7 +37,7 @@ export async function postEnrollment(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { facultyId } = requireFaculty(req)
+    const { facultyId } = requireFacultyScope(req)
     const input = enrollmentSchema.parse(req.body)
     await createEnrollment(input, facultyId)
     created(res, { message: 'Student enrolled' })
@@ -60,7 +53,7 @@ export async function deleteEnrollment(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { facultyId } = requireFaculty(req)
+    const { facultyId } = requireFacultyScope(req)
     await removeEnrollment(req.params.id, facultyId)
     noContent(res)
   } catch (e) {

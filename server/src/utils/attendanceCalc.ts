@@ -1,5 +1,45 @@
 export type AttendanceStatusLabel = 'good' | 'warning' | 'not_eligible'
 
+/** Statuses that count towards attendance (FR-07.3): present or excused. */
+export function isAttended(record: { status: string }): boolean {
+  return record.status === 'present' || record.status === 'excused'
+}
+
+/**
+ * Count attended records grouped by a key (student, unit, day, ...).
+ * Records whose key is undefined are skipped.
+ */
+export function countAttendedBy<T extends { status: string }>(
+  records: T[],
+  key: (record: T) => string | undefined
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const record of records) {
+    if (!isAttended(record)) continue
+    const k = key(record)
+    if (k === undefined) continue
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
+  return counts
+}
+
+/** Attended vs total record counts over a flat list of records. */
+export function tallyAttendance(records: { status: string }[]): {
+  attended: number
+  total: number
+} {
+  let attended = 0
+  for (const record of records) {
+    if (isAttended(record)) attended += 1
+  }
+  return { attended, total: records.length }
+}
+
+/** Average attendance as a 2-decimal percentage, or null when there is nothing to average. */
+export function averagePercentage(attended: number, total: number): number | null {
+  return total ? Number(((attended / total) * 100).toFixed(2)) : null
+}
+
 /**
  * Attendance percentage (FR-07.3):
  * (Present + Excused) / Total Closed Sessions × 100

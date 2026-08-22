@@ -6,31 +6,12 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
+import { Stat } from '../components/ui/Stat'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>
 type PeopleTab = 'students' | 'lecturers'
-
-function Stat({
-  label,
-  value,
-  variant = 'default',
-}: {
-  label: string
-  value: number | string
-  variant?: 'default' | 'danger' | 'warning'
-}) {
-  const colour =
-    variant === 'danger' ? 'text-danger' :
-    variant === 'warning' ? 'text-warning' :
-    'text-text-primary'
-  return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-white p-4">
-      <span className={`text-h2 font-bold leading-none ${colour}`}>{value}</span>
-      <span className="text-body-sm text-text-secondary">{label}</span>
-    </div>
-  )
-}
 
 export default function FacultyAdminDashboard() {
   const { user } = useAuth()
@@ -45,17 +26,14 @@ export default function FacultyAdminDashboard() {
       .facultyAdmin()
       .then(setData)
       .catch((e) =>
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
+        toast.error(errorMessage(e, 'Failed to load dashboard'))
       )
       .finally(() => setLoaded(true))
   }, [toast])
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading faculty dashboard…</p>
-      </div>
+      <LoadingState label="Loading faculty dashboard…" />
     )
   }
 

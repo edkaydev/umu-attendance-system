@@ -10,8 +10,10 @@ import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { AttendanceStatus } from '../types'
+import { LoadingState } from '../components/ui/Spinner'
+import { formatTime } from '../utils/datetime'
 
 // ── Stat pill ────────────────────────────────────────────────────────────────
 function StatPill({
@@ -79,7 +81,7 @@ export default function SessionDetail() {
       await handleDownloadPdf()
       toast.success('Report generated and PDF downloaded')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
+      toast.error(errorMessage(e, 'Failed to generate report'))
     } finally {
       setGenerating(false)
     }
@@ -108,7 +110,7 @@ export default function SessionDetail() {
       a.remove()
       URL.revokeObjectURL(objectUrl)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to download PDF')
+      toast.error(errorMessage(e, 'Failed to download PDF'))
     } finally {
       setDownloading(false)
     }
@@ -124,7 +126,7 @@ export default function SessionDetail() {
       .get(sessionId)
       .then(setSession)
       .catch((e) =>
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load session')
+        toast.error(errorMessage(e, 'Failed to load session'))
       )
       .finally(() => setLoaded(true))
   }, [sessionId, toast])
@@ -148,7 +150,7 @@ export default function SessionDetail() {
       setEditing(null)
       await reload()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update attendance')
+      toast.error(errorMessage(e, 'Failed to update attendance'))
     } finally {
       setSaving(false)
     }
@@ -161,7 +163,7 @@ export default function SessionDetail() {
       toast.success('Session reopened — a new code has been generated')
       await reload()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Cannot reopen this session')
+      toast.error(errorMessage(e, 'Cannot reopen this session'))
     } finally {
       setReopening(false)
     }
@@ -169,10 +171,7 @@ export default function SessionDetail() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading session…</p>
-      </div>
+      <LoadingState label="Loading session…" />
     )
   }
 
@@ -322,10 +321,7 @@ export default function SessionDetail() {
                       </td>
                       <td className="px-4 py-3 text-body text-text-secondary">
                         {r.checkedInAt
-                          ? new Date(r.checkedInAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
+                          ? formatTime(r.checkedInAt)
                           : '—'}
                       </td>
                       <td className="px-4 py-3 text-body-sm text-text-secondary max-w-[200px]">

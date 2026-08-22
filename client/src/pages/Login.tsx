@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { GuestOnly } from '../components/RouteGuards'
 import { authApi } from '../api/endpoints'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import { usePeriod } from '../hooks/usePeriod'
 import type { Role } from '../types'
 
@@ -30,7 +30,7 @@ export default function Login() {
       const res = await authApi.login(email.trim(), password)
       window.location.assign(res.redirect)
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Login failed. Please try again.')
+      setError(errorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoggingIn(false)
     }

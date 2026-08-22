@@ -6,8 +6,9 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Badge } from '../components/ui/Badge'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { UnitStatus } from '../types'
+import { formatTime } from '../utils/datetime'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ function fmtMinutes(total: number): string {
 }
 
 function fmtTime(d: string | null): string {
-  return d ? new Date(d).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'
+  return d ? formatTime(d) : '—'
 }
 
 // ─── Report renderers ────────────────────────────────────────────────────────
@@ -500,7 +501,7 @@ export default function ReportsPage() {
         setLecturers(d.lecturerSummary)
       })
       .catch((e) =>
-        toast.error(e instanceof ApiClientError ? e.message : 'Failed to load report options')
+        toast.error(errorMessage(e, 'Failed to load report options'))
       )
 
     assignmentApi
@@ -560,7 +561,7 @@ export default function ReportsPage() {
       await downloadPdf(data)
       toast.success('Report generated and PDF downloaded')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to generate report')
+      toast.error(errorMessage(e, 'Failed to generate report'))
     } finally {
       setLoading(false)
     }
@@ -593,7 +594,7 @@ export default function ReportsPage() {
       a.remove()
       URL.revokeObjectURL(objectUrl)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to download PDF')
+      toast.error(errorMessage(e, 'Failed to download PDF'))
     } finally {
       setPdfDownloading(false)
     }

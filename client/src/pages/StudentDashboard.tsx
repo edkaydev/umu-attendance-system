@@ -20,8 +20,9 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { Modal } from '../components/ui/Modal'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import { getCurrentPosition, GeoError } from '../utils/geo'
+import { LoadingState } from '../components/ui/Spinner'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -89,7 +90,7 @@ export default function StudentDashboard() {
     dashboardApi
       .student()
       .then(setData)
-      .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard'))
+      .catch((e) => toast.error(errorMessage(e, 'Failed to load dashboard')))
       .finally(() => setLoaded(true))
   }, [toast])
 
@@ -101,7 +102,7 @@ export default function StudentDashboard() {
         const sessions = await checkinApi.live()
         if (!cancelled) setLive(sessions)
       } catch (e) {
-        if (!cancelled) toast.error(e instanceof ApiClientError ? e.message : 'Failed to load live sessions')
+        if (!cancelled) toast.error(errorMessage(e, 'Failed to load live sessions'))
       }
     }
     loadLive()
@@ -151,7 +152,7 @@ export default function StudentDashboard() {
       checkinApi.live().then(setLive).catch(() => {})
       dashboardApi.student().then(setData).catch(() => {})
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Check-in failed')
+      toast.error(errorMessage(e, 'Check-in failed'))
       checkinApi.live().then(setLive).catch(() => {})
     } finally {
       setCheckingIn(false)
@@ -160,10 +161,7 @@ export default function StudentDashboard() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
-      </div>
+      <LoadingState label="Loading dashboard…" />
     )
   }
 

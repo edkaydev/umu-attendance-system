@@ -1,8 +1,13 @@
-import { AttendanceStatus, SessionMode, SessionStatus } from '@prisma/client'
+import { SessionMode, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
 import { writeAuditLog } from '../utils/audit'
+import { Actor } from '../utils/actor'
+import { assertValidPeriod } from '../utils/period'
+import { dayFilter } from '../utils/dateRange'
+import { assertSessionScope } from '../utils/scope'
+import { markAbsentees } from '../utils/sessionClose'
 import { isWithinCampus, geofence } from '../config/geofence'
 
 const DEFAULT_CODE_TTL = 5 // minutes
@@ -42,18 +47,20 @@ async function assertLecturerAssigned(
   }
 }
 
-function validatePeriod(academicYear: string, semester: number): void {
-  if (!/^\d{4}\/\d{4}$/.test(academicYear)) {
-    throw new ApiError('Academic year must be like 2025/2026', 400)
-  }
-  if (!Number.isInteger(semester) || semester < 1 || semester > 2) {
-    throw new ApiError('Semester must be 1 or 2', 400)
-  }
+/** A fresh 6-char code that no other open session is using (FR-05.2/05.3). */
+async function issueSessionCode(): Promise<string> {
+  return generateUniqueSessionCode(async (candidate) => {
+    const taken = await prisma.session.findFirst({
+      where: { code: candidate, status: 'open' },
+      select: { id: true },
+    })
+    return Boolean(taken)
+  })
 }
 
 /** Open a new attendance session (FR-05.1 → 05.6). */
 export async function openSession(lecturerId: string, input: OpenSessionInput) {
-  validatePeriod(input.academicYear, input.semester)
+  assertValidPeriod(input.academicYear, input.semester)
   await assertLecturerAssigned(
     lecturerId,
     input.courseUnitId,
@@ -102,14 +109,7 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     throw new ApiError('A session is already open for this course unit', 409, 'SESSION_ALREADY_OPEN')
   }
 
-  // FR-05.2/05.3: unique 6-char code from the safe pool
-  const code = await generateUniqueSessionCode(async (candidate) => {
-    const taken = await prisma.session.findFirst({
-      where: { code: candidate, status: 'open' },
-      select: { id: true },
-    })
-    return Boolean(taken)
-  })
+  const code = await issueSessionCode()
 
   const codeTtlMinutes = Math.min(60, Math.max(5, input.codeTtl ?? DEFAULT_CODE_TTL))
   const classDuration = input.classDuration
@@ -158,23 +158,7 @@ export async function listSessions(
     today?: boolean
   }
 ) {
-  // Build the date range if requested
-  let dateFilter: { gte: Date; lt: Date } | undefined
-  if (filters?.today) {
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 1)
-    dateFilter = { gte: start, lt: end }
-  } else if (filters?.date) {
-    // Accept YYYY-MM-DD
-    const start = new Date(filters.date + 'T00:00:00')
-    if (!Number.isNaN(start.getTime())) {
-      const end = new Date(start)
-      end.setDate(end.getDate() + 1)
-      dateFilter = { gte: start, lt: end }
-    }
-  }
+  const dateFilter = dayFilter(filters)
 
   return prisma.session.findMany({
     where: {
@@ -208,21 +192,7 @@ export async function listSessionsForFaculty(
     date?: string
   }
 ) {
-  let dateFilter: { gte: Date; lt: Date } | undefined
-  if (filters?.today) {
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 1)
-    dateFilter = { gte: start, lt: end }
-  } else if (filters?.date) {
-    const start = new Date(filters.date + 'T00:00:00')
-    if (!Number.isNaN(start.getTime())) {
-      const end = new Date(start)
-      end.setDate(end.getDate() + 1)
-      dateFilter = { gte: start, lt: end }
-    }
-  }
+  const dateFilter = dayFilter(filters)
 
   return prisma.session.findMany({
     where: {
@@ -246,7 +216,7 @@ export async function listSessionsForFaculty(
 }
 
 /** Get a single session + attendance list. Lecturer (own units) or Faculty Admin (own or shared faculty). */
-export async function getSession(sessionId: string, actor: { id: string; role: string; facultyId: string | null }) {
+export async function getSession(sessionId: string, actor: Actor) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
@@ -278,24 +248,14 @@ export async function getSession(sessionId: string, actor: { id: string; role: s
   })
   if (!session) throw new ApiError('Session not found', 404)
 
-  if (actor.role === 'lecturer') {
-    await assertLecturerAssigned(
+  await assertSessionScope(actor, session.courseUnit, () =>
+    assertLecturerAssigned(
       actor.id,
       session.courseUnitId,
       session.academicYear,
       session.semester
     )
-  } else if (actor.role === 'faculty_admin') {
-    const allowed = new Set([
-      session.courseUnit.facultyId,
-      ...session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-    ])
-    if (!actor.facultyId || !allowed.has(actor.facultyId)) {
-      throw new ApiError('Session is outside your faculty', 403)
-    }
-  } else if (actor.role !== 'system_admin') {
-    throw new ApiError('Forbidden', 403)
-  }
+  )
 
   const counts = session.attendanceRecords.reduce<Record<string, number>>(
     (acc, r) => {
@@ -374,33 +334,7 @@ export async function closeSession(sessionId: string, lecturerId: string) {
     throw new ApiError('Session is already closed', 400)
   }
 
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      courseUnitId: session.courseUnitId,
-      academicYear: session.academicYear,
-      semester: session.semester,
-    },
-    select: { studentId: true },
-  })
-
-  const existing = await prisma.attendanceRecord.findMany({
-    where: { sessionId },
-    select: { studentId: true },
-  })
-  const checkedInIds = new Set(existing.map((r) => r.studentId))
-  const absentStudentIds = enrollments
-    .map((e) => e.studentId)
-    .filter((id) => !checkedInIds.has(id))
-
-  if (absentStudentIds.length > 0) {
-    await prisma.attendanceRecord.createMany({
-      data: absentStudentIds.map((studentId) => ({
-        sessionId,
-        studentId,
-        status: AttendanceStatus.absent,
-      })),
-    })
-  }
+  const absenteesAutoMarked = await markAbsentees(sessionId, session)
 
   const closed = await prisma.session.update({
     where: { id: sessionId },
@@ -409,10 +343,10 @@ export async function closeSession(sessionId: string, lecturerId: string) {
   })
 
   await writeAuditLog(lecturerId, 'SESSION_CLOSE', 'session', session.id, {
-    absenteesAutoMarked: absentStudentIds.length,
+    absenteesAutoMarked,
   })
 
-  return { session: closed, absenteesAutoMarked: absentStudentIds.length }
+  return { session: closed, absenteesAutoMarked }
 }
 
 /** Reopen a closed session on the same day (FR-05.9). */
@@ -446,13 +380,7 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
 
   // New code + expiry using the original codeTtl
   const ttl = session.codeTtl ?? DEFAULT_CODE_TTL
-  const code = await generateUniqueSessionCode(async (candidate) => {
-    const taken = await prisma.session.findFirst({
-      where: { code: candidate, status: 'open' },
-      select: { id: true },
-    })
-    return Boolean(taken)
-  })
+  const code = await issueSessionCode()
 
   const reopened = await prisma.session.update({
     where: { id: sessionId },

@@ -5,7 +5,8 @@ import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
+import { LoadingState } from '../components/ui/Spinner'
 
 type LiveData = Awaited<ReturnType<typeof sessionApi.live>>
 
@@ -94,7 +95,7 @@ export default function LiveSession() {
         toast.info('Session was closed')
       }
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load live session')
+      toast.error(errorMessage(e, 'Failed to load live session'))
     } finally {
       firstLoad.current = false
       setLoaded(true)
@@ -163,7 +164,7 @@ export default function LiveSession() {
       )
       await load()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to extend session')
+      toast.error(errorMessage(e, 'Failed to extend session'))
     } finally {
       setExtending(false)
     }
@@ -176,7 +177,7 @@ export default function LiveSession() {
       toast.success(`Session closed. ${res.absenteesAutoMarked} student(s) auto-marked absent.`)
       navigate(`/lecturer/sessions/${sessionId}`)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to close session')
+      toast.error(errorMessage(e, 'Failed to close session'))
     } finally {
       setClosing(false)
       setConfirmClose(false)
@@ -185,10 +186,7 @@ export default function LiveSession() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading live session…</p>
-      </div>
+      <LoadingState label="Loading live session…" />
     )
   }
 

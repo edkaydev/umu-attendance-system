@@ -11,6 +11,7 @@ import Login from './pages/Login'
 import AccessDenied from './pages/AccessDenied'
 import ChangePassword from './pages/ChangePassword'
 import ProfileSetup from './pages/ProfileSetup'
+import { LoadingState } from './components/ui/Spinner'
 
 // Portal pages are loaded on demand so the sign-in experience does not download
 // reports, charts, and administration tools that the user may never open.
@@ -38,10 +39,7 @@ const NotFound = lazy(() => import('./pages/NotFound'))
 
 function RouteLoading() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-      <p className="text-body-sm text-text-secondary">Loading page…</p>
-    </div>
+    <LoadingState label="Loading page…" fullScreen />
   )
 }
 
@@ -50,10 +48,7 @@ function HomeRedirect() {
   const location = useLocation()
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading UMU Attendance…</p>
-      </div>
+      <LoadingState label="Loading UMU Attendance…" fullScreen />
     )
   }
   if (!user) return <Navigate to="/login" replace />

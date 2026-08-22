@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { academicYearField, semesterField } from '../utils/period'
 import { ok } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
 import {
@@ -69,8 +70,8 @@ export async function setProfileEditing(
 }
 
 const currentPeriodSchema = z.object({
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
-  semester: z.number().int().min(1).max(2),
+  academicYear: academicYearField,
+  semester: semesterField,
 })
 
 /** GET /api/settings/current-period — any authenticated user */

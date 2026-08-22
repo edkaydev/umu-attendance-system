@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { ManagedUser } from '../types'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
       setUsers(res.users)
       setTotal(res.total)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load users')
+      toast.error(errorMessage(e, 'Failed to load users'))
     } finally {
       setLoading(false)
     }
@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
       toast.success(message)
       setTarget(null)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reset password')
+      toast.error(errorMessage(e, 'Failed to reset password'))
     } finally {
       setResetting(false)
     }

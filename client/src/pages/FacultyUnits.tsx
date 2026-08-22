@@ -8,7 +8,7 @@ import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 
 type ManageUser =
   | FacultyUnitOverview['students'][number]
@@ -49,7 +49,7 @@ export default function FacultyUnits() {
     try {
       setData(await enrollmentApi.overview())
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load units')
+      toast.error(errorMessage(e, 'Failed to load units'))
     } finally {
       setLoaded(true)
     }
@@ -177,7 +177,7 @@ export function FacultyUserUnits() {
     try {
       setData(await enrollmentApi.overview())
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load units')
+      toast.error(errorMessage(e, 'Failed to load units'))
     } finally {
       setLoaded(true)
     }
@@ -325,7 +325,7 @@ function UserUnitsEditor({
       setPending(null)
       onChanged()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to add unit')
+      toast.error(errorMessage(e, 'Failed to add unit'))
       setPending(null)
     } finally {
       setBusy(false)
@@ -342,7 +342,7 @@ function UserUnitsEditor({
       setPending(null)
       onChanged()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to remove unit')
+      toast.error(errorMessage(e, 'Failed to remove unit'))
       setPending(null)
     } finally {
       setBusy(false)

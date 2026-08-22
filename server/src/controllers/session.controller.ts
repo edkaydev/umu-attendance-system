@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { actorFromRequest } from '../utils/actor'
+import { academicYearField, semesterField } from '../utils/period'
 import { ok } from '../utils/apiResponse'
 import {
   openSession,
@@ -18,8 +20,8 @@ const openSessionSchema = z.object({
   venue: z.string().max(120).optional(),
   mode: z.enum(['physical', 'online']).optional(),
   startsAt: z.string().datetime().optional(),
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
-  semester: z.number().int().min(1).max(2),
+  academicYear: academicYearField,
+  semester: semesterField,
   classDuration: z.number().int().min(1).max(180).optional(),
   codeTtl: z.number().int().min(5).max(60).optional(),
   /** Lecturer GPS for physical session campus check */
@@ -28,7 +30,7 @@ const openSessionSchema = z.object({
 })
 
 const listQuerySchema = z.object({
-  academicYear: z.string().regex(/^\d{4}\/\d{4}$/).optional(),
+  academicYear: academicYearField.optional(),
   semester: z.coerce.number().int().min(1).max(2).optional(),
   status: z.enum(['open', 'closed']).optional(),
   /** Pass ?today=true to scope to today's sessions only */
@@ -92,11 +94,7 @@ export async function listFacultySessionsController(req: Request, res: Response,
 
 export async function getSessionController(req: Request, res: Response, next: NextFunction) {
   try {
-    const session = await getSession(req.params.sessionId, {
-      id: req.user!.id,
-      role: req.user!.role,
-      facultyId: req.user!.facultyId ?? null,
-    })
+    const session = await getSession(req.params.sessionId, actorFromRequest(req))
     ok(res, { session })
   } catch (e) {
     next(e)

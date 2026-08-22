@@ -6,7 +6,7 @@ import {
   ProfileEditingSettings,
 } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -55,7 +55,7 @@ export default function GlobalSettings() {
       setPeriod(result.period)
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to save academic period')
+      toast.error(errorMessage(error, 'Failed to save academic period'))
     } finally { setSaving(null) }
   }
 
@@ -67,7 +67,7 @@ export default function GlobalSettings() {
       setProfileEditing(result.enabled)
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to update profile setting')
+      toast.error(errorMessage(error, 'Failed to update profile setting'))
     } finally { setSaving(null) }
   }
 
@@ -82,7 +82,7 @@ export default function GlobalSettings() {
       setConfirmPassword('')
       toast.success(result.message)
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to update default password')
+      toast.error(errorMessage(error, 'Failed to update default password'))
     } finally { setSaving(null) }
   }
 
@@ -97,7 +97,7 @@ export default function GlobalSettings() {
       }
       toast.success('Cache cleared — all users will get fresh data on next load.')
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Failed to clear cache')
+      toast.error(errorMessage(error, 'Failed to clear cache'))
     } finally {
       setClearingCache(false)
     }
@@ -112,7 +112,7 @@ export default function GlobalSettings() {
       setShowResetModal(false)
       setResetConfirmText('')
     } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Reset failed')
+      toast.error(errorMessage(error, 'Reset failed'))
     } finally {
       setResetting(false)
     }

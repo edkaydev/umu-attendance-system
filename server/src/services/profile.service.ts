@@ -74,8 +74,8 @@ export function friendlyUniqueError(e: unknown): never {
   throw e as Error
 }
 
-/** First-time student profile completion (FR-02.2 → 02.4). */
-export async function completeStudentProfile(userId: string, input: StudentPathInput) {
+/** Save a student's academic path and rebuild their enrolments. */
+async function saveStudentPath(userId: string, input: StudentPathInput) {
   await validateStudentPath(input)
   await prisma.user.update({
     where: { id: userId },
@@ -92,52 +92,40 @@ export async function completeStudentProfile(userId: string, input: StudentPathI
   }).catch(friendlyUniqueError)
   const unitsEnrolled = await recalculateEnrollments(userId, input)
   return { unitsEnrolled }
+}
+
+/** Link a lecturer to an existing faculty. */
+async function saveLecturerFaculty(userId: string, facultyId: string) {
+  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
+  if (!faculty) throw new ApiError('Faculty not found', 404)
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { facultyId, profileComplete: true },
+  })
+  return { facultyId }
+}
+
+/** First-time student profile completion (FR-02.2 → 02.4). */
+export async function completeStudentProfile(userId: string, input: StudentPathInput) {
+  return saveStudentPath(userId, input)
 }
 
 /** Student edits their academic path — enrolments recalculated (FR-02.5/02.6). */
 export async function updateStudentProfile(userId: string, input: StudentPathInput) {
   await assertProfileEditingAllowed('students')
-  await validateStudentPath(input)
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      facultyId: input.facultyId,
-      programmeId: input.programmeId,
-      year: input.year,
-      semester: input.semester,
-      academicYear: input.academicYear,
-      regNumber: input.regNumber,
-      studentNumber: input.studentNumber,
-      profileComplete: true,
-    },
-  }).catch(friendlyUniqueError)
-  const unitsEnrolled = await recalculateEnrollments(userId, input)
-  return { unitsEnrolled }
+  return saveStudentPath(userId, input)
 }
 
 /** First-time lecturer profile completion (FR-02.7/02.8). */
 export async function completeLecturerProfile(userId: string, facultyId: string) {
-  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { facultyId, profileComplete: true },
-  })
-  return { facultyId }
+  return saveLecturerFaculty(userId, facultyId)
 }
 
 /** Lecturer changes their faculty. */
 export async function updateLecturerProfile(userId: string, facultyId: string) {
   await assertProfileEditingAllowed('lecturers')
-  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { facultyId, profileComplete: true },
-  })
-  return { facultyId }
+  return saveLecturerFaculty(userId, facultyId)
 }
 
 /** Profile edits are blocked while the System Admin has frozen the scope. */

@@ -1,6 +1,8 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isProfileEditingEnabled } from './settings.service'
+import { assertValidPeriod } from '../utils/period'
+import { courseUnitFacultyIds } from '../utils/scope'
 
 export interface EnrollmentInput {
   studentId: string
@@ -170,20 +172,11 @@ export async function createEnrollment(
   })
   if (!courseUnit) throw new ApiError('Course unit not found', 404)
 
-  const allowedFaculties = new Set([
-    courseUnit.facultyId,
-    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
+  if (!courseUnitFacultyIds(courseUnit).has(facultyId)) {
     throw new ApiError('Course unit is not available to your faculty', 403)
   }
 
-  if (!/^\d{4}\/\d{4}$/.test(input.academicYear)) {
-    throw new ApiError('Academic year must be like 2025/2026', 400)
-  }
-  if (!Number.isInteger(input.semester) || input.semester < 1 || input.semester > 2) {
-    throw new ApiError('Semester must be 1 or 2', 400)
-  }
+  assertValidPeriod(input.academicYear, input.semester)
 
   await prisma.enrollment.upsert({
     where: {
@@ -227,11 +220,7 @@ export async function removeEnrollment(id: string, facultyId: string): Promise<v
     throw new ApiError('Enrolment is outside your faculty', 403)
   }
 
-  const allowedFaculties = new Set([
-    existing.courseUnit.facultyId,
-    ...existing.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
+  if (!courseUnitFacultyIds(existing.courseUnit).has(facultyId)) {
     throw new ApiError('Course unit is not available to your faculty', 403)
   }
 

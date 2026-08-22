@@ -7,7 +7,7 @@ import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { Campus, Faculty, Programme, CourseUnit, CurriculumUnitEntry } from '../types'
 
 type Tab = 'faculties' | 'programmes' | 'course-units' | 'curriculum'
@@ -97,7 +97,7 @@ export default function AcademicSetup() {
       setCourseUnits(u)
       setCurriculum(cur)
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to load academic structure')
+      toast.error(errorMessage(e, 'Failed to load academic structure'))
     }
   }, [toast])
 
@@ -172,7 +172,7 @@ export default function AcademicSetup() {
       setModal(null)
       void loadAll()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to save')
+      toast.error(errorMessage(e, 'Failed to save'))
     } finally {
       setSaving(false)
     }
@@ -184,7 +184,7 @@ export default function AcademicSetup() {
       toast.success('Curriculum mapping removed')
       void loadAll()
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to remove')
+      toast.error(errorMessage(e, 'Failed to remove'))
     }
   }
 

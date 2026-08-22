@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { dashboardApi } from '../api/endpoints'
-import { ApiClientError } from '../api/client'
+import { errorMessage } from '../api/client'
 import type { Role } from '../types'
 
 type FacultyData = Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>
@@ -28,7 +28,7 @@ export function MobileAdminSummary({ role }: { role: Extract<Role, 'faculty_admi
         if (role === 'faculty_admin') setFacultyData(data as FacultyData)
         else setSystemData(data as SystemData)
       })
-      .catch((err) => setError(err instanceof ApiClientError ? err.message : 'Could not load the latest summary.'))
+      .catch((err) => setError(errorMessage(err, 'Could not load the latest summary.')))
   }, [role])
 
   const dataLoaded = role === 'faculty_admin' ? facultyData !== null : systemData !== null

@@ -28,6 +28,47 @@ function parseCsv(buffer: Buffer): Row[] {
   return records
 }
 
+/** Parse an uploaded CSV, reporting a malformed file as a 400. */
+function readRows(buffer: Buffer): Row[] {
+  try {
+    return parseCsv(buffer)
+  } catch (error) {
+    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+  }
+}
+
+/**
+ * Run `handleRow` for every CSV row, counting successes and collecting
+ * per-row failures against the spreadsheet line number (header is row 1).
+ */
+async function importRows(
+  rows: Row[],
+  handleRow: (row: Row) => Promise<void>
+): Promise<ImportResult> {
+  const result: ImportResult = { imported: 0, failed: 0, errors: [] }
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      await handleRow(rows[i])
+      result.imported++
+    } catch (error) {
+      result.failed++
+      result.errors.push({ row: i + 2, message: (error as Error).message })
+    }
+  }
+  return result
+}
+
+/** Faculty referenced by a CSV `facultyCode` column. */
+async function facultyByCode(facultyCode: string, activeOnly = false) {
+  const faculty = await prisma.faculty.findFirst({
+    where: { code: facultyCode, ...(activeOnly ? { isActive: true } : {}) },
+  })
+  if (!faculty) {
+    throw new Error(`${activeOnly ? 'Active faculty' : 'Faculty'} "${facultyCode}" not found`)
+  }
+  return faculty
+}
+
 function normalizeCode(value: string | undefined): string | undefined {
   return value?.trim().toUpperCase()
 }
@@ -79,41 +120,13 @@ export async function importStructure(
   buffer: Buffer,
   type: StructureImportType
 ): Promise<ImportResult> {
-  const result: ImportResult = { imported: 0, failed: 0, errors: [] }
-
-  let rows: Row[]
-  try {
-    rows = parseCsv(buffer)
-  } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+  const rowImporters: Record<StructureImportType, (row: Row) => Promise<void>> = {
+    faculties: importFacultyRow,
+    programmes: importProgrammeRow,
+    course_units: importCourseUnitRow,
+    curriculum: importCurriculumRow,
   }
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    const line = i + 2 // header is row 1
-    try {
-      switch (type) {
-        case 'faculties':
-          await importFacultyRow(row)
-          break
-        case 'programmes':
-          await importProgrammeRow(row)
-          break
-        case 'course_units':
-          await importCourseUnitRow(row)
-          break
-        case 'curriculum':
-          await importCurriculumRow(row)
-          break
-      }
-      result.imported++
-    } catch (error) {
-      result.failed++
-      result.errors.push({ row: line, message: (error as Error).message })
-    }
-  }
-
-  return result
+  return importRows(readRows(buffer), rowImporters[type])
 }
 
 async function importFacultyRow(row: Row): Promise<void> {
@@ -143,8 +156,7 @@ async function importProgrammeRow(row: Row): Promise<void> {
   if (!name || !code || !facultyCode) {
     throw new Error('Missing name, code or facultyCode')
   }
-  const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode } })
-  if (!faculty) throw new Error(`Faculty "${facultyCode}" not found`)
+  const faculty = await facultyByCode(facultyCode)
 
   await prisma.programme.upsert({
     where: { facultyId_code: { facultyId: faculty.id, code } },
@@ -161,8 +173,7 @@ async function importCourseUnitRow(row: Row): Promise<void> {
   if (!name || !code || !facultyCode) {
     throw new Error('Missing name, code or facultyCode')
   }
-  const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode } })
-  if (!faculty) throw new Error(`Faculty "${facultyCode}" not found`)
+  const faculty = await facultyByCode(facultyCode)
 
   await prisma.courseUnit.upsert({
     where: { facultyId_code: { facultyId: faculty.id, code } },
@@ -220,85 +231,66 @@ async function importCurriculumRow(row: Row): Promise<void> {
  * Admin's job. Each faculty may have only one Faculty Admin.
  */
 export async function importStaff(buffer: Buffer): Promise<ImportResult> {
-  const result: ImportResult = { imported: 0, failed: 0, errors: [] }
+  return importRows(readRows(buffer), importStaffRow)
+}
 
-  let rows: Row[]
-  try {
-    rows = parseCsv(buffer)
-  } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+async function importStaffRow(row: Row): Promise<void> {
+  const email = row['email']?.trim().toLowerCase()
+  const roleRaw = normalizeCode(row['role'])
+  const facultyCode = normalizeCode(row['facultyCode'])
+
+  if (!email || !facultyCode) throw new Error('Missing email or facultyCode')
+  if (!email.endsWith('@umu.ac.ug')) {
+    throw new Error(`Email must be @umu.ac.ug`)
   }
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    const line = i + 2
-    try {
-      const email = row['email']?.trim().toLowerCase()
-      const roleRaw = normalizeCode(row['role'])
-      const facultyCode = normalizeCode(row['facultyCode'])
+  const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
+  if (!role) throw new Error('Role must be "lecturer" or "faculty_admin"')
 
-      if (!email || !facultyCode) throw new Error('Missing email or facultyCode')
-      if (!email.endsWith('@umu.ac.ug')) {
-        throw new Error(`Email must be @umu.ac.ug`)
-      }
+  const faculty = await facultyByCode(facultyCode, true)
 
-      const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
-      if (!role) throw new Error('Role must be "lecturer" or "faculty_admin"')
+  const existing = await prisma.user.findUnique({ where: { email } })
 
-      const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
-      if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
-
-      const existing = await prisma.user.findUnique({ where: { email } })
-
-      if (role === Role.faculty_admin) {
-        const facultyAdmin = await prisma.user.findFirst({
-          where: {
-            role: Role.faculty_admin,
-            facultyId: faculty.id,
-            ...(existing ? { id: { not: existing.id } } : {}),
-          },
-          select: { fullName: true },
-        })
-        if (facultyAdmin) {
-          throw new Error(`Faculty "${facultyCode}" already has a Faculty Admin (${facultyAdmin.fullName})`)
-        }
-      }
-
-      // Placeholder display name until Google provides the real one.
-      const fullName = email.split('@')[0]
-
-      if (existing) {
-        await prisma.user.update({
-          where: { email },
-          data: {
-            role,
-            facultyId: faculty.id,
-            profileComplete: true,
-            isActive: true,
-          },
-        })
-      } else {
-        await prisma.user.create({
-          data: {
-            email,
-            password: await getDefaultUserPasswordHash(),
-            mustChangePassword: true,
-            fullName,
-            role,
-            facultyId: faculty.id,
-            profileComplete: true,
-            isActive: true,
-          },
-        })
-      }
-      result.imported++
-    } catch (error) {
-      result.failed++
-      result.errors.push({ row: line, message: (error as Error).message })
+  if (role === Role.faculty_admin) {
+    const facultyAdmin = await prisma.user.findFirst({
+      where: {
+        role: Role.faculty_admin,
+        facultyId: faculty.id,
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+      select: { fullName: true },
+    })
+    if (facultyAdmin) {
+      throw new Error(`Faculty "${facultyCode}" already has a Faculty Admin (${facultyAdmin.fullName})`)
     }
   }
 
-  return result
+  if (existing) {
+    await prisma.user.update({
+      where: { email },
+      data: {
+        role,
+        facultyId: faculty.id,
+        profileComplete: true,
+        isActive: true,
+      },
+    })
+    return
+  }
+
+  await prisma.user.create({
+    data: {
+      email,
+      password: await getDefaultUserPasswordHash(),
+      mustChangePassword: true,
+      // Placeholder display name until Google provides the real one.
+      fullName: email.split('@')[0],
+      role,
+      facultyId: faculty.id,
+      profileComplete: true,
+      isActive: true,
+    },
+  })
 }
 
 /**
@@ -313,12 +305,7 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
 export async function importStudents(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
 
-  let rows: Row[]
-  try {
-    rows = parseCsv(buffer)
-  } catch (error) {
-    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
-  }
+  const rows = readRows(buffer)
   if (rows.length === 0) return result
 
   // Preload existing users once so duplicate emails don't mean per-row lookups.

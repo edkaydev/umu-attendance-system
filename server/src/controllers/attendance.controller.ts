@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ok } from '../utils/apiResponse'
-import { ApiError } from '../utils/apiResponse'
+import { actorFromRequest } from '../utils/actor'
+import { parsePeriodQuery } from '../utils/period'
 import { AttendanceStatus } from '@prisma/client'
 import {
   getMyAttendance,
@@ -28,11 +29,10 @@ export async function myAttendanceController(req: Request, res: Response, next: 
 /** Lecturer / faculty admin: full attendance list for a session. */
 export async function sessionAttendanceController(req: Request, res: Response, next: NextFunction) {
   try {
-    const { records, counts } = await getSessionAttendance(req.params.sessionId, {
-      id: req.user!.id,
-      role: req.user!.role,
-      facultyId: req.user!.facultyId ?? null,
-    })
+    const { records, counts } = await getSessionAttendance(
+      req.params.sessionId,
+      actorFromRequest(req)
+    )
     ok(res, { records, counts })
   } catch (e) {
     next(e)
@@ -43,14 +43,7 @@ export async function sessionAttendanceController(req: Request, res: Response, n
 export async function unitSummaryController(req: Request, res: Response, next: NextFunction) {
   try {
     const { courseUnitId } = z.object({ courseUnitId: z.string().uuid() }).parse(req.params)
-    const academicYear = String(req.query.academicYear ?? '')
-    const semester = Number(req.query.semester ?? '')
-    if (!/^\d{4}\/\d{4}$/.test(academicYear)) {
-      throw new ApiError('academicYear is required (e.g. 2025/2026)', 400)
-    }
-    if (!Number.isInteger(semester) || semester < 1 || semester > 2) {
-      throw new ApiError('semester is required (1 or 2)', 400)
-    }
+    const { academicYear, semester } = parsePeriodQuery(req.query)
     const result = await getUnitSummary(courseUnitId, academicYear, semester)
     ok(res, result)
   } catch (e) {
@@ -66,7 +59,7 @@ export async function editAttendanceController(req: Request, res: Response, next
       req.params.recordId,
       status as AttendanceStatus,
       reason,
-      { id: req.user!.id, role: req.user!.role, facultyId: req.user!.facultyId ?? null }
+      actorFromRequest(req)
     )
     ok(res, { message: 'Attendance updated', record })
   } catch (e) {
