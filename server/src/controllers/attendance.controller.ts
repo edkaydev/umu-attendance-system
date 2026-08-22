@@ -51,7 +51,11 @@ export async function unitSummaryController(req: Request, res: Response, next: N
     if (!Number.isInteger(semester) || semester < 1 || semester > 2) {
       throw new ApiError('semester is required (1 or 2)', 400)
     }
-    const result = await getUnitSummary(courseUnitId, academicYear, semester)
+    const result = await getUnitSummary(courseUnitId, academicYear, semester, {
+      id: req.user!.id,
+      role: req.user!.role,
+      facultyId: req.user!.facultyId ?? null,
+    })
     ok(res, result)
   } catch (e) {
     next(e)

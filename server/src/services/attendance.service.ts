@@ -153,8 +153,46 @@ export async function getMyAttendance(studentId: string) {
   }
 }
 
-/** Attendance percentage + status per student for one course unit (FR-07.3). */
-export async function getUnitSummary(courseUnitId: string, academicYear: string, semester: number) {
+/**
+ * Attendance percentage + status per student for one course unit (FR-07.3).
+ * Lecturers must be assigned to the unit for the period; Faculty Admins must
+ * own (or share) the unit's faculty.
+ */
+export async function getUnitSummary(
+  courseUnitId: string,
+  academicYear: string,
+  semester: number,
+  actor: { id: string; role: string; facultyId: string | null }
+) {
+  const unit = await prisma.courseUnit.findUnique({
+    where: { id: courseUnitId },
+    select: {
+      facultyId: true,
+      sharedFaculties: { select: { facultyId: true } },
+    },
+  })
+  if (!unit) throw new ApiError('Course unit not found', 404)
+
+  if (actor.role === 'lecturer') {
+    const assignment = await prisma.lecturerAssignment.findFirst({
+      where: { lecturerId: actor.id, courseUnitId, academicYear, semester },
+      select: { id: true },
+    })
+    if (!assignment) {
+      throw new ApiError('You are not assigned to this course unit', 403)
+    }
+  } else if (actor.role === 'faculty_admin') {
+    const allowed = new Set([
+      unit.facultyId,
+      ...unit.sharedFaculties.map((sf) => sf.facultyId),
+    ])
+    if (!actor.facultyId || !allowed.has(actor.facultyId)) {
+      throw new ApiError('Course unit is outside your faculty', 403)
+    }
+  } else if (actor.role !== 'system_admin') {
+    throw new ApiError('Forbidden', 403)
+  }
+
   const enrollments = await prisma.enrollment.findMany({
     where: { courseUnitId, academicYear, semester },
     select: {

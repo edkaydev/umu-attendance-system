@@ -1,5 +1,6 @@
 import { prisma } from '../config/db'
 import { hashPassword } from '../utils/password'
+import { ApiError } from '../utils/apiResponse'
 
 export const PROFILE_EDITING_KEYS = {
   students:  'profileEditing.students',
@@ -12,8 +13,12 @@ export const CURRENT_PERIOD_KEYS = {
   semester:     'currentPeriod.semester',
 } as const
 
-/** New local accounts use this until a System Admin sets an organisation-specific one. */
-export const INITIAL_DEFAULT_USER_PASSWORD = 'Umu@2026'
+/**
+ * Development fallback for new local accounts. Deployments must configure a
+ * default password (System Admin setting, or DEFAULT_USER_PASSWORD) — a
+ * publicly known value would let anyone sign in as a freshly created user.
+ */
+export const INITIAL_DEFAULT_USER_PASSWORD = process.env.DEFAULT_USER_PASSWORD || 'Umu@2026'
 export const DEFAULT_USER_PASSWORD_KEY = 'auth.defaultUserPasswordHash'
 
 export type ProfileEditingScope = keyof typeof PROFILE_EDITING_KEYS
@@ -39,7 +44,14 @@ export async function setSetting(key: string, value: string): Promise<void> {
  */
 export async function getDefaultUserPasswordHash(): Promise<string> {
   const hash = await getSetting(DEFAULT_USER_PASSWORD_KEY, '')
-  return hash || hashPassword(INITIAL_DEFAULT_USER_PASSWORD)
+  if (hash) return hash
+  if (process.env.NODE_ENV === 'production' && !process.env.DEFAULT_USER_PASSWORD) {
+    throw new ApiError(
+      'No default account password configured. Set one under System Settings before creating accounts.',
+      409
+    )
+  }
+  return hashPassword(INITIAL_DEFAULT_USER_PASSWORD)
 }
 
 export async function getDefaultUserPasswordStatus(): Promise<{ configured: boolean }> {

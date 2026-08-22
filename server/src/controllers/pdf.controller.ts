@@ -47,9 +47,15 @@ async function facultyName(facultyId: string | null): Promise<string> {
   return faculty?.name ?? '—'
 }
 
+/** Keep only characters that are safe inside a quoted Content-Disposition filename. */
+function safeFilename(filename: string): string {
+  const cleaned = filename.replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 120)
+  return cleaned.replace(/^[-.]+/, '') || 'report.pdf'
+}
+
 async function sendPdf(res: Response, pdf: Buffer, filename: string) {
   res.setHeader('Content-Type', 'application/pdf')
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(filename)}"`)
   res.send(pdf)
 }
 

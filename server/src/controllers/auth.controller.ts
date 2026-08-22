@@ -129,12 +129,21 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
 const DEV_ROLES = Object.values(Role)
 
 /**
+ * Whether the credential-free dev login is available. Fails closed: it needs
+ * both an explicit opt-in and a non-production NODE_ENV, so an unset or
+ * misconfigured NODE_ENV can never expose it.
+ */
+export function devLoginEnabled(): boolean {
+  return process.env.ENABLE_DEV_LOGIN === 'true' && process.env.NODE_ENV === 'development'
+}
+
+/**
  * POST /api/auth/dev-login — development-only instant login.
- * Disabled in production. Finds or creates a user for the requested role.
+ * Only mounted and only runs when devLoginEnabled().
  */
 export async function devLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (!devLoginEnabled()) {
       res.status(404).json({ error: 'Route not found' })
       return
     }

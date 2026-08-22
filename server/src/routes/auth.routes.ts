@@ -10,6 +10,7 @@ import {
   me,
   postPassword,
   devLogin,
+  devLoginEnabled,
 } from '../controllers/auth.controller'
 
 const router = Router()
@@ -27,8 +28,8 @@ router.post('/logout',         authenticate, logout)
 router.get('/me',              authenticate, me)
 router.post('/password',       authenticate, postPassword)
 
-// Dev-only bypass — never registered in production
-if (process.env.NODE_ENV !== 'production') {
+// Dev-only bypass — requires ENABLE_DEV_LOGIN=true and NODE_ENV=development
+if (devLoginEnabled()) {
   router.post('/dev-login', devLogin)
 }
 
