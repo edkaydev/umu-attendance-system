@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { dashboardApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { usePeriod } from '../hooks/usePeriod'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
@@ -35,6 +36,7 @@ function Stat({
 export default function FacultyAdminDashboard() {
   const { user } = useAuth()
   const toast = useToast()
+  const { period } = usePeriod()
   const [data, setData] = useState<DashData | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('students')
@@ -278,7 +280,7 @@ export default function FacultyAdminDashboard() {
                               Units
                             </Link>
                             <a
-                              href={`/api/reports/lecturer/${l.id}/pdf?academicYear=${encodeURIComponent('')}&semester=1`}
+                              href={`/api/reports/lecturer/${l.id}/pdf?academicYear=${encodeURIComponent(period?.academicYear ?? '')}&semester=${period?.semester ?? 1}`}
                               className="text-body-sm font-medium text-text-secondary hover:text-umu-red hover:underline"
                             >
                               PDF

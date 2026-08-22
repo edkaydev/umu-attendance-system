@@ -16,8 +16,11 @@
 | Service | Image | Port |
 |---|---|---|
 | `db` | `mysql:8` | 3306 (internal only) |
+| `redis` | `redis:7-alpine` | 6379 (internal only) |
 | `app` | Custom Node.js build | 4000 (internal only) |
 | `nginx` | `nginx:alpine` | 80, 443 (public) |
+
+> `redis` backs API rate limiting; its data is persisted in a Docker volume.
 
 ---
 
@@ -197,13 +200,35 @@ services:
       retries: 10
       start_period: 30s
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   app:
     build: .
     restart: always
+    environment:
+      REDIS_URL: redis://redis:6379
     env_file: ./server/.env
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     volumes:
       - ./server/assets:/app/assets
     expose:
@@ -224,6 +249,7 @@ services:
 
 volumes:
   db_data:
+  redis_data:
 ```
 
 > `${MYSQL_ROOT_PASSWORD}` and `${MYSQL_PASSWORD}` come from the root `.env` file

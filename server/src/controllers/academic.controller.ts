@@ -184,7 +184,9 @@ export async function getCurriculum(req: Request, res: Response, next: NextFunct
 
 export async function postCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    created(res, { curriculumUnit: await createCurriculumMapping(req.body) })
+    // Pass the actor's facultyId so the service can scope faculty_admin to their own faculty
+    const actorFacultyId = req.user!.facultyId ?? null
+    created(res, { curriculumUnit: await createCurriculumMapping(req.body, actorFacultyId) })
   } catch (e) {
     next(e)
   }
@@ -192,7 +194,9 @@ export async function postCurriculum(req: Request, res: Response, next: NextFunc
 
 export async function deleteCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    await removeCurriculumMapping(req.params.id)
+    // Pass the actor's facultyId so the service can scope faculty_admin to their own faculty
+    const actorFacultyId = req.user!.facultyId ?? null
+    await removeCurriculumMapping(req.params.id, actorFacultyId)
     noContent(res)
   } catch (e) {
     next(e)

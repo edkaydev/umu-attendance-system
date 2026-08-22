@@ -346,10 +346,11 @@ docker compose up -d --build
 docker compose ps
 ```
 
-You should see three containers all with status `Up`:
+You should see four containers all with status `Up`:
 ```
 NAME                       STATUS
 umu-attendance-db-1        Up
+umu-attendance-redis-1     Up
 umu-attendance-app-1       Up
 umu-attendance-nginx-1     Up
 ```
