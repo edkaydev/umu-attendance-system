@@ -7,6 +7,7 @@ import {
   updateStudentProfile,
   completeLecturerProfile,
   updateLecturerProfile,
+  markTourComplete,
 } from '../services/profile.service'
 
 export const studentProfileSchema = z.object({
@@ -60,4 +61,14 @@ export async function completeProfile(req: Request, res: Response, next: NextFun
 
 export async function updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   return routeByRole(req, res, next, { complete: false })
+}
+
+/** PUT /api/profile/tour-complete — persist that the current user finished/skipped the tour (all roles). */
+export async function completeTour(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await markTourComplete(req.user!.id)
+    ok(res, { message: 'Tour completed', result })
+  } catch (e) {
+    next(e)
+  }
 }

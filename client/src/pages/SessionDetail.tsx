@@ -11,6 +11,11 @@ import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
 import { Input } from '../components/ui/Input'
 import { ApiClientError } from '../api/client'
+import {
+  Skeleton,
+  SkeletonScreen,
+  SkeletonTable,
+} from '../components/ui/Skeleton'
 import type { AttendanceStatus } from '../types'
 
 // ── Stat pill ────────────────────────────────────────────────────────────────
@@ -169,10 +174,24 @@ export default function SessionDetail() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading session…</p>
-      </div>
+      <SkeletonScreen label="Loading session…" className="space-y-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-2" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-8 w-72 max-w-full" />
+          <Skeleton className="h-4 w-60 max-w-full" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+          <Skeleton className="h-[240px] w-full rounded-md" />
+          <div className="rounded-md border border-border bg-white p-5">
+            <Skeleton className="mb-4 h-4 w-48" />
+            <SkeletonTable rows={8} cols={4} className="min-w-0" />
+          </div>
+        </div>
+      </SkeletonScreen>
     )
   }
 

@@ -6,6 +6,9 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ApiClientError } from '../api/client'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
+import { useTour } from '../components/OnboardingTour'
+import { TOURS } from '../components/tour/tourConfig'
 
 type Dashboard = Awaited<ReturnType<typeof dashboardApi.lecturer>>
 
@@ -48,13 +51,16 @@ export default function LecturerDashboard() {
       .finally(() => setLoaded(true))
   }, [toast])
 
+  // Onboarding walkthrough — fires once per user, shortly after data lands
+  const { startOnce } = useTour()
+  useEffect(() => {
+    if (!loaded || !data || !user || user.hasCompletedTour) return
+    const t = window.setTimeout(() => startOnce(user.id, TOURS.lecturer), 500)
+    return () => clearTimeout(t)
+  }, [loaded, data, user, startOnce])
+
   if (!loaded) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
-      </div>
-    )
+    return <DashboardSkeleton label="Loading dashboard…" stats={3} />
   }
 
   // Data failed to load — show safe empty state
@@ -104,7 +110,7 @@ export default function LecturerDashboard() {
             })}
           </p>
         </div>
-        <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
+        <Link to="/lecturer/sessions/new" data-tour="lecturer-new-session" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
           Open New Session
         </Link>
       </div>
@@ -164,7 +170,7 @@ export default function LecturerDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Today's sessions */}
-        <Card title="Today's Sessions" noPadding={data.todaySessions.length > 0}>
+        <Card data-tour="lecturer-today" title="Today's Sessions" noPadding={data.todaySessions.length > 0}>
           {data.todaySessions.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-body text-text-secondary">No sessions today yet.</p>
@@ -244,6 +250,7 @@ export default function LecturerDashboard() {
 
       {/* ── At-risk students ── */}
       <Card
+        data-tour="lecturer-at-risk"
         title={`Students At Risk${data.atRisk.length > 0 ? ` (${data.atRisk.length})` : ''}`}
         noPadding={data.atRisk.length > 0}
       >

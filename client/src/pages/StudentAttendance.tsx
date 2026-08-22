@@ -6,6 +6,11 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { ApiClientError } from '../api/client'
+import {
+  Skeleton,
+  SkeletonCard,
+  SkeletonScreen,
+} from '../components/ui/Skeleton'
 
 export default function StudentAttendance() {
   const toast = useToast()
@@ -28,10 +33,18 @@ export default function StudentAttendance() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading attendance…</p>
-      </div>
+      <SkeletonScreen label="Loading attendance…" className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-56 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <Skeleton className="h-14 w-full rounded border border-border" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <SkeletonCard key={i} titleWidth="w-44" rows={3} />
+          ))}
+        </div>
+      </SkeletonScreen>
     )
   }
 

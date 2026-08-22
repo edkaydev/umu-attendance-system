@@ -7,6 +7,9 @@ import { usePeriod } from '../hooks/usePeriod'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
+import { useTour } from '../components/OnboardingTour'
+import { TOURS } from '../components/tour/tourConfig'
 import { ApiClientError } from '../api/client'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>
@@ -16,17 +19,23 @@ function Stat({
   label,
   value,
   variant = 'default',
+  delay = 0,
 }: {
   label: string
   value: number | string
   variant?: 'default' | 'danger' | 'warning'
+  /** Stagger delay in ms — cards cascade in left-to-right */
+  delay?: number
 }) {
   const colour =
     variant === 'danger' ? 'text-danger' :
     variant === 'warning' ? 'text-warning' :
     'text-text-primary'
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-white p-4">
+    <div
+      className="flex animate-fadeIn flex-col gap-1 rounded-md border border-border bg-white p-4 opacity-0 [animation-fill-mode:both]"
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <span className={`text-h2 font-bold leading-none ${colour}`}>{value}</span>
       <span className="text-body-sm text-text-secondary">{label}</span>
     </div>
@@ -52,13 +61,16 @@ export default function FacultyAdminDashboard() {
       .finally(() => setLoaded(true))
   }, [toast])
 
+  // Onboarding walkthrough — fires once per user, shortly after data lands
+  const { startOnce } = useTour()
+  useEffect(() => {
+    if (!loaded || !data || !user || user.hasCompletedTour) return
+    const t = window.setTimeout(() => startOnce(user.id, TOURS.faculty_admin), 500)
+    return () => clearTimeout(t)
+  }, [loaded, data, user, startOnce])
+
   if (!loaded) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading faculty dashboard…</p>
-      </div>
-    )
+    return <DashboardSkeleton label="Loading faculty dashboard…" stats={5} />
   }
 
   if (!data) {
@@ -131,11 +143,11 @@ export default function FacultyAdminDashboard() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div data-tour="fa-stats" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="Course Units"   value={data.overview.courseUnits} />
-        <Stat label="Students"       value={data.overview.students} />
-        <Stat label="Lecturers"      value={data.overview.lecturers} />
-        <Stat label="Sessions Today" value={data.overview.sessionsToday} />
+        <Stat label="Students"       value={data.overview.students} delay={60} />
+        <Stat label="Lecturers"      value={data.overview.lecturers} delay={120} />
+        <Stat label="Sessions Today" value={data.overview.sessionsToday} delay={180} />
         <Stat
           label="Active Alerts"
           value={data.overview.activeAlerts}
@@ -144,7 +156,7 @@ export default function FacultyAdminDashboard() {
       </div>
 
       {/* ── People tabs: Students / Lecturers ── */}
-      <section>
+      <section data-tour="fa-people">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           {/* Tabs */}
           <div className="flex gap-1 rounded-md border border-border bg-surface-1 p-1">
@@ -298,7 +310,7 @@ export default function FacultyAdminDashboard() {
       </section>
 
       {/* ── Programmes ── */}
-      <Card title="Programmes" noPadding={data.programmeSummary.length > 0}>
+      <Card data-tour="fa-programmes" title="Programmes" noPadding={data.programmeSummary.length > 0}>
         {data.programmeSummary.length === 0 ? (
           <p className="py-10 text-center text-body text-text-secondary">No programmes configured.</p>
         ) : (

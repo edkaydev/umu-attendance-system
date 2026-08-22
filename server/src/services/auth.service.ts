@@ -152,6 +152,7 @@ export async function getCurrentUser(userId: string): Promise<{
   fullName: string
   role: Role
   profileComplete: boolean
+  hasCompletedTour: boolean
   mustChangePassword: boolean
   facultyId: string | null
   faculty: { id: string; name: string; code: string } | null

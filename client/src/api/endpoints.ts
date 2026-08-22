@@ -66,6 +66,8 @@ export const profileApi = {
     http.put<{ message: string }>('/api/profile/complete', data),
   update: (data: StudentProfileInput | { facultyId: string }) =>
     http.put<{ message: string }>('/api/profile', data),
+  markTourComplete: () =>
+    http.put<{ message: string }>('/api/profile/tour-complete', {}),
 }
 
 // ─── Attendance / Check-in ───

@@ -111,7 +111,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-start gap-2 rounded border border-border bg-white p-3.5 shadow-md"
+            className="pointer-events-auto flex animate-slideIn items-start gap-2 rounded border border-border bg-white p-3.5 shadow-md"
             onClick={() => dismiss(t.id)}
             role={t.type === 'error' ? 'alert' : 'status'}
             aria-live={t.type === 'error' ? 'assertive' : 'polite'}

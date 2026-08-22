@@ -4,6 +4,7 @@ import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
 import { writeAuditLog } from '../utils/audit'
 import { isWithinCampus, geofence } from '../config/geofence'
+import { notifySessionOpened } from './email.service'
 
 const DEFAULT_CODE_TTL = 5 // minutes
 
@@ -141,6 +142,10 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
   await writeAuditLog(lecturerId, 'SESSION_OPEN', 'session', session.id, {
     courseUnitId: input.courseUnitId,
   })
+
+  // Notify enrolled students that check-in is open (includes closing time,
+  // never the code). Fire-and-forget — an SMTP hiccup must not fail the open.
+  void notifySessionOpened(session.id)
 
   return session
 }

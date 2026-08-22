@@ -1,8 +1,7 @@
 UMU ATTENDANCE SYSTEM - DEMO DATA
 ==================================
 
-This folder contains complete, ready-to-upload CSV files to populate the 
-UMU Attendance System database with realistic demo data for Nkozi Campus.
+This folder contains ready-to-upload CSV files for realistic UMU Nkozi Campus demo data.
 
 IMPORT ORDER (REQUIRED)
 -----------------------
@@ -20,43 +19,22 @@ CONTENTS SUMMARY
 • 6 Faculties (FBAM, FED, FHS, FASS, FSC, FAGR) under Nkozi Campus (NKZ)
 • 25 Programmes across all faculties
 • 173 Course Units with realistic codes and names
-• 612 Curriculum mappings for academic year 2025/2026, Semesters 1 & 2,
-  covering Years 1-4 for every programme
+• 611 standing curriculum mappings covering Years 1-4 and Semesters 1-2
 • 33 Staff members:
   - 6 Faculty Admins (one per faculty)
   - 27 Lecturers (4-5 per faculty)
   - All linked to their faculty via facultyCode
-• 4,000 sample Students (students.csv):
-  - Distributed across all 6 faculties and 25 programmes
-  - Realistic Ugandan names with name-based emails
-    (firstname.lastname@stud.umu.ac.ug) — no duplicates
-  - Realistic registration numbers (e.g. 2024-B101-00001: intake year +
-    programme number + sequence) — intake years 2022-2025 give a proper
-  spread across Years 1-4
-• tester-students.csv: the three requested BSc Computer Science tester accounts.
-  These same records are also included at the end of students.csv, so import only
-  one of the two files to avoid duplicate-email errors.
-• students-zeevarsity-sample.csv: a sample Zeevarsity export (Student No,
-  Registration No, First Name, Last Name, Gender, Program Code, Year of
-  Study, Academic Year, Status) to test the direct Zeevarsity import path.
-  Real Zeevarsity exports can be uploaded WITHOUT any cleaning — emails are
-  generated automatically and the year of study is computed from the first
-  4 digits of the Registration No.
+• 4,004 sample student email accounts in students.csv
 
 DEFAULT CREDENTIALS
 -------------------
-All users (staff and students) have the password: Umu@2026
-They will be required to change it on first login.
+All imported accounts use the system default password and must change it on first login.
 
 ACADEMIC PERIOD
 ---------------
-Students are enrolled into the period set in Global Settings BEFORE importing.
-Set it to:
-  Academic Year: 2025/2026
-  Semester: 1
-(The system defaults to the current academic year + Semester 1 if unset, so
-importing without touching Global Settings also works while the default is
-2025/2026.)
+Set the active academic year and semester in Global Settings before students
+complete their profiles. This determines the period used when the system enrols
+each student into curriculum units.
 
 NEXT STEPS
 ----------
@@ -69,21 +47,14 @@ NOTES
 -----
 - Staff are linked to faculties but lecturers have NO course unit assignments 
   (this is done by Faculty Admins after import)
-- Students have complete profiles and automatic curriculum enrollments
+- Students are imported by email only. At first sign-in, each student completes
+  their profile; the system then creates the appropriate curriculum enrolments.
 - All emails follow UMU domain rules:
   - Staff: @umu.ac.ug
   - Students: @stud.umu.ac.ug
-- Student CSV accepts two formats:
-  1. Native:    name,email,facultyCode,programmeCode,regNumber,password
-     (regNumber + password optional; facultyCode optional — derived from the
-     programme if omitted)
-  2. Zeevarsity: firstname,lastname,registrationNo,programCode,yearOfStudy
-     (+ optional email). Headers are case-insensitive and spaces are ignored.
-- The bundled students.csv uses the native format with realistic reg numbers
-  pre-filled. Students can still edit their reg number in their profile.
-- Year of study is determined by the system: intake year (first 4 digits of
-  the registration number) vs the current academic year. E.g. a 2024 intake
-  in 2025/2026 = Year 2. Falls back to the yearOfStudy column, then Year 1.
-  The bundled students.csv therefore spans Years 1-4 (intakes 2025-2022).
+- CSV formats:
+  - Staff: email,role,facultyCode
+  - Students: email
+  - Curriculum: courseUnitCode,programmeCode,year,semester
 
 For questions, refer to docs/08-deployment-guide.md in the main repository.

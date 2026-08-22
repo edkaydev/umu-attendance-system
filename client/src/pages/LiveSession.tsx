@@ -6,6 +6,11 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
+import {
+  Skeleton,
+  SkeletonRows,
+  SkeletonScreen,
+} from '../components/ui/Skeleton'
 
 type LiveData = Awaited<ReturnType<typeof sessionApi.live>>
 
@@ -185,10 +190,19 @@ export default function LiveSession() {
 
   if (!loaded) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading live session…</p>
-      </div>
+      <SkeletonScreen label="Loading live session…" className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-80 max-w-full" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+          <Skeleton className="h-[280px] w-full rounded-md" />
+          <div className="rounded-md border border-border bg-white p-5">
+            <Skeleton className="mb-4 h-4 w-40" />
+            <SkeletonRows rows={6} />
+          </div>
+        </div>
+      </SkeletonScreen>
     )
   }
 
@@ -223,7 +237,7 @@ export default function LiveSession() {
         <div className="flex items-center gap-3">
           {closed ? (
             <>
-              <span className="rounded-full bg-surface-2 px-4 py-1.5 text-sm font-medium text-text-secondary">
+              <span className="animate-scaleIn rounded-full bg-surface-2 px-4 py-1.5 text-sm font-medium text-text-secondary">
                 Closed
               </span>
               <Link to={`/lecturer/sessions/${sessionId}`} className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
@@ -254,7 +268,7 @@ export default function LiveSession() {
                 Session Code
               </p>
               {/* Scales with available width — 72px on wide screens, shrinks to fit mobile */}
-              <div className="code-box mx-auto w-full max-w-xl rounded-lg border-2 border-umu-yellow bg-[#FFFDF0] px-4 py-5">
+              <div className="code-box mx-auto w-full max-w-xl animate-fadeIn rounded-lg border-2 border-umu-yellow bg-[#FFFDF0] px-4 py-5">
                 <p className="session-code code-font font-bold leading-none text-umu-red">
                   {data.session.code}
                 </p>

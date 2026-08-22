@@ -20,6 +20,7 @@ import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { writeAuditLog } from './audit'
 import { tryRedis } from '../config/redis'
 import { randomUUID } from 'crypto'
+import { sendWeeklyAttendanceSummaries } from '../services/email.service'
 
 const TICK_MS = 60_000 // 1 minute
 const LEADER_LOCK_KEY = 'scheduler:leader'
@@ -83,9 +84,56 @@ async function closeSingleSession(sessionId: string): Promise<void> {
   console.log(`[scheduler] auto-closed session ${sessionId} (${absentIds.length} absent records created)`)
 }
 
+// ── Weekly attendance summary emails ─────────────────────────────────────────
+// Sent once per ISO week, Mondays 07:00–08:00 East Africa Time (UMU's zone).
+// Deduped via a Redis week-key when available; single-node installs fall back
+// to an in-memory key (a restart inside the send window may resend once,
+// which is acceptable for a weekly digest).
+
+const WEEKLY_LOCK_KEY = 'scheduler:weekly-summary'
+const WEEKLY_LOCK_TTL_MS = 8 * 24 * 60 * 60 * 1000
+const weeklySentInMemory = new Set<string>()
+
+function kampalaWeekKey(now: Date): string {
+  // Africa/Kampala is UTC+3 year-round — offset manually, then use UTC accessors.
+  const eat = new Date(now.getTime() + 3 * 60 * 60 * 1000)
+  const day = eat.getUTCDay() // 0=Sun … 1=Mon
+  const monday = new Date(eat)
+  monday.setUTCDate(eat.getUTCDate() - ((day + 6) % 7))
+  return `${monday.getUTCFullYear()}-${monday.getUTCMonth() + 1}-${monday.getUTCDate()}`
+}
+
+async function maybeSendWeeklySummaries(now: Date): Promise<void> {
+  const eat = new Date(now.getTime() + 3 * 60 * 60 * 1000)
+  const hour = eat.getUTCHours()
+  const isMonday = eat.getUTCDay() === 1
+  if (!isMonday || hour !== 7) return
+
+  const weekKey = kampalaWeekKey(now)
+  if (weeklySentInMemory.has(weekKey)) return
+
+  // Cross-process guard (no-ops without Redis — in-memory key covers it).
+  const acquired = await tryRedis(
+    (r) => r.set(WEEKLY_LOCK_KEY, weekKey, 'PX', WEEKLY_LOCK_TTL_MS, 'NX').then((ok) => ok === 'OK'),
+    true,
+  )
+  if (!acquired) {
+    weeklySentInMemory.add(weekKey)
+    return
+  }
+
+  console.log('[scheduler] sending weekly attendance summaries…')
+  const sent = await sendWeeklyAttendanceSummaries()
+  weeklySentInMemory.add(weekKey)
+  console.log(`[scheduler] weekly summaries sent: ${sent}`)
+}
+
 async function tick(): Promise<void> {
   try {
     const now = new Date()
+
+    // Weekly digest window check first — cheap and independent of auto-close.
+    void maybeSendWeeklySummaries(now)
 
     // Find all open sessions where classDuration is set and has elapsed.
     // elapsed condition: openedAt + classDuration minutes <= now

@@ -19,7 +19,7 @@ const TEMPLATES: Record<string, string> = {
   faculties: 'name,code,campusCode',
   programmes: 'name,code,facultyCode',
   course_units: 'name,code,facultyCode',
-  curriculum: 'courseUnitCode,programmeCode,year,semester,academicYear',
+  curriculum: 'courseUnitCode,programmeCode,year,semester',
 }
 
 const STAFF_TEMPLATE = 'email,role,facultyCode'
@@ -255,19 +255,11 @@ export default function ImportData() {
 
         <Card title="Student Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates and fully provisions student accounts in bulk: each student is linked to
-            their faculty and programme and automatically enrolled in every course unit from
-            the curriculum mapping.
-            Zeevarsity exports are accepted directly (firstname, lastname, registrationNo,
-            programCode, yearOfStudy) — emails are generated automatically and no manual
-            cleaning is needed.
-            The academic year, semester and year of study are determined by the system:
-            the period comes from Global Settings, and the year of study is computed from the
-            student's intake year (the first 4 digits of their registration number) against
-            the current academic year.
-            Emails must end in @stud.umu.ac.ug. A registration number is auto-assigned when
-            not provided — students can change it later in their profile. Leave password blank
-            to use the system default; students change it on first sign-in.
+            Creates student accounts in bulk from their UMU student email addresses. Students
+            complete their faculty, programme, year, registration number and student number at
+            first sign-in; the system then enrols them in the appropriate course units.
+            Emails must end in @stud.umu.ac.ug. Accounts start with the system default password
+            and students change it on first sign-in.
           </p>
           <input
             ref={studentRef}

@@ -65,6 +65,7 @@ export const userRepository = {
         fullName: true,
         role: true,
         profileComplete: true,
+        hasCompletedTour: true,
         mustChangePassword: true,
         facultyId: true,
         faculty: { select: { id: true, name: true, code: true } },

@@ -250,9 +250,18 @@ cd ..
 
 ---
 
-## Step 9 — Gmail App Password (for email alerts)
+## Step 9 — Gmail App Password (for emails)
 
-The system sends email alerts when students fall below the attendance threshold.
+The system sends three kinds of email, and nothing else:
+
+1. **Attendance threshold alerts** — when a student falls below 80%/75%.
+2. **Session-open notices** — enrolled students are told check-in is open and
+   when it closes (the code is never emailed; it is shown in class).
+3. **Weekly attendance summaries** — every Monday ~07:00 East Africa Time.
+
+There is deliberately no "session ended" email and no emailed codes — the
+dashboard is always the live source of truth.
+
 Gmail requires an "App Password" — a special password just for apps, not your real password.
 
 1. Go to [myaccount.google.com](https://myaccount.google.com)

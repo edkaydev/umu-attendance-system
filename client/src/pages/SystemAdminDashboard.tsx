@@ -10,6 +10,9 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
+import { useTour } from '../components/OnboardingTour'
+import { TOURS } from '../components/tour/tourConfig'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -19,9 +22,12 @@ import { ApiClientError } from '../api/client'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.systemAdmin>>
 
-function Stat({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
+function Stat({ label, value, sub, delay = 0 }: { label: string; value: number | string; sub?: string; delay?: number }) {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-white p-4">
+    <div
+      className="flex animate-fadeIn flex-col gap-1 rounded-md border border-border bg-white p-4 opacity-0 [animation-fill-mode:both]"
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <span className="text-h2 font-bold leading-none text-text-primary">{value}</span>
       <span className="text-body-sm text-text-secondary">{label}</span>
       {sub && <span className="text-body-sm text-text-disabled">{sub}</span>}
@@ -111,6 +117,8 @@ export default function SystemAdminDashboard() {
   const [defaultPasswordConfirm, setDefaultPasswordConfirm] = useState('')
   const [savingDefaultPassword, setSavingDefaultPassword] = useState(false)
 
+  const { startOnce } = useTour()
+
   useEffect(() => {
     dashboardApi
       .systemAdmin()
@@ -119,6 +127,7 @@ export default function SystemAdminDashboard() {
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard')
       )
       .finally(() => setLoaded(true))
+
     settingsApi
       .profileEditing()
       .then(setProfileEditing)
@@ -132,6 +141,13 @@ export default function SystemAdminDashboard() {
       .then(({ configured }) => setDefaultPasswordConfigured(configured))
       .catch(() => setDefaultPasswordConfigured(false))
   }, [toast])
+
+  // Onboarding walkthrough — fires once per user, shortly after data lands
+  useEffect(() => {
+    if (!loaded || !data || !user || user.hasCompletedTour) return
+    const t = window.setTimeout(() => startOnce(user.id, TOURS.system_admin), 500)
+    return () => clearTimeout(t)
+  }, [loaded, data, user, startOnce])
 
   async function toggleProfileEditing(scope: ProfileEditingScope) {
     if (!profileEditing) return
@@ -194,12 +210,7 @@ export default function SystemAdminDashboard() {
   }
 
   if (!loaded) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading system dashboard…</p>
-      </div>
-    )
+    return <DashboardSkeleton label="Loading system dashboard…" stats={6} />
   }
 
   if (!data) {
@@ -230,14 +241,15 @@ export default function SystemAdminDashboard() {
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Total Users"      value={data.overview.totalUsers} />
-        <Stat label="Students"         value={data.overview.students} />
-        <Stat label="Lecturers"        value={data.overview.lecturers} />
-        <Stat label="Faculty Admins"   value={data.overview.facultyAdmins} />
-        <Stat label="System Admins"    value={data.overview.systemAdmins} />
+        <Stat label="Students"         value={data.overview.students} delay={60} />
+        <Stat label="Lecturers"        value={data.overview.lecturers} delay={120} />
+        <Stat label="Faculty Admins"   value={data.overview.facultyAdmins} delay={180} />
+        <Stat label="System Admins"    value={data.overview.systemAdmins} delay={240} />
         <Stat
           label="Sessions Now"
           value={data.overview.activeSessionsToday}
           sub={data.overview.activeSessionsToday > 0 ? 'Live' : 'None active'}
+          delay={300}
         />
       </div>
 
@@ -341,7 +353,7 @@ export default function SystemAdminDashboard() {
       </section>
 
       {/* ── Quick actions ── */}
-      <section>
+      <section data-tour="sa-quick-actions">
         <h2 className="mb-3 text-h4 font-semibold text-text-primary">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {QUICK_ACTIONS.map((a) => (
@@ -364,7 +376,7 @@ export default function SystemAdminDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Recent imports */}
-        <Card title="Recent Imports" noPadding={data.recentImports.length > 0}>
+        <Card title="Recent Imports" data-tour="sa-imports" noPadding={data.recentImports.length > 0}>
           {data.recentImports.length === 0 ? (
             <p className="py-10 text-center text-body text-text-secondary">
               No CSV imports yet.{' '}
@@ -405,7 +417,7 @@ export default function SystemAdminDashboard() {
         </Card>
 
         {/* Recent activity */}
-        <Card title="Recent Activity" noPadding={data.recentActivity.length > 0}>
+        <Card title="Recent Activity" data-tour="sa-activity" noPadding={data.recentActivity.length > 0}>
           {data.recentActivity.length === 0 ? (
             <p className="py-10 text-center text-body text-text-secondary">No activity yet.</p>
           ) : (

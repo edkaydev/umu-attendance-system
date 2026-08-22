@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import { OnboardingTourProvider } from './components/OnboardingTour'
 import { RequireAuth, RequireRole, DASHBOARD_BY_ROLE } from './components/RouteGuards'
 import { AppLayout } from './components/Layout'
 import { InstallPrompt } from './components/InstallPrompt'
@@ -107,6 +108,7 @@ export default function App() {
       <DocumentTitle />
       <AuthProvider>
         <ToastProvider>
+          <OnboardingTourProvider>
           <ErrorBoundary>
           <Suspense fallback={<RouteLoading />}>
             <PageTransition>
@@ -411,6 +413,7 @@ export default function App() {
           </ErrorBoundary>
           <InstallPrompt />
           <CookieBanner />
+          </OnboardingTourProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

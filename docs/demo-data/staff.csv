@@ -1,34 +1,34 @@
-name,email,role,facultyCode,password
-Dr. Agnes Nakato,a.nakato@umu.ac.ug,faculty_admin,FBAM,Umu@2026
-Mr. Robert Ssekandi,r.ssekandi@umu.ac.ug,lecturer,FBAM,Umu@2026
-Ms. Patricia Nalweyiso,p.nalweyiso@umu.ac.ug,lecturer,FBAM,Umu@2026
-Mr. Henry Mugerwa,h.mugerwa@umu.ac.ug,lecturer,FBAM,Umu@2026
-Ms. Grace Namukasa,g.namukasa@umu.ac.ug,lecturer,FBAM,Umu@2026
-Mr. Joseph Ssenyonga,j.ssenyonga@umu.ac.ug,lecturer,FBAM,Umu@2026
-Dr. Immaculate Namutebi,i.namutebi@umu.ac.ug,faculty_admin,FED,Umu@2026
-Mr. Bernard Kiwanuka,b.kiwanuka@umu.ac.ug,lecturer,FED,Umu@2026
-Ms. Florence Nansubuga,f.nansubuga@umu.ac.ug,lecturer,FED,Umu@2026
-Mr. Paul Ssemwogerere,p.ssemwogerere@umu.ac.ug,lecturer,FED,Umu@2026
-Ms. Theresia Nalukwago,t.nalukwago@umu.ac.ug,lecturer,FED,Umu@2026
-Dr. Vincent Muwonge,v.muwonge@umu.ac.ug,lecturer,FED,Umu@2026
-Dr. Catherine Nakalema,c.nakalema@umu.ac.ug,faculty_admin,FHS,Umu@2026
-Mr. Emmanuel Ssali,e.ssali@umu.ac.ug,lecturer,FHS,Umu@2026
-Ms. Juliet Nantume,j.nantume@umu.ac.ug,lecturer,FHS,Umu@2026
-Dr. Moses Kasirye,m.kasirye@umu.ac.ug,lecturer,FHS,Umu@2026
-Ms. Stella Nakyonyi,s.nakyonyi@umu.ac.ug,lecturer,FHS,Umu@2026
-Mr. Andrew Luyombya,a.luyombya@umu.ac.ug,lecturer,FHS,Umu@2026
-Dr. Rosemary Nambooze,r.nambooze@umu.ac.ug,faculty_admin,FASS,Umu@2026
-Mr. Gerald Ssekitoleko,g.ssekitoleko@umu.ac.ug,lecturer,FASS,Umu@2026
-Ms. Agnes Kayiwa,a.kayiwa@umu.ac.ug,lecturer,FASS,Umu@2026
-Mr. Charles Nsereko,c.nsereko@umu.ac.ug,lecturer,FASS,Umu@2026
-Ms. Doreen Nalubega,d.nalubega@umu.ac.ug,lecturer,FASS,Umu@2026
-Dr. Francis Ssekimpi,f.ssekimpi@umu.ac.ug,faculty_admin,FSC,Umu@2026
-Mr. Ivan Nabukenya,i.nabukenya@umu.ac.ug,lecturer,FSC,Umu@2026
-Ms. Lillian Nandawula,l.nandawula@umu.ac.ug,lecturer,FSC,Umu@2026
-Mr. Timothy Ssemanda,t.ssemanda@umu.ac.ug,lecturer,FSC,Umu@2026
-Ms. Christine Nabirye,c.nabirye@umu.ac.ug,lecturer,FSC,Umu@2026
-Dr. Michael Lwanga,m.lwanga@umu.ac.ug,faculty_admin,FAGR,Umu@2026
-Mr. David Ssemakula,d.ssemakula@umu.ac.ug,lecturer,FAGR,Umu@2026
-Ms. Mary Nakayima,m.nakayima@umu.ac.ug,lecturer,FAGR,Umu@2026
-Mr. Stephen Mugisha,s.mugisha@umu.ac.ug,lecturer,FAGR,Umu@2026
-Ms. Annet Nalwoga,a.nalwoga@umu.ac.ug,lecturer,FAGR,Umu@2026
+email,role,facultyCode
+a.nakato@umu.ac.ug,faculty_admin,FBAM
+r.ssekandi@umu.ac.ug,lecturer,FBAM
+p.nalweyiso@umu.ac.ug,lecturer,FBAM
+h.mugerwa@umu.ac.ug,lecturer,FBAM
+g.namukasa@umu.ac.ug,lecturer,FBAM
+j.ssenyonga@umu.ac.ug,lecturer,FBAM
+i.namutebi@umu.ac.ug,faculty_admin,FED
+b.kiwanuka@umu.ac.ug,lecturer,FED
+f.nansubuga@umu.ac.ug,lecturer,FED
+p.ssemwogerere@umu.ac.ug,lecturer,FED
+t.nalukwago@umu.ac.ug,lecturer,FED
+v.muwonge@umu.ac.ug,lecturer,FED
+c.nakalema@umu.ac.ug,faculty_admin,FHS
+e.ssali@umu.ac.ug,lecturer,FHS
+j.nantume@umu.ac.ug,lecturer,FHS
+m.kasirye@umu.ac.ug,lecturer,FHS
+s.nakyonyi@umu.ac.ug,lecturer,FHS
+a.luyombya@umu.ac.ug,lecturer,FHS
+r.nambooze@umu.ac.ug,faculty_admin,FASS
+g.ssekitoleko@umu.ac.ug,lecturer,FASS
+a.kayiwa@umu.ac.ug,lecturer,FASS
+c.nsereko@umu.ac.ug,lecturer,FASS
+d.nalubega@umu.ac.ug,lecturer,FASS
+f.ssekimpi@umu.ac.ug,faculty_admin,FSC
+i.nabukenya@umu.ac.ug,lecturer,FSC
+l.nandawula@umu.ac.ug,lecturer,FSC
+t.ssemanda@umu.ac.ug,lecturer,FSC
+c.nabirye@umu.ac.ug,lecturer,FSC
+m.lwanga@umu.ac.ug,faculty_admin,FAGR
+d.ssemakula@umu.ac.ug,lecturer,FAGR
+m.nakayima@umu.ac.ug,lecturer,FAGR
+s.mugisha@umu.ac.ug,lecturer,FAGR
+a.nalwoga@umu.ac.ug,lecturer,FAGR

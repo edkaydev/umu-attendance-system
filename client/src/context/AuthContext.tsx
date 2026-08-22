@@ -8,6 +8,8 @@ interface AuthContextValue {
   loading: boolean
   refresh: () => Promise<void>
   logout: () => Promise<void>
+  /** Patch the cached user locally (e.g. after tour completion) without a server round-trip. */
+  updateUser: (patch: Partial<User>) => void
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   refresh: async () => {},
   logout: async () => {},
+  updateUser: () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -47,8 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.assign('/login')
   }, [])
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((u) => (u ? { ...u, ...patch } : u))
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, loading, refresh, logout }}>
+    <AuthContext.Provider value={{ user, loading, refresh, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

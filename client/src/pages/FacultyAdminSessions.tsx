@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
 import { ApiClientError } from '../api/client'
+import { SkeletonTable } from '../components/ui/Skeleton'
 import type { Session, SessionStatus } from '../types'
 
 type FacultySession = Session & {
@@ -96,9 +97,7 @@ export default function FacultyAdminSessions() {
       {/* ── Table ── */}
       <Card noPadding={sessions.length > 0 && !loading}>
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-          </div>
+          <SkeletonTable rows={5} />
         ) : sessions.length === 0 ? (
           <p className="py-12 text-center text-body-sm text-text-secondary">
             {todayOnly

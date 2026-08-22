@@ -59,6 +59,7 @@ services:
     volumes:
       - ./devops/nginx/umu-attendance.conf:/etc/nginx/conf.d/default.conf
       - ./client/dist:/usr/share/nginx/html
+      - ./devops/certbot:/var/www/certbot
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - app

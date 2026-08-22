@@ -2,6 +2,8 @@ import { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
+import { useTour } from './OnboardingTour'
+import { TOURS } from './tour/tourConfig'
 import { MobileAdminSummary } from './MobileAdminSummary'
 
 // ─── SVG icon components ─────────────────────────────────────────────────────
@@ -108,6 +110,16 @@ function IconKey() {
   )
 }
 
+function IconHelp() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 4"/>
+      <line x1="12" y1="17.5" x2="12" y2="17.5"/>
+    </svg>
+  )
+}
+
 function IconLogOut() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -168,8 +180,11 @@ const MOBILE_ROLES: Role[] = ['student', 'lecturer']
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
+  const { restart } = useTour()
   const navigate = useNavigate()
   if (!user) return null
+
+  const replayTour = () => restart(user.id, TOURS[user.role])
 
   const nav = NAV_BY_ROLE[user.role] ?? []
   const isMobileRole = MOBILE_ROLES.includes(user.role)
@@ -234,6 +249,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <span className="rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary">
                   {ROLE_LABEL[user.role]}
                 </span>
+                <button
+                  onClick={replayTour}
+                  aria-label="Restart guided tour"
+                  title="Restart guided tour"
+                  className="flex min-h-[44px] items-center gap-1.5 rounded px-3 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary"
+                >
+                  <IconHelp />
+                  <span>Help</span>
+                </button>
                 <button
                   onClick={logout}
                   aria-label="Log out"
@@ -322,6 +346,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className="hidden rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary md:inline">
               {ROLE_LABEL[user.role]}
             </span>
+            <button
+              onClick={replayTour}
+              aria-label="Restart guided tour"
+              title="Restart guided tour"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-2 text-body font-medium text-text-secondary transition-colors hover:bg-surface-1 hover:text-text-primary md:px-3"
+            >
+              <IconHelp />
+              <span className="hidden md:inline">Help</span>
+            </button>
             <button
               onClick={logout}
               aria-label="Log out"

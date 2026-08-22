@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ApiClientError } from '../api/client'
+import { SkeletonTable } from '../components/ui/Skeleton'
 import type { Session } from '../types'
 
 type Tab = 'today' | 'all'
@@ -91,9 +92,7 @@ export default function SessionsList() {
       {/* ── Table ── */}
       <Card noPadding={sessions.length > 0 && !loading}>
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-          </div>
+          <SkeletonTable rows={6} />
         ) : sessions.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-body text-text-secondary">{emptyMsg}</p>

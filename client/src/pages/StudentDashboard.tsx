@@ -1,15 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { dashboardApi, attendanceApi, checkinApi } from '../api/endpoints'
@@ -20,6 +10,10 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { Modal } from '../components/ui/Modal'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
+import { WeeklyAttendanceGrid } from '../components/WeeklyAttendanceGrid'
+import { useTour } from '../components/OnboardingTour'
+import { TOURS } from '../components/tour/tourConfig'
 import { ApiClientError } from '../api/client'
 import { getCurrentPosition, GeoError } from '../utils/geo'
 
@@ -93,6 +87,14 @@ export default function StudentDashboard() {
       .finally(() => setLoaded(true))
   }, [toast])
 
+  // Onboarding walkthrough — fires once per user, shortly after data lands
+  const { startOnce } = useTour()
+  useEffect(() => {
+    if (!loaded || !data || !user || user.hasCompletedTour) return
+    const t = window.setTimeout(() => startOnce(user.id, TOURS.student), 500)
+    return () => clearTimeout(t)
+  }, [loaded, data, user, startOnce])
+
   // Live session discovery — polls every 5s to stay in sync with the lecturer.
   useEffect(() => {
     let cancelled = false
@@ -159,12 +161,7 @@ export default function StudentDashboard() {
   }
 
   if (!loaded) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading dashboard…</p>
-      </div>
-    )
+    return <DashboardSkeleton label="Loading dashboard…" stats={3} progressCard />
   }
 
   if (!data) {
@@ -200,7 +197,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Live now */}
-      <Card title="Live Now">
+      <Card title="Live Now" data-tour="student-live">
         {live.length === 0 ? (
           <p className="py-6 text-center text-body-sm text-text-secondary">
             No live sessions right now. When your lecturer opens a session for one of your units, it appears here.
@@ -222,7 +219,7 @@ export default function StudentDashboard() {
                     <ExpiryText expiresAt={s.codeExpiresAt} now={now} />
                   </p>
                   {s.checkedIn ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success">
+                    <span className="inline-flex animate-scaleIn items-center gap-1 rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success">
                       ✓ Checked in
                     </span>
                   ) : (
@@ -253,33 +250,12 @@ export default function StudentDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Weekly activity */}
-        <Card title="This Week">
+        <Card title="This Week" data-tour="student-week">
           {data.weeklyChart.length === 0 ? (
             <p className="py-8 text-center text-body-sm text-text-secondary">No sessions held yet this week.</p>
           ) : (
             <>
-              <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.weeklyChart} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={(d: string) => {
-                      const date = new Date(d + 'T00:00:00')
-                      return date.toLocaleDateString(undefined, { weekday: 'short' })
-                    }}
-                    tick={{ fontSize: 12, fill: '#64748B' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} width={28} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="attended" name="Attended" fill="#16A34A" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="absent" name="Absent" fill="#DC2626" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              </div>
+              <WeeklyAttendanceGrid days={data.weeklyChart} />
               <details className="mt-3 text-body-sm text-text-secondary">
               <summary className="cursor-pointer font-medium text-umu-red">View weekly attendance data as a table</summary>
               <div className="mt-2 overflow-x-auto">
@@ -287,6 +263,7 @@ export default function StudentDashboard() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="py-1 pr-3 font-semibold">Date</th>
+                      <th className="py-1 pr-3 font-semibold">Held</th>
                       <th className="py-1 pr-3 font-semibold">Attended</th>
                       <th className="py-1 font-semibold">Absent</th>
                     </tr>
@@ -295,6 +272,7 @@ export default function StudentDashboard() {
                     {data.weeklyChart.map((day) => (
                       <tr key={day.date} className="border-b border-border last:border-0">
                         <td className="py-1 pr-3">{new Date(day.date + 'T00:00:00').toLocaleDateString()}</td>
+                        <td className="py-1 pr-3">{day.sessionsHeld}</td>
                         <td className="py-1 pr-3">{day.attended}</td>
                         <td className="py-1">{day.absent}</td>
                       </tr>
@@ -332,7 +310,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Unit attendance */}
-      <Card title="Attendance by Course Unit">
+      <Card title="Attendance by Course Unit" data-tour="student-units">
         {data.units.length === 0 ? (
           <p className="py-8 text-center text-body-sm text-text-secondary">
             No closed sessions yet. Attendance appears after your lecturer closes a session.

@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
 import { ApiClientError } from '../api/client'
+import { Skeleton, SkeletonScreen } from '../components/ui/Skeleton'
 
 const YEAR_OPTIONS = [1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))
 
@@ -83,10 +84,21 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-umu-red border-t-transparent" />
-        <p className="text-body-sm text-text-secondary">Loading profile options…</p>
-      </div>
+      <SkeletonScreen label="Loading profile options…" className="py-16">
+        <div className="mx-auto max-w-xl space-y-6">
+          <div className="space-y-2 text-center">
+            <Skeleton className="mx-auto h-8 w-64 max-w-full" />
+            <Skeleton className="mx-auto h-4 w-80 max-w-full" />
+          </div>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-11 w-full rounded" />
+            </div>
+          ))}
+          <Skeleton className="h-12 w-full rounded" />
+        </div>
+      </SkeletonScreen>
     )
   }
 

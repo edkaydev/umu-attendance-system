@@ -122,6 +122,8 @@ model User {
   // Profile state
   profileComplete Boolean  @default(false)
   isActive        Boolean  @default(true)
+  // Onboarding: has the user seen (or skipped) the guided tour?
+  hasCompletedTour Boolean @default(false)
   // Security: accounts created with a temporary password must change it on first login
   mustChangePassword Boolean @default(false)
   // Relations

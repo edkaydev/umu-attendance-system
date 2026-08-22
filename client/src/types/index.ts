@@ -18,6 +18,7 @@ export interface User {
   fullName: string
   role: Role
   profileComplete: boolean
+  hasCompletedTour?: boolean
   facultyId: string | null
   faculty: FacultyRef | null
   programmeId: string | null

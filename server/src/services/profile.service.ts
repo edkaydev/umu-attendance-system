@@ -148,3 +148,12 @@ async function assertProfileEditingAllowed(
     throw new ApiError('Profile editing is currently disabled by the System Admin', 403)
   }
 }
+
+/** Persist that the user has seen (or skipped) the onboarding tour. */
+export async function markTourComplete(userId: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { hasCompletedTour: true },
+  })
+  return { hasCompletedTour: true }
+}
