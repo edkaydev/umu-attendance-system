@@ -10,6 +10,21 @@ export function umuBadgeDataUri(): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
 }
 
+/**
+ * Escape a value for interpolation into the PDF template. Report data comes
+ * from user-controlled fields (names, unit titles, venues), and Puppeteer
+ * renders the template as a real page, so raw values could otherwise inject
+ * markup that pulls in local files or remote resources.
+ */
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export interface PdfHeader {
   title: string
   facultyName: string
@@ -18,10 +33,21 @@ export interface PdfHeader {
   subtitle?: string
 }
 
+/** Markup produced by this module (e.g. status pills) — emitted verbatim. */
+export interface PdfMarkup {
+  html: string
+}
+
+export type PdfCell = string | number | null | PdfMarkup
+
 export interface PdfTable {
   heading?: string
   headers: string[]
-  rows: (string | number | null)[][]
+  rows: PdfCell[][]
+}
+
+function cell(value: PdfCell): string {
+  return typeof value === 'object' && value !== null ? value.html : escapeHtml(value)
 }
 
 /** Full HTML page with UMU header (university name, badge, faculty, date) + tables. */
@@ -29,10 +55,10 @@ export function buildPdfHtml(header: PdfHeader, tables: PdfTable[]): string {
   const badge = umuBadgeDataUri()
   const tableHtml = tables
     .map((t) => {
-      const head = t.heading ? `<h3>${t.heading}</h3>` : ''
-      const headerRow = `<tr>${t.headers.map((h) => `<th>${h}</th>`).join('')}</tr>`
+      const head = t.heading ? `<h3>${escapeHtml(t.heading)}</h3>` : ''
+      const headerRow = `<tr>${t.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`
       const bodyRows = t.rows
-        .map((r) => `<tr>${r.map((c) => `<td>${c ?? ''}</td>`).join('')}</tr>`)
+        .map((r) => `<tr>${r.map((c) => `<td>${cell(c)}</td>`).join('')}</tr>`)
         .join('')
       const empty = t.rows.length === 0 ? '<tr><td colspan="100" class="empty">No data</td></tr>' : ''
       return `${head}<table><thead>${headerRow}</thead><tbody>${bodyRows}${empty}</tbody></table>`
@@ -72,9 +98,9 @@ export function buildPdfHtml(header: PdfHeader, tables: PdfTable[]): string {
     <img src="${badge}" alt="UMU Badge">
     <div class="title-block">
       <p class="univ">Uganda Martyrs University</p>
-      <p class="meta">Nkozi Campus · ${header.facultyName}</p>
-      <h1>${header.title}</h1>
-      <p class="meta">Report date: ${header.reportDate}${header.periodLabel ? ` · Period: ${header.periodLabel}` : ''}${header.subtitle ? ` · ${header.subtitle}` : ''}</p>
+      <p class="meta">Nkozi Campus · ${escapeHtml(header.facultyName)}</p>
+      <h1>${escapeHtml(header.title)}</h1>
+      <p class="meta">Report date: ${escapeHtml(header.reportDate)}${header.periodLabel ? ` · Period: ${escapeHtml(header.periodLabel)}` : ''}${header.subtitle ? ` · ${escapeHtml(header.subtitle)}` : ''}</p>
     </div>
   </div>
   ${tableHtml}
@@ -109,7 +135,7 @@ export async function reportToPdf(header: PdfHeader, tables: PdfTable[]): Promis
 }
 
 /** Status pill cell (good / warning / not-eligible / none). */
-export function statusPill(status: string): string {
+export function statusPill(status: string): PdfMarkup {
   const cls =
     status === 'good' ? 'good' :
     status === 'warning' ? 'warning' :
@@ -120,5 +146,5 @@ export function statusPill(status: string): string {
     status === 'warning' ? 'Warning' :
     status === 'none' ? 'No sessions' :
     'Not Eligible'
-  return `<span class="pill ${cls}">${label}</span>`
+  return { html: `<span class="pill ${cls}">${label}</span>` }
 }

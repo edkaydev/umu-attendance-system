@@ -3,6 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/google-oauth'
+import { assertSecureConfig } from './config/env'
+import { securityHeaders } from './middleware/securityHeaders'
 import { startSessionScheduler } from './utils/sessionScheduler'
 import authRoutes from './routes/auth.routes'
 import academicRoutes from './routes/academic.routes'
@@ -20,10 +22,14 @@ import settingsRoutes from './routes/settings.routes'
 import enrollmentRoutes from './routes/enrollment.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
 
+assertSecureConfig()
+
 const app = express()
 
+app.disable('x-powered-by')
 app.set('trust proxy', 1)
 
+app.use(securityHeaders)
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -31,7 +37,7 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   })
 )
-app.use(express.json())
+app.use(express.json({ limit: '200kb' }))
 app.use(cookieParser())
 app.use(passport.initialize())
 
