@@ -1,7 +1,7 @@
 {
-  "name": "Uganda Martyrs University",
-  "short_name": "UMU",
-  "description": "Uganda Martyrs University official web app",
+  "name": "Umu Attendance",
+  "short_name": "Umu Attendance",
+  "description": "UMU Attendance System — Uganda Martyrs University, Nkozi Campus",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
