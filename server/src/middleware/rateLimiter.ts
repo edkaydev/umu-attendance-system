@@ -183,7 +183,13 @@ export function rateLimiter(
     const key = getKey(req)
 
     void checkRedis(req, res, key).then((handledByRedis) => {
-      if (handledByRedis !== null) return
+      // true → Redis responded (limited/banned); false → allowed;
+      // null → Redis unavailable, fall back to the in-memory store.
+      if (handledByRedis === true) return
+      if (handledByRedis === false) {
+        next()
+        return
+      }
       checkMemory(req, res, key, next)
     })
   }
