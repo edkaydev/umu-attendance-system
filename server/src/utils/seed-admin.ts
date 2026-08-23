@@ -33,7 +33,9 @@ async function main(): Promise<void> {
         role: Role.system_admin,
         profileComplete: true,
         isActive: true,
-        ...(password ? { password } : {}),
+        // A freshly-seeded default password must be replaced by the real
+        // one — force the change on next login.
+        ...(password ? { password, mustChangePassword: true } : {}),
       },
     })
     console.log(`System admin updated: ${email}`)
@@ -47,6 +49,7 @@ async function main(): Promise<void> {
         role: Role.system_admin,
         profileComplete: true,
         isActive: true,
+        ...(password ? { mustChangePassword: true } : {}),
       },
     })
     console.log(`System admin created: ${email}`)
