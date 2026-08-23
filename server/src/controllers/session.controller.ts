@@ -21,7 +21,7 @@ const openSessionSchema = z.object({
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),
   semester: z.number().int().min(1).max(2),
   classDuration: z.number().int().min(1).max(180).optional(),
-  codeTtl: z.number().int().min(5).max(60).optional(),
+  codeTtl: z.number().int().min(15).max(30).optional(),
   /** Lecturer GPS for physical session campus check */
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),

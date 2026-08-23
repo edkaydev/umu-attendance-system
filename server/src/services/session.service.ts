@@ -6,7 +6,7 @@ import { writeAuditLog } from '../utils/audit'
 import { isWithinCampus, geofence } from '../config/geofence'
 import { notifySessionOpened } from './email.service'
 
-const DEFAULT_CODE_TTL = 5 // minutes
+const DEFAULT_CODE_TTL = 15 // minutes
 
 export interface OpenSessionInput {
   courseUnitId: string
@@ -16,7 +16,7 @@ export interface OpenSessionInput {
   academicYear: string
   semester: number
   classDuration?: number  // 1–180 min; null = no auto-close
-  codeTtl?: number        // 5–60 min; defaults to 5
+  codeTtl?: number        // 15–30 min; defaults to 15
   /** Lecturer GPS — required for physical sessions (Check 1). */
   lat?: number
   lng?: number
@@ -112,7 +112,7 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     return Boolean(taken)
   })
 
-  const codeTtlMinutes = Math.min(60, Math.max(5, input.codeTtl ?? DEFAULT_CODE_TTL))
+  const codeTtlMinutes = Math.min(30, Math.max(15, input.codeTtl ?? DEFAULT_CODE_TTL))
   const classDuration = input.classDuration
     ? Math.min(180, Math.max(1, input.classDuration))
     : null

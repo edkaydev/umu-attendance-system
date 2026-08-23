@@ -150,7 +150,7 @@ export async function getLecturerDashboard(lecturerId: string) {
     where: { lecturerId, openedAt: { gte: todayStart } },
     include: {
       courseUnit: { select: { id: true, code: true, name: true } },
-      attendanceRecords: { select: { id: true } },
+      attendanceRecords: { where: { status: 'present' }, select: { id: true } },
     },
     orderBy: { openedAt: 'desc' },
   })

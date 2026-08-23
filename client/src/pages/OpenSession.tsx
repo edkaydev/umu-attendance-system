@@ -24,13 +24,8 @@ const CLASS_DURATION_OPTIONS = [
 ]
 
 const CODE_TTL_OPTIONS = [
-  { value: '5',  label: '5 minutes' },
-  { value: '10', label: '10 minutes' },
   { value: '15', label: '15 minutes' },
-  { value: '20', label: '20 minutes' },
   { value: '30', label: '30 minutes' },
-  { value: '45', label: '45 minutes' },
-  { value: '60', label: '60 minutes (max)' },
 ]
 
 export default function OpenSession() {
@@ -43,7 +38,7 @@ export default function OpenSession() {
   const [venue, setVenue]             = useState('')
   const [startsAt, setStartsAt]       = useState('')
   const [classDuration, setClassDuration] = useState('60')
-  const [codeTtl, setCodeTtl]         = useState('10')
+  const [codeTtl, setCodeTtl]         = useState('15')
   const [submitting, setSubmitting]   = useState(false)
   const [geoStatus, setGeoStatus]     = useState<'idle' | 'locating' | 'ready' | 'error'>('idle')
   const [geoError, setGeoError]       = useState<string | null>(null)
@@ -266,7 +261,7 @@ export default function OpenSession() {
               Use <em>Extend</em> on the live screen to refresh it.
             </p>
             <p className="mb-4 rounded-md border border-info-border bg-info-light px-3 py-2 text-xs text-info">
-              Example: for a 60-minute class, a 5-minute code gives students a short check-in window while the class remains open for the full hour.
+              Example: for a 60-minute class, a 15-minute code gives students an early check-in window while the class remains open for the full hour.
             </p>
 
             <Button

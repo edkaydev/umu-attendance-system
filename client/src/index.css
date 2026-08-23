@@ -20,6 +20,16 @@
     outline: 3px solid #cc0000 !important;
     outline-offset: 3px;
   }
+
+  /* Text-entry fields already signal focus with their own red border + ring.
+     Safari matches :focus-visible even for mouse clicks on form controls,
+     which doubled up as a second ring around every input — so opt them out
+     of the global outline (needs !important to beat the rule above). */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none !important;
+  }
 }
 
 @layer components {
