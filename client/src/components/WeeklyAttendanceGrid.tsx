@@ -43,7 +43,8 @@ const LEGEND = [
 ] as const
 
 /**
- * GitHub-contribution-style week strip: one box per day for the last 7 days.
+ * GitHub-contribution-style week strip: one box per day of the current
+ * calendar week (Monday through Sunday). Future days render as "no classes".
  * Colour never carries meaning alone — every box also shows a glyph, a native
  * tooltip, an accessible label, and the raw numbers remain available in the
  * collapsible data table below the strip.
@@ -57,14 +58,14 @@ export function WeeklyAttendanceGrid({ days }: { days: WeeklyDay[] }) {
   )
   const summary =
     totals.held === 0
-      ? 'No classes were held in the last 7 days.'
-      : `In the last 7 days ${totals.held} ${totals.held === 1 ? 'class was' : 'classes were'} held and you attended ${totals.attended}.`
+      ? 'No classes have been held this week yet.'
+      : `This week ${totals.held} ${totals.held === 1 ? 'class was' : 'classes were'} held and you attended ${totals.attended}.`
 
   return (
     <div>
       <p className="sr-only" role="status">{summary}</p>
       <p aria-hidden="true" className="mb-3 text-body-sm text-text-secondary">
-        Last 7 days · <span className="font-semibold text-text-primary">{totals.attended}</span> of{' '}
+        This week (Mon–Sun) · <span className="font-semibold text-text-primary">{totals.attended}</span> of{' '}
         <span className="font-semibold text-text-primary">{totals.held}</span> classes attended
       </p>
 

@@ -136,7 +136,17 @@ export async function getCourseUnits(req: Request, res: Response, next: NextFunc
 
 export async function postCourseUnit(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    created(res, { courseUnit: await createCourseUnit(req.body) })
+    const body = { ...req.body }
+    // Faculty Admins may add units only to their own faculty — ignore any
+    // facultyId they send. System Admin chooses freely.
+    if (req.user!.role === 'faculty_admin') {
+      if (!req.user!.facultyId) {
+        res.status(403).json({ error: 'No faculty assigned to your account' })
+        return
+      }
+      body.facultyId = req.user!.facultyId
+    }
+    created(res, { courseUnit: await createCourseUnit(body) })
   } catch (e) {
     next(e)
   }

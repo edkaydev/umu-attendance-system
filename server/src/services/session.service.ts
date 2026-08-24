@@ -15,7 +15,7 @@ export interface OpenSessionInput {
   startsAt?: string
   academicYear: string
   semester: number
-  classDuration?: number  // 1–180 min; null = no auto-close
+  classDuration?: number  // 1–180 min; defaults to the code TTL — sessions always auto-close
   codeTtl?: number        // 15–30 min; defaults to 15
   /** Lecturer GPS — required for physical sessions (Check 1). */
   lat?: number
@@ -113,9 +113,9 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
   })
 
   const codeTtlMinutes = Math.min(30, Math.max(15, input.codeTtl ?? DEFAULT_CODE_TTL))
-  const classDuration = input.classDuration
-    ? Math.min(180, Math.max(1, input.classDuration))
-    : null
+  // Every session ends automatically: when no explicit duration is given the
+  // session closes with the code window, so nothing can stay open forever.
+  const classDuration = Math.min(180, Math.max(1, input.classDuration ?? codeTtlMinutes))
 
   const session = await prisma.session.create({
     data: {
@@ -488,19 +488,15 @@ export async function extendSessionTime(sessionId: string, lecturerId: string, m
 
   // Block extending when the class is nearly over — the lecturer should close
   // the session instead of keeping the code alive after the class has ended.
-  if (session.classDuration) {
-    const elapsedMinutes = (Date.now() - session.openedAt.getTime()) / 60_000
-    const remainingMinutes = session.classDuration - elapsedMinutes
-    if (remainingMinutes < 5) {
-      throw new ApiError('Class time is nearly over — close the session instead of extending', 400, 'CLASS_TIME_ENDING')
-    }
+  const elapsedMinutes = (Date.now() - session.openedAt.getTime()) / 60_000
+  const remainingMinutes = session.classDuration - elapsedMinutes
+  if (remainingMinutes < 5) {
+    throw new ApiError('Class time is nearly over — close the session instead of extending', 400, 'CLASS_TIME_ENDING')
   }
 
   const base = Math.max(session.codeExpiresAt.getTime(), Date.now())
   const codeExpiresAt = new Date(base + minutes * 60_000)
-  const classDuration = session.classDuration
-    ? session.classDuration + minutes
-    : session.classDuration
+  const classDuration = session.classDuration + minutes
 
   const extended = await prisma.session.update({
     where: { id: sessionId },

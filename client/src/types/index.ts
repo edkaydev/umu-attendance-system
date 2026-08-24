@@ -86,7 +86,7 @@ export interface Session {
   startsAt: string | null
   openedAt: string
   closedAt: string | null
-  classDuration?: number | null
+  classDuration?: number
   _count?: { attendanceRecords: number }
 }
 
@@ -108,7 +108,8 @@ export interface UnitAttendance {
   courseUnit: CourseUnit
   sessionsHeld: number
   attended: number
-  percentage: number
+  /** null = no closed sessions yet — no meaningful percentage */
+  percentage: number | null
   status: UnitStatus
 }
 

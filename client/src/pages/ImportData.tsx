@@ -25,6 +25,108 @@ const TEMPLATES: Record<string, string> = {
 const STAFF_TEMPLATE = 'email,role,facultyCode'
 const STUDENT_TEMPLATE = 'email'
 
+const IMPORT_ORDER: Array<{ key: string; label: string; needs?: string[]; why?: string }> = [
+  { key: 'faculties', label: 'Faculties' },
+  {
+    key: 'programmes',
+    label: 'Programmes',
+    needs: ['faculties'],
+    why: 'each programme row needs a facultyCode from step 1',
+  },
+  {
+    key: 'course_units',
+    label: 'Course Units',
+    needs: ['faculties'],
+    why: 'each unit row needs a facultyCode from step 1',
+  },
+  {
+    key: 'curriculum',
+    label: 'Curriculum',
+    needs: ['course_units', 'programmes'],
+    why: 'each row maps a unit code (step 3) to a programme code (step 2)',
+  },
+  { key: 'staff', label: 'Staff', needs: ['faculties'], why: 'staff rows link to faculty codes' },
+  { key: 'students', label: 'Students', needs: [], why: '' },
+]
+
+function OrderGuide({
+  completed,
+  onPick,
+}: {
+  completed: Record<string, boolean>
+  onPick: (key: string) => void
+}) {
+  const nextStep = IMPORT_ORDER.find((s) => !completed[s.key])
+  return (
+    <Card title="Suggested Import Order">
+      <p className="mb-3 text-body-sm text-text-secondary">
+        Follow the numbered steps top to bottom — later files reference codes created by earlier
+        ones. Green ticks mark what you have already imported on this visit.
+      </p>
+      <ol className="space-y-2">
+        {IMPORT_ORDER.map((step, i) => {
+          const done = Boolean(completed[step.key])
+          const isNext = nextStep?.key === step.key
+          const isStructureStep = step.key in TEMPLATES
+          const missingPrereq =
+            !done && (step.needs ?? []).some((dep) => !completed[dep])
+          return (
+            <li key={step.key}>
+              <button
+                type="button"
+                disabled={!isStructureStep}
+                onClick={() => isStructureStep && onPick(step.key)}
+                className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-body-sm transition-colors ${
+                  done
+                    ? 'border-success-border bg-success-light text-success'
+                    : isNext
+                      ? 'border-umu-red bg-[#FFF4F4] font-semibold text-umu-red'
+                      : missingPrereq
+                        ? 'border-border bg-surface-1 text-text-disabled'
+                        : 'border-border bg-white text-text-primary hover:bg-surface-1'
+                } ${!isStructureStep ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    done
+                      ? 'bg-success text-white'
+                      : isNext
+                        ? 'bg-umu-red text-white'
+                        : 'bg-surface-2 text-text-secondary'
+                  }`}
+                >
+                  {done ? '✓' : i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  {step.label}
+                  {isNext && <span className="ml-2 text-xs font-normal">← do this next</span>}
+                  {missingPrereq && (
+                    <span className="block text-xs font-normal text-warning">
+                      Needs {(step.needs ?? []).join(' + ')} first ({step.why})
+                    </span>
+                  )}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </Card>
+  )
+}
+
+async function checkCsvHeader(file: File, expected: string): Promise<string | null> {
+  const text = await file.slice(0, 4096).text()
+  const header = text.split(/\r?\n/)[0]?.trim().toLowerCase()
+  if (!header) return 'This file looks empty.'
+  const cols = header.split(',').map((c) => c.trim())
+  const missing = expected.split(',').filter((c) => !cols.includes(c))
+  if (missing.length > 0) {
+    return `Header mismatch — missing: ${missing.join(', ')}. Download the template to compare.`
+  }
+  return null
+}
+
 function ResultPanel({ result, label }: { result: ImportResult; label: string }) {
   return (
     <div className="mt-4 rounded bg-surface-1 p-4">
@@ -55,9 +157,17 @@ export default function ImportData() {
   const [result, setResult] = useState<ImportResult | null>(null)
   const [staffResult, setStaffResult] = useState<ImportResult | null>(null)
   const [studentResult, setStudentResult] = useState<ImportResult | null>(null)
+  const [completed, setCompleted] = useState<Record<string, boolean>>({})
+  const [headerWarning, setHeaderWarning] = useState<{ card: string; msg: string } | null>(null)
   const structureRef = useRef<HTMLInputElement>(null)
   const staffRef = useRef<HTMLInputElement>(null)
   const studentRef = useRef<HTMLInputElement>(null)
+
+  const activeStep = IMPORT_ORDER.find((s) => s.key === type)
+  const prereqWarning =
+    activeStep?.needs?.some((dep) => !completed[dep])
+      ? `Heads-up: ${activeStep.label} rows reference ${(activeStep.needs ?? []).join(' and ')} codes. If those imports haven't been done yet (on this visit or before), most rows will fail. Recommended order: Faculties → Programmes → Course Units → Curriculum.`
+      : null
 
   function downloadTemplate() {
     const blob = new Blob([TEMPLATES[type] + '\n'], { type: 'text/csv' })
@@ -108,6 +218,7 @@ export default function ImportData() {
       setUploadProgress(100)
       
       setResult(res.result)
+      setCompleted((c) => ({ ...c, [type]: true }))
       toast.success('Import finished')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
@@ -135,6 +246,7 @@ export default function ImportData() {
       setUploadProgress(100)
       
       setStaffResult(res.result)
+      setCompleted((c) => ({ ...c, staff: true }))
       toast.success('Import finished')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
@@ -162,6 +274,7 @@ export default function ImportData() {
       setUploadProgress(100)
       
       setStudentResult(res.result)
+      setCompleted((c) => ({ ...c, students: true }))
       toast.success('Import finished')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
@@ -179,6 +292,17 @@ export default function ImportData() {
         <p className="text-body-sm text-text-secondary">Bulk-load academic structure and staff accounts.</p>
       </div>
 
+      <OrderGuide
+        completed={completed}
+        onPick={(key) => {
+          setType(key)
+          setResult(null)
+          setFile(null)
+          setHeaderWarning(null)
+          if (structureRef.current) structureRef.current.value = ''
+        }}
+      />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Academic Structure">
           <Select
@@ -190,14 +314,26 @@ export default function ImportData() {
             }}
             options={STRUCTURE_TYPES}
           />
+          {prereqWarning && (
+            <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
+              {prereqWarning}
+            </div>
+          )}
+          {headerWarning?.card === 'structure' && headerWarning.msg && (
+            <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
+              ⚠ {headerWarning.msg}
+            </div>
+          )}
           <input
             ref={structureRef}
             type="file"
             accept=".csv,text/csv"
             className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null)
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null
+              setFile(f)
               setResult(null)
+              setHeaderWarning(f ? { card: 'structure', msg: (await checkCsvHeader(f, TEMPLATES[type])) ?? '' } : null)
             }}
           />
           <div className="flex flex-wrap gap-3">
@@ -224,14 +360,21 @@ export default function ImportData() {
             Each faculty can have one Faculty Admin. Emails must end in @umu.ac.ug. Leave the password
             column blank to use the system default password; users must change it on first sign-in.
           </p>
+          {headerWarning?.card === 'staff' && headerWarning.msg && (
+            <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
+              ⚠ {headerWarning.msg}
+            </div>
+          )}
           <input
             ref={staffRef}
             type="file"
             accept=".csv,text/csv"
             className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
-            onChange={(e) => {
-              setStaffFile(e.target.files?.[0] ?? null)
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null
+              setStaffFile(f)
               setStaffResult(null)
+              setHeaderWarning(f ? { card: 'staff', msg: (await checkCsvHeader(f, STAFF_TEMPLATE)) ?? '' } : null)
             }}
           />
           <div className="flex flex-wrap gap-3">
@@ -261,14 +404,21 @@ export default function ImportData() {
             Emails must end in @stud.umu.ac.ug. Accounts start with the system default password
             and students change it on first sign-in.
           </p>
+          {headerWarning?.card === 'students' && headerWarning.msg && (
+            <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
+              ⚠ {headerWarning.msg}
+            </div>
+          )}
           <input
             ref={studentRef}
             type="file"
             accept=".csv,text/csv"
             className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
-            onChange={(e) => {
-              setStudentFile(e.target.files?.[0] ?? null)
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null
+              setStudentFile(f)
               setStudentResult(null)
+              setHeaderWarning(f ? { card: 'students', msg: (await checkCsvHeader(f, STUDENT_TEMPLATE)) ?? '' } : null)
             }}
           />
           <div className="flex flex-wrap gap-3">

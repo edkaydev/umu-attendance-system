@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { enrollmentApi, assignmentApi, FacultyUnitOverview } from '../api/endpoints'
+import { enrollmentApi, assignmentApi, academicApi, FacultyUnitOverview } from '../api/endpoints'
 import { usePeriod } from '../hooks/usePeriod'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -24,6 +25,81 @@ type UnitEntry = {
 
 function isStudent(u: ManageUser): u is FacultyUnitOverview['students'][number] {
   return 'regNumber' in u
+}
+
+/* ─────────────────────────── Add unit form ─────────────────────────── */
+
+function AddCourseUnitCard({ onCreated }: { onCreated: () => void }) {
+  const { user } = useAuth()
+  const toast = useToast()
+  const [name, setName] = useState('')
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  if (!user?.facultyId) {
+    return (
+      <Card title="Add a New Course Unit">
+        <p className="text-body-sm text-text-secondary">
+          Your account is not linked to a faculty yet, so you cannot create units.
+          Ask a System Admin to assign your faculty first.
+        </p>
+      </Card>
+    )
+  }
+
+  async function handleCreate() {
+    const trimmedName = name.trim()
+    const trimmedCode = code.trim().toUpperCase()
+    if (!trimmedName || !trimmedCode) {
+      toast.error('Enter both a unit name and a unit code')
+      return
+    }
+    setBusy(true)
+    try {
+      await academicApi.createCourseUnit({
+        facultyId: user!.facultyId!,
+        name: trimmedName,
+        code: trimmedCode,
+      })
+      toast.success(`Unit ${trimmedCode} created`)
+      setName('')
+      setCode('')
+      onCreated()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to create unit')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title="Add a New Course Unit">
+      <p className="mb-3 text-body-sm text-text-secondary">
+        Missing a unit from the import? Create it here — it goes straight into your faculty and
+        becomes available in the Add-unit dropdowns.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input
+          label="Unit name"
+          placeholder="e.g. Database Systems"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          label="Unit code"
+          placeholder="e.g. BCS2201"
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          className=""
+        />
+      </div>
+      <div className="mt-3">
+        <Button loading={busy} disabled={!name.trim() || !code.trim()} onClick={handleCreate}>
+          Create Unit
+        </Button>
+      </div>
+    </Card>
+  )
 }
 
 function matchesQuery(u: ManageUser, q: string): boolean {
@@ -74,6 +150,8 @@ export default function FacultyUnits() {
           Manage the units assigned to students and lecturers in your faculty.
         </p>
       </div>
+
+      <AddCourseUnitCard onCreated={reload} />
 
       <Card>
         <div className="flex flex-wrap items-end gap-3">

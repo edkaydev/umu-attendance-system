@@ -123,7 +123,7 @@ export interface SessionDetail extends Session {
 }
 
 export interface LiveSessionData {
-  session: Session & { codeExpiresAt: string; venue: string | null; classDuration: number | null; codeTtl: number }
+  session: Session & { codeExpiresAt: string; venue: string | null; classDuration: number; codeTtl: number }
   presentCount: number
   enrolledCount: number
   present: {
@@ -169,7 +169,7 @@ export interface LiveSessionForStudent {
   startsAt: string | null
   openedAt: string
   codeExpiresAt: string
-  classDuration: number | null
+  classDuration: number
   checkedIn: boolean
 }
 

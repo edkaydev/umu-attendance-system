@@ -35,6 +35,8 @@ import {
 const router = Router()
 const adminOnly     = requireRole('system_admin')
 const curriculumAccess = requireRole('system_admin', 'faculty_admin')
+// Faculty Admins may create units (forced into their own faculty by the controller)
+const unitWriters   = requireRole('system_admin', 'faculty_admin')
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -59,7 +61,7 @@ router.put('/programmes/:id', authenticate, adminOnly, validate(updateProgrammeS
 
 // Course unit — faculty_admin can read (for curriculum dropdowns)
 router.get('/course-units', authenticate, curriculumAccess, getCourseUnits)
-router.post('/course-units', authenticate, adminOnly, validate(courseUnitSchema), postCourseUnit)
+router.post('/course-units', authenticate, unitWriters, validate(courseUnitSchema), postCourseUnit)
 router.put('/course-units/:id', authenticate, adminOnly, validate(updateCourseUnitSchema), putCourseUnit)
 // Share / unshare a course unit with additional faculties
 router.post('/course-units/:id/faculties', authenticate, adminOnly, postCourseUnitFaculty)

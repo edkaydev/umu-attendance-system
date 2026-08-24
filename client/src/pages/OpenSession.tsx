@@ -13,7 +13,6 @@ import type { SessionMode } from '../types'
 type Assignment = Awaited<ReturnType<typeof dashboardApi.lecturer>>['units'][number]
 
 const CLASS_DURATION_OPTIONS = [
-  { value: '', label: 'No auto-close' },
   { value: '30', label: '30 minutes' },
   { value: '45', label: '45 minutes' },
   { value: '60', label: '1 hour' },
@@ -54,9 +53,9 @@ export default function OpenSession() {
   }, [toast])
 
   const assignment = assignments.find((a) => a.courseUnit.id === selectedId) ?? null
-  const classDurationMinutes = classDuration ? Number(classDuration) : null
+  const classDurationMinutes = Number(classDuration)
   const codeValidityMinutes = Number(codeTtl)
-  const codeOutlivesClass = classDurationMinutes !== null && codeValidityMinutes > classDurationMinutes
+  const codeOutlivesClass = codeValidityMinutes > classDurationMinutes
 
   async function handleSubmit() {
     if (!assignment) {
@@ -101,7 +100,7 @@ export default function OpenSession() {
         startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         academicYear: assignment.academicYear,
         semester: assignment.semester,
-        classDuration: classDuration ? Number(classDuration) : undefined,
+        classDuration: Number(classDuration),
         codeTtl: Number(codeTtl),
         lat,
         lng,
@@ -255,7 +254,7 @@ export default function OpenSession() {
 
             <p className="mb-4 text-xs text-text-secondary">
               <span className="font-medium text-text-primary">Class ends after</span> — how long the session runs
-              {classDuration ? ` (${classDuration} min)` : ' (no auto-close)'}. {' '}
+              {' '}({classDuration} min), then it closes automatically. {' '}
               <span className="font-medium text-text-primary">Students can use code for</span> — how long students have
               to enter the code before it expires ({codeTtl} min).
               Use <em>Extend</em> on the live screen to refresh it.

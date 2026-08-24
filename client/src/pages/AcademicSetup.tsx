@@ -281,48 +281,22 @@ export default function AcademicSetup() {
         )}
 
         {tab === 'curriculum' && (
-          <>
-            {curriculum.length === 0 ? (
-              <p className="py-12 text-center text-body-sm text-text-secondary">
-                No curriculum mappings. Add one to link a course unit to a programme.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
-                      <th className="py-2 pr-4">Course Unit</th>
-                      <th className="py-2 pr-4">Programme</th>
-                      <th className="py-2 pr-4">Year</th>
-                      <th className="py-2 pr-4">Semester</th>
-                      <th className="py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {curriculum.map((c) => (
-                      <tr key={c.id}>
-                        <td className="py-3 pr-4">
-                          <span className="font-medium text-text-primary">{c.courseUnit.name}</span>{' '}
-                          <span className="text-text-secondary">({c.courseUnit.code})</span>
-                        </td>
-                        <td className="py-3 pr-4 text-text-secondary">{c.programme.name}</td>
-                        <td className="py-3 pr-4 text-text-secondary">Year {c.year}</td>
-                        <td className="py-3 pr-4 text-text-secondary">Sem {c.semester}</td>
-                        <td className="py-3 text-right">
-                          <button
-                            onClick={() => removeCurriculum(c.id)}
-                            className="text-sm font-medium text-danger hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+          <CurriculumMatrix
+            curriculum={curriculum}
+            programmes={programmes}
+            courseUnits={courseUnits}
+            onAdd={async (programmeId, yr, sem, unitId) => {
+              await academicApi.createCurriculum({
+                courseUnitId: unitId,
+                programmeId,
+                year: yr,
+                semester: sem,
+              })
+              toast.success('Unit added to curriculum')
+              void loadAll()
+            }}
+            onRemove={removeCurriculum}
+          />
         )}
       </Card>
 
@@ -458,6 +432,170 @@ function EntityTable({
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/* ─────────────────────── Curriculum matrix ─────────────────────── */
+
+function CurriculumMatrix({
+  curriculum,
+  programmes,
+  courseUnits,
+  onAdd,
+  onRemove,
+}: {
+  curriculum: CurriculumUnitEntry[]
+  programmes: Programme[]
+  courseUnits: CourseUnit[]
+  onAdd: (programmeId: string, year: number, semester: number, courseUnitId: string) => Promise<void>
+  onRemove: (id: string) => void
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [addYear, setAddYear] = useState('1')
+  const [addSemester, setAddSemester] = useState('1')
+  const [addUnitId, setAddUnitId] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const byProgramme = new Map<string, CurriculumUnitEntry[]>()
+  for (const p of programmes) byProgramme.set(p.id, [])
+  for (const c of curriculum) {
+    const list = byProgramme.get(c.programmeId)
+    if (list) list.push(c)
+  }
+
+  async function handleAdd(programmeId: string) {
+    if (!addUnitId) return
+    setBusy(true)
+    try {
+      await onAdd(programmeId, Number(addYear), Number(addSemester), addUnitId)
+      setAddUnitId('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (programmes.length === 0) {
+    return (
+      <p className="py-12 text-center text-body-sm text-text-secondary">
+        Create a programme first — the curriculum is organised per programme.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-body-sm text-text-secondary">
+        Each table is one programme. Press <em>Edit this table</em> to add or remove units for a
+        chosen year and semester without leaving the page.
+      </p>
+      {programmes.map((p) => {
+        const rows = (byProgramme.get(p.id) ?? []).slice().sort(
+          (a, b) => a.year - b.year || a.semester - b.semester || a.courseUnit.code.localeCompare(b.courseUnit.code)
+        )
+        const editing = editingId === p.id
+        const inTable = new Set(rows.map((r) => r.courseUnitId))
+        const selectableUnits = courseUnits.filter((u) => !inTable.has(u.id))
+        return (
+          <div key={p.id} className="rounded-lg border border-border">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-1 px-4 py-3">
+              <div>
+                <p className="font-semibold text-text-primary">{p.name}</p>
+                <p className="text-xs text-text-secondary">{p.code} · {rows.length} unit{rows.length === 1 ? '' : 's'}</p>
+              </div>
+              {editing ? (
+                <Button variant="secondary" className="px-3 py-1 text-body-sm" onClick={() => setEditingId(null)}>
+                  Done
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1 text-body-sm"
+                  onClick={() => {
+                    setEditingId(p.id)
+                    setAddYear('1')
+                    setAddSemester('1')
+                    setAddUnitId('')
+                  }}
+                >
+                  Edit this table
+                </Button>
+              )}
+            </div>
+            {rows.length === 0 && !editing ? (
+              <p className="px-4 py-8 text-center text-body-sm text-text-secondary">
+                No units mapped yet for this programme.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
+                      <th className="px-4 py-2">Year</th>
+                      <th className="px-4 py-2">Sem</th>
+                      <th className="px-4 py-2">Course Unit</th>
+                      <th className="px-4 py-2">Code</th>
+                      <th className="px-4 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {rows.map((c) => (
+                      <tr key={c.id}>
+                        <td className="px-4 py-2.5 text-text-secondary">Year {c.year}</td>
+                        <td className="px-4 py-2.5 text-text-secondary">Sem {c.semester}</td>
+                        <td className="px-4 py-2.5 font-medium text-text-primary">{c.courseUnit.name}</td>
+                        <td className="px-4 py-2.5 text-text-secondary">{c.courseUnit.code}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          {editing && (
+                            <button
+                              onClick={() => onRemove(c.id)}
+                              className="text-sm font-medium text-danger hover:underline"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {editing && (
+              <div className="flex flex-wrap items-end gap-3 border-t border-border bg-surface-1 px-4 py-3">
+                <Select
+                  label="Year"
+                  value={addYear}
+                  onChange={(e) => setAddYear(e.target.value)}
+                  options={[1, 2, 3, 4, 5, 6].map((y) => ({ value: String(y), label: `Year ${y}` }))}
+                  className=""
+                />
+                <Select
+                  label="Semester"
+                  value={addSemester}
+                  onChange={(e) => setAddSemester(e.target.value)}
+                  options={[
+                    { value: '1', label: 'Sem 1' },
+                    { value: '2', label: 'Sem 2' },
+                  ]}
+                />
+                <div className="min-w-[220px] flex-1">
+                  <Select
+                    label="Course unit"
+                    value={addUnitId}
+                    onChange={(e) => setAddUnitId(e.target.value)}
+                    placeholder={selectableUnits.length === 0 ? 'All units already in this table' : 'Select a unit'}
+                    options={selectableUnits.map((u) => ({ value: u.id, label: `${u.code} — ${u.name}` }))}
+                  />
+                </div>
+                <Button loading={busy} disabled={!addUnitId} onClick={() => handleAdd(p.id)}>
+                  Add to Year {addYear}
+                </Button>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -80,11 +80,21 @@ export default function StudentDashboard() {
   const [gettingLocation, setGettingLocation] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     dashboardApi
       .student()
-      .then(setData)
+      .then((d) => { if (!cancelled) setData(d) })
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load dashboard'))
-      .finally(() => setLoaded(true))
+      .finally(() => { if (!cancelled) setLoaded(true) })
+    // Keep stats real-time: re-pull the dashboard every 30 s so newly closed
+    // sessions show up in the week card and unit percentages without a reload.
+    const id = setInterval(() => {
+      dashboardApi.student().then((d) => { if (!cancelled) setData(d) }).catch(() => {})
+    }, 30_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
   }, [toast])
 
   // Onboarding walkthrough — fires once per user, shortly after data lands
@@ -180,9 +190,12 @@ export default function StudentDashboard() {
 
   const good = data.units.filter((u) => u.status === 'good').length
   const total = data.units.length
+  // Units with no closed sessions have percentage === null — they carry no
+  // signal, so exclude them from the average instead of dragging it down.
+  const graded = data.units.filter((u) => u.percentage !== null)
   const avg =
-    total > 0
-      ? (data.units.reduce((acc, u) => acc + u.percentage, 0) / total).toFixed(1)
+    graded.length > 0
+      ? (graded.reduce((acc, u) => acc + (u.percentage ?? 0), 0) / graded.length).toFixed(1)
       : '—'
 
   return (
@@ -336,15 +349,27 @@ export default function StudentDashboard() {
                           Session in progress
                         </span>
                       )}
-                      <span className="text-sm font-semibold text-text-primary">{u.percentage}%</span>
+                      {u.percentage === null ? (
+                        <span className="text-sm font-medium text-text-secondary">—</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-text-primary">{u.percentage}%</span>
+                      )}
                       <Badge status={u.status} />
                     </div>
                   </div>
-                  <ProgressBar percentage={u.percentage} />
-                  <p className="mt-1 text-xs text-text-secondary">
-                    {u.attended} of {u.sessionsHeld} closed sessions
-                    {liveForUnit && ' · attendance updates when lecturer closes the session'}
-                  </p>
+                  {u.percentage === null ? (
+                    <p className="text-xs text-text-secondary">
+                      No closed sessions yet — attendance appears after your lecturer closes the first session.
+                    </p>
+                  ) : (
+                    <>
+                      <ProgressBar percentage={u.percentage} />
+                      <p className="mt-1 text-xs text-text-secondary">
+                        {u.attended} of {u.sessionsHeld} closed sessions
+                        {liveForUnit && ' · attendance updates when lecturer closes the session'}
+                      </p>
+                    </>
+                  )}
                 </div>
               )
             })}

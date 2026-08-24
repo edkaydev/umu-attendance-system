@@ -135,7 +135,7 @@ async function tick(): Promise<void> {
     // Weekly digest window check first — cheap and independent of auto-close.
     void maybeSendWeeklySummaries(now)
 
-    // Find all open sessions where classDuration is set and has elapsed.
+    // Find all open sessions whose classDuration has elapsed.
     // elapsed condition: openedAt + classDuration minutes <= now
     // Prisma doesn't support computed columns in WHERE, so we compute the
     // cutoff timestamp in application code and compare against openedAt.
@@ -145,7 +145,6 @@ async function tick(): Promise<void> {
     const candidateSessions = await prisma.session.findMany({
       where: {
         status: SessionStatus.open,
-        classDuration: { not: null },
         // openedAt must be at least 1 minute ago (minimum classDuration)
         openedAt: { lte: new Date(now.getTime() - 60_000) },
       },
@@ -153,7 +152,7 @@ async function tick(): Promise<void> {
     })
 
     for (const s of candidateSessions) {
-      const autoCloseAt = new Date(s.openedAt.getTime() + s.classDuration! * 60_000)
+      const autoCloseAt = new Date(s.openedAt.getTime() + s.classDuration * 60_000)
       if (autoCloseAt <= now) {
         await closeSingleSession(s.id)
       }

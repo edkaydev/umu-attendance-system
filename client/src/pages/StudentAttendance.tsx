@@ -107,13 +107,19 @@ export default function StudentAttendance() {
                     )}
                   </div>
                 </div>
-                <ProgressBar percentage={u.percentage} />
-                <div className="mt-2 flex items-center justify-between text-body-sm text-text-secondary">
-                  <span>
-                    {u.attended} of {u.sessionsHeld} closed sessions
-                  </span>
-                  <span className="font-semibold text-text-primary">{u.percentage}%</span>
-                </div>
+                {u.percentage === null ? (
+                  <p className="text-body-sm text-text-secondary">No closed sessions yet.</p>
+                ) : (
+                  <>
+                    <ProgressBar percentage={u.percentage} />
+                    <div className="mt-2 flex items-center justify-between text-body-sm text-text-secondary">
+                      <span>
+                        {u.attended} of {u.sessionsHeld} closed sessions
+                      </span>
+                      <span className="font-semibold text-text-primary">{u.percentage}%</span>
+                    </div>
+                  </>
+                )}
                 {liveForUnit && (
                   <p className="mt-1.5 text-xs text-text-disabled">
                     ✓ Checked in · attendance updates when the lecturer closes the session

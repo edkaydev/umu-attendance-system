@@ -15,8 +15,10 @@ import {
 } from '../controllers/pdf.controller'
 
 const router = Router()
-const facultyAdmin = requireRole('faculty_admin')
-const lecturerOrFacultyAdmin = requireRole('lecturer', 'faculty_admin')
+// System Admin has global report access; Faculty Admin is scoped to their
+// faculty inside the service layer.
+const facultyAdmin = requireRole('faculty_admin', 'system_admin')
+const lecturerOrFacultyAdmin = requireRole('lecturer', 'faculty_admin', 'system_admin')
 
 // JSON endpoints
 router.get('/lecturer/:lecturerId', authenticate, facultyAdmin, lecturerReportController)

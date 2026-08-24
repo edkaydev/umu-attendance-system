@@ -15,6 +15,15 @@ function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Midnight (local) of the most recent Monday — start of the current calendar week. */
+function mondayOfWeek(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  const dow = (d.getDay() + 6) % 7 // Mon=0 … Sun=6
+  d.setDate(d.getDate() - dow)
+  return d
+}
+
 /** ─── Student dashboard (FR-09) ─── */
 export async function getStudentDashboard(studentId: string) {
   const enrollments = await prisma.enrollment.findMany({
@@ -68,6 +77,10 @@ export async function getStudentDashboard(studentId: string) {
   const unitsSummary = units.map((u) => {
     const total = totalByUnit.get(u.courseUnitId) ?? 0
     const attended = attendedByUnit.get(u.courseUnitId) ?? 0
+    // No closed sessions yet → no meaningful percentage (avoids a fake "100% Good").
+    if (total === 0) {
+      return { courseUnit: u.courseUnit, sessionsHeld: 0, attended: 0, percentage: null, status: 'none' as const }
+    }
     const pct = attendancePercentage(attended, total)
     return {
       courseUnit: u.courseUnit,
@@ -94,15 +107,19 @@ export async function getStudentDashboard(studentId: string) {
     take: 10,
   })
 
-  // Weekly chart: last 7 days, sessions held vs attended (FR-09)
+  // Weekly chart: current calendar week, Monday through Sunday (FR-09)
   const weeklyChart: Array<{
     date: string
     sessionsHeld: number
     attended: number
     absent: number
   }> = []
-  for (let i = 6; i >= 0; i--) {
-    const { start, end } = dayRange(i)
+  const weekStart = mondayOfWeek()
+  for (let i = 0; i < 7; i++) {
+    const start = new Date(weekStart)
+    start.setDate(weekStart.getDate() + i)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 1)
     const daySessions = closedSessions.filter(
       (s) => s.openedAt >= start && s.openedAt < end
     )

@@ -203,7 +203,7 @@ model Session {
   venue            String?           @db.VarChar(100)
   mode             SessionMode       @default(physical)
   startsAt         DateTime?
-  classDuration    Int?              /// class length in minutes (max 180); null = no auto-close
+  classDuration    Int               @default(60) /// class length in minutes (max 180); sessions always auto-close
   codeTtl          Int?              /// initial code validity in minutes (5–60); null = 5 default
   /// Lecturer GPS captured when the physical session was opened (null for online sessions)
   lecturerLat      Decimal?          @db.Decimal(10, 7)

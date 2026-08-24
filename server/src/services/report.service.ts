@@ -18,6 +18,8 @@ function isGood(r: { status: string }): boolean {
 }
 
 async function assertFacultyAdminAccess(actor: ReportActor, facultyId: string | null) {
+  // System Admin sees everything; Faculty Admin only their own faculty.
+  if (actor.role === 'system_admin') return
   if (actor.role !== 'faculty_admin') {
     throw new ApiError('Faculty Admin access required', 403)
   }
@@ -204,6 +206,8 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
     if (unit.facultyId !== actor.facultyId) {
       throw new ApiError('Report is outside your faculty', 403)
     }
+  } else if (actor.role === 'system_admin') {
+    // Global access
   } else {
     throw new ApiError('Forbidden', 403)
   }
