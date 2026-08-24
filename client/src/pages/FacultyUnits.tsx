@@ -818,12 +818,7 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                         const electivesInCell = list.filter((e) => e.isElective)
                         const minPick = rules[cellKey] ?? 0
                         return (
-                          <div
-                            key={s}
-                            className={`rounded border ${
-                              isCurrent ? 'border-umu-red' : 'border-border'
-                            }`}
-                          >
+                          <div key={s} className="rounded border border-border">
                             <div className={`flex items-center justify-between border-b px-3 py-2 ${
                               isCurrent ? 'border-[#FFD9D9] bg-[#FFF4F4]' : 'border-border bg-surface-1'
                             }`}>
