@@ -228,6 +228,11 @@ export async function createCurriculumMapping(data: CurriculumInput, actorFacult
 
   const mapping = await prisma.curriculumUnit.create({ data })
 
+  if (mapping.isElective) {
+    // First elective in a cell defaults the requirement to "pick at least 1"
+    await syncElectiveRequirementCreate(mapping.programmeId, mapping.year, mapping.semester)
+  }
+
   const affected = await propagateCurriculumToCohort(
     data.programmeId,
     data.year,
@@ -235,6 +240,18 @@ export async function createCurriculumMapping(data: CurriculumInput, actorFacult
   )
 
   return { ...mapping, studentsAffected: affected }
+}
+
+/** Ensure a requirement row exists when a cell gains its first elective. */
+async function syncElectiveRequirementCreate(programmeId: string, year: number, semester: number) {
+  const existing = await prisma.electiveRequirement.findUnique({
+    where: { programmeId_year_semester: { programmeId, year, semester } },
+  })
+  if (!existing) {
+    await prisma.electiveRequirement.create({
+      data: { programmeId, year, semester, minPick: 1 },
+    })
+  }
 }
 
 export async function removeCurriculumMapping(id: string, actorFacultyId?: string | null) {
@@ -251,6 +268,9 @@ export async function removeCurriculumMapping(id: string, actorFacultyId?: strin
 
   await prisma.curriculumUnit.delete({ where: { id } })
 
+  // Keep the cell's pick-N requirement in sync when electives change
+  await syncElectiveRequirement(existing.programmeId, existing.year, existing.semester)
+
   const studentsAffected = await propagateCurriculumToCohort(
     existing.programmeId,
     existing.year,
@@ -258,6 +278,104 @@ export async function removeCurriculumMapping(id: string, actorFacultyId?: strin
   )
 
   return { ...existing, studentsAffected }
+}
+
+/** Toggle an existing mapping between core and elective (faculty_admin scoped). */
+export async function updateCurriculumMapping(
+  id: string,
+  patch: { isElective?: boolean },
+  actorFacultyId?: string | null
+) {
+  const existing = await prisma.curriculumUnit.findUnique({
+    where: { id },
+    include: { programme: { select: { facultyId: true } } },
+  })
+  if (!existing) throw new ApiError('Curriculum mapping not found', 404)
+  if (actorFacultyId && existing.programme.facultyId !== actorFacultyId) {
+    throw new ApiError('You can only edit curriculum mappings for your own faculty', 403)
+  }
+
+  const updated = await prisma.curriculumUnit.update({
+    where: { id },
+    data: { ...(patch.isElective !== undefined ? { isElective: patch.isElective } : {}) },
+  })
+
+  if (patch.isElective !== undefined) {
+    await syncElectiveRequirement(existing.programmeId, existing.year, existing.semester)
+    // Core↔elective flips change what students are auto-enrolled in
+    await propagateCurriculumToCohort(existing.programmeId, existing.year, existing.semester)
+  }
+
+  return updated
+}
+
+/**
+ * Set how many electives a path cell requires. minPick <= 0 removes the
+ * requirement. Keeps the value within the number of elective units offered.
+ */
+export async function setElectiveRequirement(
+  input: { programmeId: string; year: number; semester: number; minPick: number },
+  actorFacultyId?: string | null
+) {
+  const programme = await prisma.programme.findUnique({ where: { id: input.programmeId } })
+  if (!programme) throw new ApiError('Programme not found', 404)
+  if (actorFacultyId && programme.facultyId !== actorFacultyId) {
+    throw new ApiError('You can only set requirements for programmes in your own faculty', 403)
+  }
+
+  if (input.minPick <= 0) {
+    await prisma.electiveRequirement.deleteMany({
+      where: { programmeId: input.programmeId, year: input.year, semester: input.semester },
+    })
+    return { minPick: 0 }
+  }
+
+  const offered = await prisma.curriculumUnit.count({
+    where: {
+      programmeId: input.programmeId,
+      year: input.year,
+      semester: input.semester,
+      isElective: true,
+    },
+  })
+  const minPick = Math.min(input.minPick, Math.max(offered, 1))
+  const requirement = await prisma.electiveRequirement.upsert({
+    where: {
+      programmeId_year_semester: {
+        programmeId: input.programmeId,
+        year: input.year,
+        semester: input.semester,
+      },
+    },
+    update: { minPick },
+    create: { ...input, minPick },
+  })
+  return requirement
+}
+
+/** Drop a path cell's requirement once it has no electives left. */
+async function syncElectiveRequirement(programmeId: string, year: number, semester: number) {
+  const offered = await prisma.curriculumUnit.count({
+    where: { programmeId, year, semester, isElective: true },
+  })
+  if (offered === 0) {
+    await prisma.electiveRequirement.deleteMany({ where: { programmeId, year, semester } })
+  }
+}
+
+/** Elective rules for a path cell (used by the student picker and matrix UI). */
+export async function getElectiveRequirement(programmeId: string, year: number, semester: number) {
+  return prisma.electiveRequirement.findUnique({
+    where: { programmeId_year_semester: { programmeId, year, semester } },
+  })
+}
+
+/** All pick-N rules, optionally scoped to one faculty's programmes. */
+export function listElectiveRequirements(facultyId?: string | null) {
+  return prisma.electiveRequirement.findMany({
+    ...(facultyId ? { where: { programme: { facultyId } } } : {}),
+    select: { programmeId: true, year: true, semester: true, minPick: true },
+  })
 }
 
 export function listCurriculum(filters?: { programmeId?: string; facultyId?: string }) {

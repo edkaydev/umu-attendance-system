@@ -16,6 +16,8 @@ import {
   removeCourseUnitFaculty,
   createCurriculumMapping,
   removeCurriculumMapping,
+  updateCurriculumMapping,
+  setElectiveRequirement,
   listCurriculum,
   getProfileOptions,
 } from '../services/academic.service'
@@ -51,6 +53,18 @@ export const curriculumSchema = z.object({
   programmeId: z.string().uuid(),
   year: z.number().int().min(1).max(6),
   semester: z.number().int().min(1).max(2),
+  isElective: z.boolean().optional(),
+})
+
+export const curriculumUpdateSchema = z.object({
+  isElective: z.boolean(),
+})
+
+export const electiveRequirementSchema = z.object({
+  programmeId: z.string().uuid(),
+  year: z.number().int().min(1).max(6),
+  semester: z.number().int().min(1).max(2),
+  minPick: z.number().int().min(0).max(6),
 })
 
 export const updateFacultySchema = facultySchema.partial().extend({ isActive: z.boolean().optional() })
@@ -209,6 +223,34 @@ export async function deleteCurriculum(req: Request, res: Response, next: NextFu
     const actorFacultyId = req.user!.facultyId ?? null
     await removeCurriculumMapping(req.params.id, actorFacultyId)
     noContent(res)
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function patchCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = curriculumUpdateSchema.parse(req.body)
+    const actorFacultyId = req.user!.facultyId ?? null
+    ok(res, { curriculumUnit: await updateCurriculumMapping(req.params.id, data, actorFacultyId) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function putElectiveRequirement(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = electiveRequirementSchema.parse(req.body)
+    const actorFacultyId = req.user!.facultyId ?? null
+    ok(res, { requirement: await setElectiveRequirement(data, actorFacultyId) })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function getElectiveRequirements(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    ok(res, { requirements: await listElectiveRequirements(req.user!.facultyId ?? null) })
   } catch (e) {
     next(e)
   }

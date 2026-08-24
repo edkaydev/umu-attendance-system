@@ -28,6 +28,11 @@ import {
   programmeSchema,
   courseUnitSchema,
   curriculumSchema,
+  curriculumUpdateSchema,
+  electiveRequirementSchema,
+  patchCurriculum,
+  putElectiveRequirement,
+  getElectiveRequirements,
   updateFacultySchema,
   updateProgrammeSchema,
   updateCourseUnitSchema,
@@ -71,7 +76,12 @@ router.delete('/course-units/:id/faculties/:facultyId', authenticate, adminOnly,
 // Curriculum mapping — faculty_admin can read and write (scoped to their faculty)
 router.get('/curriculum', authenticate, curriculumAccess, getCurriculum)
 router.post('/curriculum', authenticate, curriculumAccess, validate(curriculumSchema), postCurriculum)
+router.patch('/curriculum/:id', authenticate, curriculumAccess, validate(curriculumUpdateSchema), patchCurriculum)
 router.delete('/curriculum/:id', authenticate, curriculumAccess, deleteCurriculum)
+
+// Elective rules per path cell — faculty_admin scoped to own faculty
+router.get('/elective-requirements', authenticate, curriculumAccess, getElectiveRequirements)
+router.put('/elective-requirement', authenticate, curriculumAccess, validate(electiveRequirementSchema), putElectiveRequirement)
 
 // CSV imports — system_admin only
 router.post('/import/structure', authenticate, adminOnly, upload.single('file'), importStructure)

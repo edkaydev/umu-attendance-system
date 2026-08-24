@@ -2,7 +2,6 @@ import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { isValidCampusCode } from '../constants/campuses'
 import { isProfileEditingEnabled } from './settings.service'
-import { getCurriculumUnitIds } from './enrollment.service'
 export interface StudentPathInput {
   campusCode: string
   facultyId: string
@@ -35,12 +34,17 @@ export async function validateStudentPath(input: StudentPathInput): Promise<void
  * Recalculate a student's enrolments for the given academic year + semester.
  * Old enrolments in that period are removed, then recreated from the
  * curriculum mapping for the student's current path (FR-02.4 / FR-02.6).
+ * CORE units only — electives are chosen separately via the picker.
  */
 export async function recalculateEnrollments(
   studentId: string,
   { programmeId, year, semester, academicYear }: StudentPathInput
 ): Promise<number> {
-  const curriculum = await getCurriculumUnitIds(programmeId, year, semester)
+  const rows = await prisma.curriculumUnit.findMany({
+    where: { programmeId, year, semester, isElective: false },
+    select: { courseUnitId: true },
+  })
+  const curriculum = [...new Set(rows.map((r) => r.courseUnitId))]
 
   await prisma.enrollment.deleteMany({
     where: { studentId, academicYear, semester },

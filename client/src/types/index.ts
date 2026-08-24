@@ -142,8 +142,32 @@ export interface CurriculumUnitEntry {
   programmeId: string
   year: number
   semester: number
+  isElective: boolean
   courseUnit: CourseUnit
   programme: Programme
+}
+
+export interface ElectiveRule {
+  programmeId: string
+  year: number
+  semester: number
+  minPick: number
+}
+
+export interface ElectivesState {
+  programme: { id: string; name: string } | null
+  year: number
+  semester: number
+  minPick: number
+  pickedCount: number
+  satisfied: boolean
+  offerings: {
+    courseUnitId: string
+    code: string
+    name: string
+    selected: boolean
+    locked: boolean
+  }[]
 }
 
 export interface ManagedUser {

@@ -599,6 +599,7 @@ const PATHWAY_YEARS = [1, 2, 3, 4, 5, 6]
 type PathwayAdd =
   | { kind: 'add'; programmeId: string; programmeName: string; year: number; semester: number; unitId: string; unitName: string }
   | { kind: 'remove'; entryId: string; unitName: string; programmeName: string }
+  | { kind: 'toggle'; entryId: string; unitName: string; programmeName: string; isElective: boolean }
 
 /**
  * Curriculum pathway tables — Programme → Year → Semester sections, like the
@@ -612,20 +613,26 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
   const { period } = usePeriod()
   const [curriculum, setCurriculum] = useState<CurriculumUnitEntry[] | null>(null)
   const [programmes, setProgrammes] = useState<Programme[] | null>(null)
+  const [rules, setRules] = useState<Record<string, number>>({})
   const [selectedProgrammeId, setSelectedProgrammeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<PathwayAdd | null>(null)
   /** Per-section selected unit for the inline "add to path" row, keyed by programmeId:year:semester */
   const [addPick, setAddPick] = useState<Record<string, string>>({})
+  /** Whether the next "Add to Path" goes in as an elective */
+  const [addElective, setAddElective] = useState(false)
   /** Year/semester chosen in each programme's add-row, keyed by programmeId */
   const [addYear, setAddYear] = useState<Record<string, number>>({})
   const [addSemester, setAddSemester] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    Promise.all([academicApi.curriculum(), academicApi.programmes()])
-      .then(([c, p]) => {
+    Promise.all([academicApi.curriculum(), academicApi.programmes(), academicApi.electiveRequirements()])
+      .then(([c, p, r]) => {
         setCurriculum(c)
         setProgrammes(p)
+        const map: Record<string, number> = {}
+        for (const rule of r) map[`${rule.programmeId}:${rule.year}:${rule.semester}`] = rule.minPick
+        setRules(map)
       })
       .catch(() => toast.error('Failed to load the curriculum'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -689,8 +696,14 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
           programmeId: pending.programmeId,
           year: pending.year,
           semester: pending.semester,
+          isElective: addElective,
         })
-        toast.success(`${pending.unitName} added to ${pending.programmeName} · Year ${pending.year} Sem ${pending.semester}`)
+        toast.success(
+          `${pending.unitName} added to ${pending.programmeName} · Year ${pending.year} Sem ${pending.semester}${addElective ? ' as an ELECTIVE' : ''}`
+        )
+      } else if (pending.kind === 'toggle') {
+        await academicApi.patchCurriculum(pending.entryId, { isElective: pending.isElective })
+        toast.success(`${pending.unitName} is now ${pending.isElective ? 'an elective — students must pick it' : 'a core unit — everyone takes it'}`)
       } else {
         await academicApi.removeCurriculum(pending.entryId)
         toast.success(`${pending.unitName} removed from ${pending.programmeName} path`)
@@ -801,6 +814,9 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                           .filter((e) => e.year === y && e.semester === s)
                           .sort((a, b) => a.courseUnit.code.localeCompare(b.courseUnit.code))
                         const isCurrent = period?.semester === s
+                        const cellKey = `${prog.id}:${y}:${s}`
+                        const electivesInCell = list.filter((e) => e.isElective)
+                        const minPick = rules[cellKey] ?? 0
                         return (
                           <div
                             key={s}
@@ -818,6 +834,42 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                                 </span>
                               )}
                             </div>
+                            {electivesInCell.length > 0 && (
+                              <div className="flex items-center justify-between gap-2 border-b border-[#FFE9E9] bg-[#FFFafa] px-3 py-2">
+                                <span className="text-body-sm text-text-secondary">
+                                  Electives — students must pick at least
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <button
+                                    aria-label="Decrease minimum"
+                                    disabled={busy || minPick <= 1}
+                                    onClick={async () => {
+                                      try {
+                                        await academicApi.setElectiveRequirement({ programmeId: prog.id, year: y, semester: s, minPick: minPick - 1 })
+                                        setRules({ ...rules, [cellKey]: Math.max(1, minPick - 1) })
+                                      } catch (err) {
+                                        toast.error(err instanceof ApiClientError ? err.message : 'Failed to update rule')
+                                      }
+                                    }}
+                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 font-bold text-text-primary hover:bg-surface-1 disabled:opacity-40"
+                                  >−</button>
+                                  <span className="w-6 text-center text-body font-bold text-umu-red">{Math.max(1, minPick)}</span>
+                                  <button
+                                    aria-label="Increase minimum"
+                                    disabled={busy || minPick >= electivesInCell.length}
+                                    onClick={async () => {
+                                      try {
+                                        await academicApi.setElectiveRequirement({ programmeId: prog.id, year: y, semester: s, minPick: Math.min(electivesInCell.length, minPick + 1) })
+                                        setRules({ ...rules, [cellKey]: Math.min(electivesInCell.length, minPick + 1) })
+                                      } catch (err) {
+                                        toast.error(err instanceof ApiClientError ? err.message : 'Failed to update rule')
+                                      }
+                                    }}
+                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 font-bold text-text-primary hover:bg-surface-1 disabled:opacity-40"
+                                  >+</button>
+                                </span>
+                              </div>
+                            )}
                             {list.length === 0 ? (
                               <p className="px-3 py-3 text-body-sm text-text-disabled">No units.</p>
                             ) : (
@@ -833,12 +885,29 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                                 <tbody className="divide-y divide-border">
                                   {list.map((e) => (
                                     <tr key={e.id} className="transition-colors hover:bg-surface-1">
-                                      <td className="whitespace-nowrap px-3 py-2 text-body-sm font-medium text-text-primary">{e.courseUnit.code}</td>
+                                      <td className="whitespace-nowrap px-3 py-2 text-body-sm font-medium text-text-primary">
+                                        {e.courseUnit.code}
+                                        {e.isElective && (
+                                          <span className="ml-1.5 rounded-full bg-[#FFF4F4] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-umu-red">
+                                            Elective
+                                          </span>
+                                        )}
+                                      </td>
                                       <td className="px-2 py-2 text-body-sm text-text-primary">{e.courseUnit.name}</td>
                                       <td className="px-2 py-2 text-right text-body-sm text-text-secondary">
                                         {period ? (enrolledCounts.get(e.courseUnitId) ?? 0) : '—'}
                                       </td>
-                                      <td className="px-2 py-2 text-right">
+                                      <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <Button
+                                          variant={e.isElective ? 'secondary' : 'ghost'}
+                                          className="mr-1 px-2 py-1 text-body-sm"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            setPending({ kind: 'toggle', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name, isElective: !e.isElective })
+                                          }
+                                        >
+                                          {e.isElective ? 'Make Core' : 'Make Elective'}
+                                        </Button>
                                         <Button
                                           variant="ghost"
                                           className="px-2 py-1 text-body-sm"
@@ -881,6 +950,16 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                 className="mb-0 w-36"
               />
               <Select
+                label="Type"
+                value={addElective ? 'elective' : 'core'}
+                onChange={(e) => setAddElective(e.target.value === 'elective')}
+                options={[
+                  { value: 'core', label: 'Core — everyone takes it' },
+                  { value: 'elective', label: 'Elective — students pick it' },
+                ]}
+                className="mb-0 w-56"
+              />
+              <Select
                 label="Course Unit"
                 placeholder={availableUnits.length === 0 ? 'All faculty units are on this path' : 'Select a unit'}
                 value={pickedUnitId}
@@ -913,13 +992,22 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
         onClose={() => setPending(null)}
         closeOnOverlay={false}
         closeOnEscape={false}
-        title={pending?.kind === 'remove' ? 'Remove from pathway?' : 'Add to pathway?'}
+        title={
+          pending?.kind === 'remove' ? 'Remove from pathway?'
+          : pending?.kind === 'toggle'
+            ? pending.isElective ? 'Make this an elective?' : 'Make this a core unit?'
+          : 'Add to pathway?'
+        }
         description={
           pending?.kind === 'remove'
-            ? `Remove ${pending.unitName} from the ${pending.programmeName} path.`
-            : pending
-              ? `Add ${pending.unitName} to ${pending.programmeName} · Year ${pending.year} · Semester ${pending.semester}?`
-              : ''
+            ? `Remove ${pending.unitName} from the ${pending.programmeName} path. Enrolled students lose this unit immediately.`
+            : pending?.kind === 'toggle'
+              ? pending.isElective
+                ? `${pending.unitName} becomes optional in ${pending.programmeName}. Students will pick it from the electives screen; current enrollments are kept as their choice.`
+                : `${pending.unitName} becomes compulsory in ${pending.programmeName} — every student on this path is enrolled automatically.`
+              : pending
+                ? `Add ${pending.unitName} to ${pending.programmeName} · Year ${pending.year} · Semester ${pending.semester}${addElective ? ' as an ELECTIVE' : ''}?`
+                : ''
         }
       >
         <div className="flex justify-end gap-3 pt-2">
@@ -929,7 +1017,7 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
             loading={busy}
             onClick={runPending}
           >
-            {pending?.kind === 'remove' ? 'Remove' : 'Add'}
+            {pending?.kind === 'remove' ? 'Remove' : 'Confirm'}
           </Button>
         </div>
       </Modal>

@@ -5,7 +5,6 @@ import { ApiError } from '../utils/apiResponse'
 import { hashPassword } from '../utils/password'
 import { getDefaultUserPasswordHash, getCurrentPeriod } from './settings.service'
 import { isValidCampusCode } from '../constants/campuses'
-import { getCurriculumUnitIds } from './enrollment.service'
 
 export type StructureImportType = 'faculties' | 'programmes' | 'course_units' | 'curriculum'
 

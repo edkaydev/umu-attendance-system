@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { dashboardApi, attendanceApi, checkinApi } from '../api/endpoints'
+import { dashboardApi, attendanceApi, checkinApi, electivesApi } from '../api/endpoints'
 import type { LiveSessionForStudent } from '../api/endpoints'
-import type { UnitAttendance } from '../types'
+import type { UnitAttendance, ElectivesState } from '../types'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -78,6 +78,42 @@ export default function StudentDashboard() {
   const [modalCode, setModalCode] = useState('')
   const [checkingIn, setCheckingIn] = useState(false)
   const [gettingLocation, setGettingLocation] = useState(false)
+
+  // Electives picker state
+  const [electives, setElectives] = useState<ElectivesState | null>(null)
+  const [picks, setPicks] = useState<Set<string>>(new Set())
+  const [confirmElectives, setConfirmElectives] = useState(false)
+  const [savingElectives, setSavingElectives] = useState(false)
+
+  useEffect(() => {
+    electivesApi
+      .get()
+      .then((state) => {
+        if (state) {
+          setElectives(state)
+          setPicks(new Set(state.offerings.filter((o) => o.selected).map((o) => o.courseUnitId)))
+        }
+      })
+      .catch(() => {}) // no electives on this path — silently skip the card
+  }, [])
+
+  async function runSaveElectives() {
+    setSavingElectives(true)
+    try {
+      const res = await electivesApi.save([...picks])
+      if (res.state) {
+        setElectives(res.state)
+        setPicks(new Set(res.state.offerings.filter((o) => o.selected).map((o) => o.courseUnitId)))
+      }
+      toast.success('Your electives have been saved')
+      dashboardApi.student().then(setData).catch(() => {})
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to save electives')
+    } finally {
+      setSavingElectives(false)
+      setConfirmElectives(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -208,6 +244,88 @@ export default function StudentDashboard() {
             : 'No enrollments found yet'}
         </p>
       </div>
+
+      {/* Electives — pick from what your faculty offers on your path */}
+      {electives && (
+        <Card
+          title={electives.satisfied ? `Electives · Year ${electives.year} Sem ${electives.semester}` : 'Choose your electives'}
+          data-tour="student-electives"
+        >
+          {!electives.satisfied && (
+            <div className="mb-3 rounded bg-warning-light px-4 py-2.5 text-body-sm text-warning">
+              Pick at least <strong>{electives.minPick}</strong> elective{electives.minPick > 1 ? 's' : ''} — you have chosen{' '}
+              <strong>{picks.size}</strong> of {electives.offerings.length} offered.
+            </div>
+          )}
+          <div className="grid gap-2 md:grid-cols-2">
+            {electives.offerings.map((o) => {
+              const checked = picks.has(o.courseUnitId)
+              return (
+                <button
+                  key={o.courseUnitId}
+                  disabled={o.locked}
+                  onClick={() => {
+                    const next = new Set(picks)
+                    if (checked) next.delete(o.courseUnitId)
+                    else next.add(o.courseUnitId)
+                    setPicks(next)
+                  }}
+                  aria-pressed={checked}
+                  className={`flex min-h-[52px] items-center justify-between gap-3 rounded border px-4 py-2.5 text-left transition-colors ${
+                    checked ? 'border-umu-red bg-[#FFF4F4]' : 'border-border bg-white hover:bg-surface-1'
+                  } ${o.locked ? 'cursor-not-allowed opacity-70' : ''}`}
+                >
+                  <span>
+                    <span className="block text-body font-medium text-text-primary">{o.code}</span>
+                    <span className="block text-body-sm text-text-secondary">{o.name}</span>
+                  </span>
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                    checked ? 'border-umu-red bg-umu-red text-white' : 'border-border'
+                  }`}>
+                    {checked && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5"/></svg>
+                    )}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-xs text-text-disabled">Units with existing attendance are locked in.</p>
+          <div className="mt-3 flex justify-end">
+            <Button loading={savingElectives} onClick={() => setConfirmElectives(true)}>
+              Save Electives
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Confirm electives popup */}
+      <Modal
+        open={confirmElectives}
+        onClose={() => setConfirmElectives(false)}
+        closeOnOverlay={false}
+        title="Confirm your electives?"
+        description={`You are about to save ${picks.size} elective${picks.size === 1 ? '' : 's'} for Year ${electives?.year} · Semester ${electives?.semester}. You can change them later unless a unit already has attendance.`}
+      >
+        <ul className="mb-1 max-h-40 space-y-1 overflow-y-auto">
+          {electives?.offerings
+            .filter((o) => picks.has(o.courseUnitId))
+            .map((o) => (
+              <li key={o.courseUnitId} className="flex justify-between rounded bg-surface-1 px-3 py-1.5 text-body-sm">
+                <span className="font-medium text-text-primary">{o.code}</span>
+                <span className="text-text-secondary">{o.name}</span>
+              </li>
+            ))}
+        </ul>
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="ghost" disabled={savingElectives} onClick={() => setConfirmElectives(false)}>
+            Cancel
+          </Button>
+          <Button loading={savingElectives} onClick={runSaveElectives}>
+            Yes, Save
+          </Button>
+        </div>
+      </Modal>
 
       {/* Live now */}
       <Card title="Live Now" data-tour="student-live">

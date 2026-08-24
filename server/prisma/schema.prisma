@@ -41,6 +41,7 @@ model Programme {
   code            String           @db.VarChar(20)
   isActive        Boolean          @default(true)
   curriculumUnits CurriculumUnit[]
+  electiveRequirements ElectiveRequirement[]
   students        User[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -92,10 +93,26 @@ model CurriculumUnit {
   programme    Programme  @relation(fields: [programmeId], references: [id])
   year         Int        @db.TinyInt
   semester     Int        @db.TinyInt
+  // Electives are offered to students of this path cell — they pick at least
+  // ElectiveRequirement.minPick of them; core units are enrolled automatically.
+  isElective   Boolean    @default(false)
   createdAt    DateTime   @default(now())
 
   @@unique([courseUnitId, programmeId, year, semester])
   @@map("curriculum_units")
+}
+
+// How many electives students of a path cell (programme/year/semester) must take.
+model ElectiveRequirement {
+  id          String    @id @default(uuid())
+  programmeId String
+  programme   Programme @relation(fields: [programmeId], references: [id])
+  year        Int       @db.TinyInt
+  semester    Int       @db.TinyInt
+  minPick     Int       @default(1) @db.TinyInt
+
+  @@unique([programmeId, year, semester])
+  @@map("elective_requirements")
 }
 
 // ─────────────────────────────────────────────

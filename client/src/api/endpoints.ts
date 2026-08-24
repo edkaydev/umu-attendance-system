@@ -6,6 +6,8 @@ import type {
   Programme,
   CourseUnit,
   CurriculumUnitEntry,
+  ElectivesState,
+  ElectiveRule,
   ManagedUser,
   Role,
   Session,
@@ -331,8 +333,27 @@ export const academicApi = {
     programmeId: string
     year: number
     semester: number
+    isElective?: boolean
   }) => http.post<{ curriculumUnit: CurriculumUnitEntry }>('/api/academic/curriculum', data),
+  patchCurriculum: (id: string, data: { isElective: boolean }) =>
+    http.patch<{ curriculumUnit: CurriculumUnitEntry }>(`/api/academic/curriculum/${id}`, data),
+  setElectiveRequirement: (data: { programmeId: string; year: number; semester: number; minPick: number }) =>
+    http.put<{ requirement: { minPick: number } | { minPick: 0 } }>('/api/academic/elective-requirement', data),
+  electiveRequirements: async (): Promise<ElectiveRule[]> => {
+    const res = await http.get<{ requirements: ElectiveRule[] }>('/api/academic/elective-requirements')
+    return res.requirements
+  },
   removeCurriculum: (id: string) => http.del<{ message: string }>(`/api/academic/curriculum/${id}`),
+}
+
+// ─── Electives (student picker) ───
+export const electivesApi = {
+  get: async (): Promise<ElectivesState | null> => {
+    const res = await http.get<ElectivesState | null>('/api/enrollments/electives')
+    return res as unknown as ElectivesState | null
+  },
+  save: (courseUnitIds: string[]) =>
+    http.put<{ message: string; state: ElectivesState }>('/api/enrollments/electives', { courseUnitIds }),
 }
 
 // ─── Lecturer assignments (Faculty Admin) ───
