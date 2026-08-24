@@ -22,7 +22,9 @@ import auditLogRoutes from './routes/audit-log.routes'
 import settingsRoutes from './routes/settings.routes'
 import enrollmentRoutes from './routes/enrollment.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
+import { authenticate } from './middleware/auth'
 import { ensureDemoData } from './services/bootstrap.service'
+import { getSseStream } from './controllers/events.controller'
 
 const app = express()
 
@@ -68,6 +70,9 @@ app.use('/api/reports', reportRoutes)
 app.use('/api/audit-logs', auditLogRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/enrollments', enrollmentRoutes)
+
+// Realtime change signals (SSE) — cookie-authenticated, no payloads
+app.get('/api/events', authenticate, getSseStream)
 
 // 404 + global error handler (must be last)
 app.use(notFoundHandler)

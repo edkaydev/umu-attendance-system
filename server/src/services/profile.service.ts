@@ -1,4 +1,5 @@
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { isValidCampusCode } from '../constants/campuses'
 import { isProfileEditingEnabled } from './settings.service'
@@ -95,6 +96,7 @@ export async function completeStudentProfile(userId: string, input: StudentPathI
     },
   }).catch(friendlyUniqueError)
   const unitsEnrolled = await recalculateEnrollments(userId, input)
+  publish('enrollments-changed')
   return { unitsEnrolled }
 }
 
@@ -150,13 +152,16 @@ export async function completeLecturerProfile(userId: string, facultyIds: string
     where: { id: userId },
     data: { profileComplete: true },
   })
+  publish('users-changed')
   return result
 }
 
 /** Lecturer changes their faculty selection (toggle-gated). */
 export async function updateLecturerProfile(userId: string, facultyIds: string[]) {
   await assertProfileEditingAllowed('lecturers')
-  return setLecturerFaculties(userId, facultyIds)
+  const result = await setLecturerFaculties(userId, facultyIds)
+  publish('users-changed')
+  return result
 }
 
 /** Profile edits are blocked while the System Admin has frozen the scope. */

@@ -1,4 +1,5 @@
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 
 export interface EnrollmentInput {
@@ -101,6 +102,7 @@ export async function propagateCurriculumToCohort(
     }
   })
 
+  publish('enrollments-changed')
   return enrolledStudents.length
 }
 
@@ -371,5 +373,6 @@ export async function saveElectiveSelections(studentId: string, courseUnitIds: s
     }
   })
 
+  publish('enrollments-changed')
   return getElectiveOfferings(studentId)
 }

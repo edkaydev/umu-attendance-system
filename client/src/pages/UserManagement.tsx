@@ -610,8 +610,8 @@ export default function UserManagement() {
                         >
                           Edit
                         </Button>
-                        {/* Assign Faculty — only for faculty_admin and lecturer */}
-                        {(u.role === 'faculty_admin' || u.role === 'lecturer') && (
+                        {/* Assign Faculty — faculty admins only; lecturers choose their own faculties at profile setup */}
+                        {u.role === 'faculty_admin' && (
                           <Button
                             variant="secondary"
                             className="px-3 py-1 text-body-sm"
@@ -664,7 +664,7 @@ export default function UserManagement() {
       >
         <div className="space-y-4">
           <p className="text-body text-text-secondary">
-            Select the faculty this {assignTarget?.role === 'faculty_admin' ? 'Faculty Admin' : 'Lecturer'} belongs to.
+            Select the faculty this Faculty Admin belongs to.
             They will only be able to manage data within this faculty.
           </p>
 

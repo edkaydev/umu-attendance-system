@@ -1,4 +1,5 @@
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { isProfileEditingEnabled } from './settings.service'
 
@@ -71,7 +72,7 @@ export async function createAssignment(
     )
   }
 
-  return prisma.lecturerAssignment.upsert({
+  const assignment = await prisma.lecturerAssignment.upsert({
     where: {
       lecturerId_courseUnitId_academicYear_semester: {
         lecturerId: input.lecturerId,
@@ -93,6 +94,8 @@ export async function createAssignment(
       courseUnit: { select: { id: true, code: true, name: true } },
     },
   })
+  publish('assignments-changed')
+  return assignment
 }
 
 /** Remove a lecturer from a course unit (FR-04.3). */
@@ -108,6 +111,7 @@ export async function removeAssignment(id: string, facultyId: string) {
   if (!existing) throw new ApiError('Assignment not found', 404)
 
   await prisma.lecturerAssignment.delete({ where: { id } })
+  publish('assignments-changed')
   return existing
 }
 

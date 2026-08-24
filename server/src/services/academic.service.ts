@@ -1,4 +1,5 @@
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { CAMPUSES, isValidCampusCode, campusName } from '../constants/campuses'
 import { propagateCurriculumToCohort } from './enrollment.service'
@@ -239,6 +240,7 @@ export async function createCurriculumMapping(data: CurriculumInput, actorFacult
     data.semester
   )
 
+  publish('curriculum-changed')
   return { ...mapping, studentsAffected: affected }
 }
 
@@ -277,6 +279,7 @@ export async function removeCurriculumMapping(id: string, actorFacultyId?: strin
     existing.semester
   )
 
+  publish('curriculum-changed')
   return { ...existing, studentsAffected }
 }
 
@@ -306,6 +309,7 @@ export async function updateCurriculumMapping(
     await propagateCurriculumToCohort(existing.programmeId, existing.year, existing.semester)
   }
 
+  publish('curriculum-changed')
   return updated
 }
 
@@ -350,6 +354,7 @@ export async function setElectiveRequirement(
     update: { minPick },
     create: { ...input, minPick },
   })
+  publish('curriculum-changed')
   return requirement
 }
 

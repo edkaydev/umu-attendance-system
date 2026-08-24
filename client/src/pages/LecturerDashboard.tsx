@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { dashboardApi } from '../api/endpoints'
+import { useRealtime } from '../hooks/useRealtime'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Card } from '../components/ui/Card'
@@ -50,6 +51,11 @@ export default function LecturerDashboard() {
       )
       .finally(() => setLoaded(true))
   }, [toast])
+
+  // Realtime: lecturers see roster/session changes the moment they happen.
+  useRealtime(['sessions-changed', 'attendance-changed', 'assignments-changed', 'enrollments-changed'], () => {
+    dashboardApi.lecturer().then(setData).catch(() => {})
+  })
 
   // Onboarding walkthrough — fires once per user, shortly after data lands
   const { startOnce } = useTour()

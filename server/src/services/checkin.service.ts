@@ -1,6 +1,7 @@
 import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { isWithinCampus, isNearLecturer } from '../config/geofence'
 
@@ -122,6 +123,8 @@ export async function checkIn(
       throw err
     }
   }
+
+  publish('attendance-changed')
 
   // FR-06.4: confirmation with course unit, date, status
   return {

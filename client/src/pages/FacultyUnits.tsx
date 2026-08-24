@@ -11,6 +11,7 @@ import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
 import type { CurriculumUnitEntry, Programme } from '../types'
+import { useRealtime } from '../hooks/useRealtime'
 
 type ManageUser =
   | FacultyUnitOverview['students'][number]
@@ -623,6 +624,12 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
   const [addElective, setAddElective] = useState(false)
   /** Year/semester chosen in each programme's add-row, keyed by programmeId */
   const [addYear, setAddYear] = useState<Record<string, number>>({})
+
+  // Realtime: enrollment/curriculum changes from any user refresh the matrix instantly.
+  useRealtime(['enrollments-changed', 'curriculum-changed', 'users-changed'], () => {
+    academicApi.curriculum().then(setCurriculum).catch(() => {})
+    onChanged()
+  })
   const [addSemester, setAddSemester] = useState<Record<string, number>>({})
 
   useEffect(() => {

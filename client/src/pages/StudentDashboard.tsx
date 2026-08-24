@@ -16,6 +16,7 @@ import { useTour } from '../components/OnboardingTour'
 import { TOURS } from '../components/tour/tourConfig'
 import { ApiClientError } from '../api/client'
 import { getCurrentPosition, GeoError } from '../utils/geo'
+import { useRealtime } from '../hooks/useRealtime'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -132,6 +133,20 @@ export default function StudentDashboard() {
       clearInterval(id)
     }
   }, [toast])
+
+  // Instant refresh when anything relevant changes anywhere in the system.
+  useRealtime(
+    ['sessions-changed', 'attendance-changed', 'enrollments-changed', 'users-changed'],
+    () => {
+      dashboardApi.student().then(setData).catch(() => {})
+      electivesApi.get().then((state) => {
+        if (state) {
+          setElectives(state)
+          setPicks(new Set(state.offerings.filter((o) => o.selected).map((o) => o.courseUnitId)))
+        }
+      }).catch(() => {})
+    }
+  )
 
   // Onboarding walkthrough — fires once per user, shortly after data lands
   const { startOnce } = useTour()

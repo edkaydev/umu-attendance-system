@@ -1,5 +1,6 @@
 import { AttendanceStatus, SessionMode, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
+import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { generateUniqueSessionCode } from '../utils/codeGenerator'
 import { writeAuditLog } from '../utils/audit'
@@ -150,6 +151,7 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
   // never the code). Fire-and-forget — an SMTP hiccup must not fail the open.
   void notifySessionOpened(session.id)
 
+  publish('sessions-changed')
   return session
 }
 
@@ -426,6 +428,7 @@ export async function closeSession(sessionId: string, lecturerId: string) {
     absenteesAutoMarked: absentStudentIds.length,
   })
 
+  publish('sessions-changed')
   return { session: closed, absenteesAutoMarked: absentStudentIds.length }
 }
 
