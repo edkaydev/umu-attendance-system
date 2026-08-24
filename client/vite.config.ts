@@ -11,6 +11,12 @@ export default defineConfig({
       includeAssets: ['umu-logo.png', 'icons/*.png', 'icons/favicon.ico'],
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
+        // Drop precached assets from previous deploys and activate the new
+        // service worker immediately — prevents mixed-version chunk crashes
+        // like "Cannot read properties of undefined" after a redeploy.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
       },
       manifest: false,
     }),

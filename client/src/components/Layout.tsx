@@ -229,7 +229,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               ))}
             </nav>
             <div className="border-t border-border px-4 py-3">
-              <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+              <p className="truncate text-body-sm font-medium text-text-primary">{user?.fullName ?? ""}</p>
               <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
               <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
             </div>
@@ -243,7 +243,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </span>
               <div className="flex items-center gap-2">
                 <div className="text-right">
-                  <p className="text-body font-medium text-text-primary leading-tight">{user.fullName}</p>
+                  <p className="text-body font-medium text-text-primary leading-tight">{user?.fullName ?? ""}</p>
                   <p className="text-body-sm text-text-secondary">{user.email}</p>
                 </div>
                 <span className="rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary">
@@ -317,7 +317,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="border-t border-border px-4 py-3">
-          <p className="truncate text-body-sm font-medium text-text-primary">{user.fullName}</p>
+          <p className="truncate text-body-sm font-medium text-text-primary">{user?.fullName ?? ""}</p>
           <p className="truncate text-body-sm text-text-secondary">{user.email}</p>
           <p className="mt-0.5 text-body-sm text-text-disabled">{ROLE_LABEL[user.role]}</p>
         </div>
@@ -340,7 +340,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           {/* Right: desktop shows name + role + logout; mobile shows just logout icon */}
           <div className="flex items-center gap-2">
             <div className="hidden text-right md:block">
-              <p className="text-body font-medium text-text-primary leading-tight">{user.fullName}</p>
+              <p className="text-body font-medium text-text-primary leading-tight">{user?.fullName ?? ""}</p>
               <p className="text-body-sm text-text-secondary">{user.email}</p>
             </div>
             <span className="hidden rounded-sm bg-surface-2 px-2.5 py-1 text-label font-medium text-text-secondary md:inline">
