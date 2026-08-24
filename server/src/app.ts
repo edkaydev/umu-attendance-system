@@ -22,6 +22,7 @@ import auditLogRoutes from './routes/audit-log.routes'
 import settingsRoutes from './routes/settings.routes'
 import enrollmentRoutes from './routes/enrollment.routes'
 import { notFoundHandler, errorHandler } from './middleware/error'
+import { ensureDemoData } from './services/bootstrap.service'
 
 const app = express()
 
@@ -75,5 +76,8 @@ app.use(errorHandler)
 const PORT = Number(process.env.PORT) || 4000
 app.listen(PORT, () => {
   console.log(`UMU Attendance API listening on http://localhost:${PORT}`)
+  // After a full database wipe the demo dataset (all accounts, password
+  // Umu@2026) is rebuilt automatically so nobody is ever locked out.
+  ensureDemoData().catch((e) => console.error('[bootstrap] seed failed:', e))
   startSessionScheduler()
 })

@@ -70,7 +70,7 @@ export function rateLimiter(
     res.setHeader('Retry-After', String(retryAfterSec))
     res.status(429).json({
       success: false,
-      message: 'Too many violations — temporarily blocked.',
+      message: `Too many attempts — access is temporarily blocked. Try again in about ${Math.max(1, Math.ceil(retryAfterSec / 60))} minute(s).`,
       code: 'RATE_LIMIT_BANNED',
       retryAfter: retryAfterSec,
     })
@@ -112,7 +112,7 @@ export function rateLimiter(
         res.setHeader('Retry-After', String(Math.max(retryAfterSec, 1)))
         res.status(429).json({
           success: false,
-          message: 'Too many requests — please wait before trying again.',
+          message: `Too many requests — please wait about ${Math.max(1, Math.ceil(retryAfterSec / 60))} minute(s) before trying again.`,
           code: 'RATE_LIMITED',
           retryAfter: Math.max(retryAfterSec, 1),
         })
@@ -164,7 +164,7 @@ export function rateLimiter(
       res.setHeader('Retry-After', String(retryAfterSec))
       res.status(429).json({
         success: false,
-        message: 'Too many requests — please wait before trying again.',
+        message: `Too many requests — please wait about ${Math.max(1, Math.ceil(retryAfterSec / 60))} minute(s) before trying again.`,
         code: 'RATE_LIMITED',
         retryAfter: retryAfterSec,
       })

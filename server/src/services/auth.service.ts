@@ -92,7 +92,10 @@ export async function loginWithPassword(email: string, password: string): Promis
   const user = await userRepository.findByEmail(email.trim().toLowerCase())
 
   if (!user) {
-    throw new ApiError('This email is not registered. Please contact system support.', 404)
+    throw new ApiError(
+      'This email is not registered. Check the address — student accounts end in @stud.umu.ac.ug, staff accounts in @umu.ac.ug.',
+      404
+    )
   }
   if (!user.password || !(await verifyPassword(password, user.password))) {
     throw new ApiError('Invalid email or password', 401)
