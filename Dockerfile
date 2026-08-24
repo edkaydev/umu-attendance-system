@@ -1,7 +1,12 @@
 FROM node:20-slim
 
+# Puppeteer: use Debian's chromium binary instead of the bundled download
+ENV PUPPETEER_SKIP_DOWNLOAD=1 \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
 # System deps required by Puppeteer's bundled Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
     ca-certificates \
     fonts-liberation \
     libasound2 \
