@@ -114,8 +114,10 @@ export async function getProgrammeReport(actor: ReportActor, programmeId: string
   if (!programme) throw new ApiError('Programme not found', 404)
   await assertFacultyAdminAccess(actor, programme.facultyId)
 
+  // Curriculum is static per programme (study year, not academic period) —
+  // the reporting period filter does not apply here.
   const curriculum = await prisma.curriculumUnit.findMany({
-    where: { programmeId, ...period },
+    where: { programmeId },
     select: {
       courseUnit: { select: { id: true, code: true, name: true } },
       year: true,
