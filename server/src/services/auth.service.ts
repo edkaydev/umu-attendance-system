@@ -144,6 +144,8 @@ export async function changePassword(
   await userRepository.update(userId, {
     password: await hashPassword(newPassword),
     mustChangePassword: false,
+    // The user now owns this password — bootstrap syncs no longer apply.
+    demoManaged: false,
   })
   await revokeAllRefreshTokens(userId)
 }

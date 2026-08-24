@@ -4,6 +4,7 @@ import { spawnSync } from 'child_process'
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { hashPassword } from '../utils/password'
+import { getSetting, setSetting } from './settings.service'
 
 /**
  * Idempotent demo-data bootstrap.
@@ -19,6 +20,7 @@ import { hashPassword } from '../utils/password'
 
 const DEMO_PASSWORD = 'Umu@2026'
 const SYSTEM_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'edward@umu.ac.ug'
+const ADOPT_MARKER_KEY = 'bootstrap.demoAdopted'
 
 type Row = Record<string, string>
 
@@ -155,6 +157,7 @@ export async function seedDemoData(): Promise<Record<string, number>> {
         password: passwordHash,
         fullName: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         role,
+        demoManaged: true,
       }))
     if (creates.length > 0) await prisma.user.createMany({ data: creates })
     return creates.length
@@ -190,10 +193,60 @@ export async function seedDemoData(): Promise<Record<string, number>> {
       fullName: 'System Administrator',
       role: Role.system_admin,
       profileComplete: true,
-          },
+      demoManaged: true,
+    },
   })
 
   return counts
+}
+
+/**
+ * Keeps every demo-managed account usable with the known demo password.
+ * Runs on every boot:
+ *  1. Accounts listed in the demo CSVs but created before the flag existed
+ *     are adopted (flagged) so future syncs cover them.
+ *  2. Any flagged account whose stored hash differs from the demo password
+ *     is reset (single bulk UPDATE; users who changed their own password
+ *     cleared the flag, so their choice is never overwritten).
+ */
+export async function reconcileDemoPasswords(): Promise<void> {
+  const passwordHash = await hashPassword(DEMO_PASSWORD)
+
+  const csvEmails = [...new Set(
+    ['students.csv', 'staff.csv', 'faculty_admins.csv']
+      .flatMap((f) => readCsv(f).map((r) => r.email.toLowerCase()))
+      .filter(Boolean)
+      .concat(SYSTEM_ADMIN_EMAIL.toLowerCase())
+  )]
+
+  // Adopt accounts created before this flag existed.
+  // First boot after deployment: adopt ALL demo-listed accounts so every
+  // seeded/imported address becomes usable again (this is a one-time
+  // migration — afterwards users who pick their own password keep it,
+  // because changing a password clears the flag).
+  // Later boots only adopt rows that have no local password at all.
+  const adoptedAll = await getSetting(ADOPT_MARKER_KEY, '')
+  const adopted = await prisma.user.updateMany({
+    where: {
+      email: { in: csvEmails },
+      demoManaged: false,
+      ...(adoptedAll ? { password: null } : {}),
+    },
+    data: { demoManaged: true },
+  })
+  if (!adoptedAll && adopted.count > 0) {
+    console.log(`[bootstrap] adopted ${adopted.count} existing demo account(s)`)
+  }
+  if (!adoptedAll) await setSetting(ADOPT_MARKER_KEY, new Date().toISOString())
+
+  // Reset any managed account whose password drifted from the demo value
+  const reset = await prisma.user.updateMany({
+    where: { demoManaged: true, NOT: { password: passwordHash } },
+    data: { password: passwordHash, mustChangePassword: false },
+  })
+  if (adopted.count > 0 || reset.count > 0) {
+    console.log(`[bootstrap] reconciled demo passwords — adopted ${adopted.count}, reset ${reset.count}`)
+  }
 }
 
 /** Runs the seeder only when the database has no users at all.
@@ -216,13 +269,16 @@ export async function ensureDemoData(): Promise<void> {
     if (migrated.status !== 0) throw e
     userCount = await prisma.user.count()
   }
-  if (userCount > 0) return
+  if (userCount === 0) {
+    console.log('[bootstrap] empty database detected — seeding demo data …')
+    const counts = await seedDemoData()
+    console.log(
+      `[bootstrap] seeded ${counts.faculties} faculties, ${counts.programmes} programmes, ` +
+        `${counts.units} units, ${counts.curriculum} curriculum rows, ` +
+        `${counts.students} students, ${counts.lecturers} lecturers, ${counts.admins} faculty admins`
+    )
+  }
 
-  console.log('[bootstrap] empty database detected — seeding demo data …')
-  const counts = await seedDemoData()
-  console.log(
-    `[bootstrap] seeded ${counts.faculties} faculties, ${counts.programmes} programmes, ` +
-      `${counts.units} units, ${counts.curriculum} curriculum rows, ` +
-      `${counts.students} students, ${counts.lecturers} lecturers, ${counts.admins} faculty admins`
-  )
+  // Every boot: make sure demo accounts are usable with the demo password.
+  await reconcileDemoPasswords()
 }

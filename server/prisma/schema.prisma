@@ -144,6 +144,9 @@ model User {
   hasCompletedTour Boolean @default(false)
   // Security: accounts created with a temporary password must change it on first login
   mustChangePassword Boolean @default(false)
+  // Set for demo/seeded accounts: the bootstrap resets these to the known
+  // demo password on startup. Cleared when the user changes their own password.
+  demoManaged        Boolean @default(false) @map("demo_managed")
   // Relations
   enrollments          Enrollment[]
   lecturerAssignments  LecturerAssignment[] @relation("LecturerAssignments")
