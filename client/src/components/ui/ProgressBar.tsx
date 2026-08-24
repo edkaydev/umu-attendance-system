@@ -3,11 +3,26 @@ interface ProgressBarProps {
   percentage?: number // For backward compatibility
   label?: string
   showPercentage?: boolean
+  /** Override the automatic colour (green ≥80, amber ≥75, red <75) */
+  tone?: 'success' | 'warning' | 'danger'
 }
 
-export function ProgressBar({ progress, percentage, label, showPercentage = true }: ProgressBarProps) {
+const TONES = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+} as const
+
+function toneFor(value: number): keyof typeof TONES {
+  if (value >= 80) return 'success'
+  if (value >= 75) return 'warning'
+  return 'danger'
+}
+
+export function ProgressBar({ progress, percentage, label, showPercentage = true, tone }: ProgressBarProps) {
   const actualProgress = percentage !== undefined ? percentage : (progress ?? 0)
-  
+  const barTone = tone ?? toneFor(actualProgress)
+
   return (
     <div className="w-full">
       {label && (
@@ -18,7 +33,7 @@ export function ProgressBar({ progress, percentage, label, showPercentage = true
       )}
       <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
         <div
-          className="h-full rounded-full bg-umu-red transition-all duration-300 ease-out"
+          className={`h-full rounded-full transition-all duration-300 ease-out ${TONES[barTone]}`}
           style={{ width: `${Math.min(actualProgress, 100)}%` }}
           role="progressbar"
           aria-valuenow={actualProgress}

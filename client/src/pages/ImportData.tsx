@@ -345,7 +345,7 @@ export default function ImportData() {
             </Button>
           </div>
           {loading === 'structure' && (
-            <ProgressBar progress={uploadProgress} label="Uploading..." />
+            <ProgressBar progress={uploadProgress} label="Uploading..." tone="success" />
           )}
           {result && <ResultPanel result={result} label="Structure import" />}
           <p className="mt-4 text-xs text-text-secondary">
@@ -386,7 +386,7 @@ export default function ImportData() {
             </Button>
           </div>
           {loading === 'staff' && (
-            <ProgressBar progress={uploadProgress} label="Uploading..." />
+            <ProgressBar progress={uploadProgress} label="Uploading..." tone="success" />
           )}
           {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
           <p className="mt-4 text-xs text-text-secondary">
@@ -430,7 +430,7 @@ export default function ImportData() {
             </Button>
           </div>
           {loading === 'students' && (
-            <ProgressBar progress={uploadProgress} label="Uploading..." />
+            <ProgressBar progress={uploadProgress} label="Uploading..." tone="success" />
           )}
           {studentResult && <ResultPanel result={studentResult} label="Students import" />}
           <p className="mt-4 text-xs text-text-secondary">

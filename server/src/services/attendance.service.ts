@@ -141,6 +141,10 @@ export async function getMyAttendance(studentId: string) {
     units: units.map((u) => {
       const attended = presentExcusedByUnit.get(u.courseUnitId) ?? 0
       const total = totalByUnit.get(u.courseUnitId) ?? 0
+      // No closed sessions yet → no meaningful percentage (avoids a fake "100% Good")
+      if (total === 0) {
+        return { courseUnit: u.courseUnit, sessionsHeld: 0, attended: 0, percentage: null, status: 'none' as const }
+      }
       const pct = attendancePercentage(attended, total)
       return {
         courseUnit: u.courseUnit,
