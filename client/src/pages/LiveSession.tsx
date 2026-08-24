@@ -227,12 +227,22 @@ export default function LiveSession() {
         <div>
           <h1 className="text-h2 font-bold text-text-primary">{data.session.courseUnit.name}</h1>
           <p className="text-body-sm text-text-secondary">
-            {data.session.courseUnit.code} · {data.session.mode === 'online' ? 'Online' : 'Physical'}
+            {data.session.courseUnit.code} ·             {data.session.mode === 'online' ? 'Online' : 'Physical'}
             {data.session.mode === 'physical' && data.session.venue ? ` · ${data.session.venue}` : ''}
             {data.session.startsAt
               ? ` · ${new Date(data.session.startsAt).toLocaleString()}`
               : ` · opened ${new Date(data.session.openedAt).toLocaleTimeString()}`}
           </p>
+          {data.session.mode === 'online' && data.session.meetingLink && (
+            <a
+              href={data.session.meetingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1.5 text-body-sm font-medium text-umu-red hover:underline focus:outline-none focus:ring-4 focus:ring-umu-red/30"
+            >
+              🎥 Open Meeting Link
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {closed ? (

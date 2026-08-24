@@ -177,6 +177,7 @@ export async function listLiveForStudent(studentId: string) {
     courseUnit: s.courseUnit,
     lecturer: s.lecturer,
     venue: s.venue,
+    meetingLink: s.meetingLink,
     mode: s.mode,
     startsAt: s.startsAt,
     openedAt: s.openedAt,

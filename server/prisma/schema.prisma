@@ -201,6 +201,8 @@ model Session {
   codeExpiresAt    DateTime
   status           SessionStatus     @default(open)
   venue            String?           @db.VarChar(100)
+  /// Zoom / Google Meet / Teams join link (online sessions only, null otherwise)
+  meetingLink      String?           @db.VarChar(500)
   mode             SessionMode       @default(physical)
   startsAt         DateTime?
   classDuration    Int               @default(60) /// class length in minutes (max 180); sessions always auto-close

@@ -82,6 +82,7 @@ export interface Session {
   codeExpiresAt: string
   status: SessionStatus
   venue: string | null
+  meetingLink: string | null
   mode: SessionMode
   startsAt: string | null
   openedAt: string

@@ -248,6 +248,16 @@ export default function StudentDashboard() {
                       Check In
                     </Button>
                   )}
+                  {s.mode === 'online' && s.meetingLink && (
+                    <a
+                      href={s.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[44px] items-center gap-1.5 rounded bg-umu-red px-3 py-1 text-body-sm font-semibold text-white transition-colors hover:bg-umu-red-dark focus:outline-none focus:ring-4 focus:ring-umu-red/30"
+                    >
+                      🎥 Join Class
+                    </a>
+                  )}
                 </div>
               </li>
             ))}
@@ -397,6 +407,19 @@ export default function StudentDashboard() {
                 <p className="text-xs text-warning">
                   Your location will be checked. Make sure you are on campus and have allowed location access in your browser.
                 </p>
+              </div>
+            )}
+            {selected.mode === 'online' && selected.meetingLink && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-info-border bg-info-light px-3 py-2">
+                <p className="text-xs text-info">This class is happening online — join the meeting, then check in below.</p>
+                <a
+                  href={selected.meetingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[36px] items-center rounded bg-umu-red px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-umu-red-dark focus:outline-none focus:ring-4 focus:ring-umu-red/30"
+                >
+                  🎥 Join Class
+                </a>
               </div>
             )}
             <div>

@@ -11,6 +11,8 @@ const DEFAULT_CODE_TTL = 15 // minutes
 export interface OpenSessionInput {
   courseUnitId: string
   venue?: string
+  /** Zoom / Google Meet / Teams join URL — online sessions only */
+  meetingLink?: string
   mode?: SessionMode
   startsAt?: string
   academicYear: string
@@ -127,6 +129,7 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
       codeExpiresAt: new Date(Date.now() + codeTtlMinutes * 60_000),
       status: SessionStatus.open,
       venue: input.venue ?? null,
+      meetingLink: mode === SessionMode.online ? (input.meetingLink ?? null) : null,
       mode,
       startsAt,
       classDuration,
@@ -352,6 +355,7 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
       codeExpiresAt: session.codeExpiresAt,
       status: session.status,
       venue: session.venue,
+      meetingLink: session.meetingLink,
       mode: session.mode,
       startsAt: session.startsAt,
       openedAt: session.openedAt,

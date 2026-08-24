@@ -35,6 +35,7 @@ export default function OpenSession() {
   const [selectedId, setSelectedId]   = useState('')
   const [mode, setMode]               = useState<SessionMode>('physical')
   const [venue, setVenue]             = useState('')
+  const [meetingLink, setMeetingLink] = useState('')
   const [startsAt, setStartsAt]       = useState('')
   const [classDuration, setClassDuration] = useState('60')
   const [codeTtl, setCodeTtl]         = useState('15')
@@ -56,6 +57,9 @@ export default function OpenSession() {
   const classDurationMinutes = Number(classDuration)
   const codeValidityMinutes = Number(codeTtl)
   const codeOutlivesClass = codeValidityMinutes > classDurationMinutes
+  const trimmedLink = meetingLink.trim()
+  const linkInvalid =
+    mode === 'online' && trimmedLink !== '' && !/^https?:\/\/\S+\.\S+/i.test(trimmedLink)
 
   async function handleSubmit() {
     if (!assignment) {
@@ -64,6 +68,10 @@ export default function OpenSession() {
     }
     if (codeOutlivesClass) {
       toast.error('Code validity cannot be longer than the class duration.')
+      return
+    }
+    if (linkInvalid) {
+      toast.error('Enter a valid meeting link (it should start with http:// or https://).')
       return
     }
 
@@ -97,6 +105,7 @@ export default function OpenSession() {
         courseUnitId: assignment.courseUnit.id,
         mode,
         venue: mode === 'physical' ? (venue.trim() || undefined) : undefined,
+        meetingLink: mode === 'online' ? (trimmedLink || undefined) : undefined,
         startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         academicYear: assignment.academicYear,
         semester: assignment.semester,
@@ -224,6 +233,22 @@ export default function OpenSession() {
                 value={venue}
                 onChange={(e) => setVenue(e.target.value)}
               />
+            )}
+
+            {mode === 'online' && (
+              <>
+                <Input
+                  label="Meeting Link (optional)"
+                  type="url"
+                  placeholder="https://zoom.us/j/… or https://meet.google.com/…"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  error={linkInvalid ? 'Enter a valid link starting with http:// or https://' : undefined}
+                />
+                <p className="-mt-2 mb-4 text-xs text-text-secondary">
+                  Paste your Zoom or Google Meet link — students will see a <span className="font-medium text-text-primary">Join Class</span> button on their dashboard.
+                </p>
+              </>
             )}
 
             <Input

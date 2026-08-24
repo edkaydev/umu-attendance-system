@@ -16,6 +16,8 @@ import { evaluateAttendanceAlerts } from '../services/alert.service'
 const openSessionSchema = z.object({
   courseUnitId: z.string().uuid(),
   venue: z.string().max(120).optional(),
+  /** Zoom / Google Meet / Teams join URL — online sessions only */
+  meetingLink: z.string().url('Enter a valid link, e.g. https://zoom.us/j/…').max(500).optional(),
   mode: z.enum(['physical', 'online']).optional(),
   startsAt: z.string().datetime().optional(),
   academicYear: z.string().regex(/^\d{4}\/\d{4}$/, 'Academic year must be like 2025/2026'),

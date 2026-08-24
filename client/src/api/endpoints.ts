@@ -105,6 +105,8 @@ export const attendanceApi = {
 export interface OpenSessionInput {
   courseUnitId: string
   venue?: string
+  /** Zoom / Google Meet / Teams join URL — online sessions only */
+  meetingLink?: string
   mode?: SessionMode
   startsAt?: string
   academicYear: string
@@ -165,6 +167,7 @@ export interface LiveSessionForStudent {
   courseUnit: CourseUnit
   lecturer: { id: string; fullName: string }
   venue: string | null
+  meetingLink: string | null
   mode: SessionMode
   startsAt: string | null
   openedAt: string
