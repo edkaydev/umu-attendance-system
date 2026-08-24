@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { GuestOnly } from '../components/RouteGuards'
 import { authApi } from '../api/endpoints'
 import { ApiClientError } from '../api/client'
-import { usePeriod } from '../hooks/usePeriod'
 import type { Role } from '../types'
 
 const DEV_ROLES: { role: Role; label: string }[] = [
@@ -13,7 +12,6 @@ const DEV_ROLES: { role: Role; label: string }[] = [
 ]
 
 export default function Login() {
-  const { period } = usePeriod()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -167,8 +165,6 @@ export default function Login() {
             )}
           </div>
         )}
-
-        <p className="mt-10 text-body-sm text-text-disabled">{period?.academicYear ?? '—'}</p>
       </div>
     </GuestOnly>
   )
