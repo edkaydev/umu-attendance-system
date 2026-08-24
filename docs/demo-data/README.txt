@@ -8,11 +8,12 @@ IMPORT ORDER (REQUIRED)
 Upload these files in this exact order through the System Admin dashboard:
 
 1. faculties.csv         → Academic Structure
-2. programmes.csv        → Academic Structure  
+2. programmes.csv        → Academic Structure
 3. course_units.csv      → Academic Structure
 4. curriculum.csv        → Academic Structure
-5. staff.csv             → CSV Imports → Lecturer Accounts (emails only)
-6. students.csv          → CSV Imports → Student Accounts
+5. staff.csv             → CSV Imports → Lecturer Accounts (email only)
+6. faculty_admins.csv    → CSV Imports → Faculty Admin Accounts (email + facultyCode)
+7. students.csv          → CSV Imports → Student Accounts (email only)
 
 CONTENTS SUMMARY
 ----------------
@@ -20,11 +21,19 @@ CONTENTS SUMMARY
 • 25 Programmes across all faculties
 • 173 Course Units with realistic codes and names
 • 611 standing curriculum mappings covering Years 1-4 and Semesters 1-2
-• 33 Staff members:
-  - 6 Faculty Admins (one per faculty)
-  - 27 Lecturers (4-5 per faculty)
-  - All linked to their faculty via facultyCode
-• 4,004 sample student email accounts in students.csv
+• 27 Lecturers (4-5 per faculty) — email only; faculty chosen at first login
+• 6 Faculty Admins (one per faculty) — email + facultyCode; faculty assigned at import
+• 4,004 sample student email accounts
+
+FILE FORMATS AT A GLANCE
+-------------------------
+  faculties.csv      → name, code, campusCode
+  programmes.csv     → name, code, facultyCode
+  course_units.csv   → name, code, facultyCode
+  curriculum.csv     → courseUnitCode, programmeCode, year, semester
+  staff.csv          → email
+  faculty_admins.csv → email, facultyCode
+  students.csv       → email
 
 DEFAULT CREDENTIALS
 -------------------
@@ -45,16 +54,14 @@ NEXT STEPS
 
 NOTES
 -----
-- Staff are linked to faculties but lecturers have NO course unit assignments 
-  (this is done by Faculty Admins after import)
+- Lecturers (staff.csv) are imported without a faculty assignment. Each lecturer
+  chooses their primary faculty at first login, just like students do.
+- Faculty Admins (faculty_admins.csv) are assigned their faculty at import time
+  and cannot change it themselves.
 - Students are imported by email only. At first sign-in, each student completes
   their profile; the system then creates the appropriate curriculum enrolments.
 - All emails follow UMU domain rules:
-  - Staff: @umu.ac.ug
+  - Staff / Faculty Admins: @umu.ac.ug
   - Students: @stud.umu.ac.ug
-- CSV formats:
-  - Staff (lecturers): email — one per row. Faculty admins are imported separately (email,facultyCode).
-  - Students: email
-  - Curriculum: courseUnitCode,programmeCode,year,semester
 
 For questions, refer to docs/08-deployment-guide.md in the main repository.
