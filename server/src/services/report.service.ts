@@ -188,7 +188,13 @@ export async function getProgrammeReport(actor: ReportActor, programmeId: string
 export async function getCourseUnitReport(actor: ReportActor, courseUnitId: string, period: ReportPeriod) {
   const unit = await prisma.courseUnit.findUnique({
     where: { id: courseUnitId },
-    select: { id: true, code: true, name: true, facultyId: true },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      facultyId: true,
+      sharedFaculties: { select: { facultyId: true } },
+    },
   })
   if (!unit) throw new ApiError('Course unit not found', 404)
 
@@ -205,7 +211,9 @@ export async function getCourseUnitReport(actor: ReportActor, courseUnitId: stri
     })
     if (!assignment) throw new ApiError('You are not assigned to this course unit', 403)
   } else if (actor.role === 'faculty_admin') {
-    if (unit.facultyId !== actor.facultyId) {
+    // Owner faculty OR a faculty the unit is shared with
+    const sharedWithActor = unit.sharedFaculties.some((sf) => sf.facultyId === actor.facultyId)
+    if (unit.facultyId !== actor.facultyId && !sharedWithActor) {
       throw new ApiError('Report is outside your faculty', 403)
     }
   } else if (actor.role === 'system_admin') {

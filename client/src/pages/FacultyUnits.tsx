@@ -218,9 +218,11 @@ export default function FacultyUnits() {
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
                     Units
                   </th>
-                  <th className="px-4 py-3 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">
-                    Actions
-                  </th>
+                  {tab !== 'students' && (
+                    <th className="px-4 py-3 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -236,17 +238,19 @@ export default function FacultyUnits() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-body text-text-secondary">{count}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end">
-                          <Button
-                            variant="secondary"
-                            className="px-3 py-1 text-body-sm"
-                            onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
-                          >
-                            Manage Units
-                          </Button>
-                        </div>
-                      </td>
+                      {!isStudent(u) && (
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
+                            <Button
+                              variant="secondary"
+                              className="px-3 py-1 text-body-sm"
+                              onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
+                            >
+                              Manage Units
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -312,6 +316,45 @@ export function FacultyUserUnits() {
         <Link to="/faculty-admin/units" className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
           Back to Units
         </Link>
+      </div>
+    )
+  }
+
+  // Students' units follow the curriculum path — no individual editing
+  if (isStudent(user)) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link to="/faculty-admin/units" className="text-body-sm font-medium text-umu-red hover:underline">
+            ← Back to Units
+          </Link>
+          <h1 className="mt-2 text-h1 font-bold text-text-primary">{user.fullName}</h1>
+          <p className="mt-1 text-body text-text-secondary">
+            {user.email}
+            {user.regNumber ? ` · ${user.regNumber}` : ''}
+          </p>
+        </div>
+        <Card title={`Current units (${user.enrollments.length})`}>
+          <div className="mb-3 rounded bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
+            A student's units come from their study path ({user.programme?.name ?? 'programme'}
+            {user.year ? `, Year ${user.year}` : ''}) — manage them on the{' '}
+            <strong className="text-text-primary">Pathways</strong> tab, not individually.
+          </div>
+          {user.enrollments.length === 0 ? (
+            <p className="text-body-sm text-text-disabled">No units yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {user.enrollments.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <span className="text-body font-medium text-text-primary">{c.courseUnit.name}</span>
+                  <span className="text-body-sm text-text-secondary">
+                    {c.courseUnit.code} · Sem {c.semester}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
     )
   }

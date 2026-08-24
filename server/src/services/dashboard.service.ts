@@ -226,9 +226,18 @@ export async function getFacultyAdminDashboard(adminId: string) {
     prisma.courseUnit.count({ where: { facultyId } }),
     prisma.user.count({ where: { facultyId, role: 'student', isActive: true } }),
     prisma.user.count({ where: { facultyId, role: 'lecturer', isActive: true } }),
-    prisma.session.count({ where: { courseUnit: { facultyId }, openedAt: { gte: todayStart } } }),
+    // Include shared units — joint classes with other faculties count too
+    prisma.session.count({
+      where: {
+        courseUnit: { OR: [{ facultyId }, { sharedFaculties: { some: { facultyId } } }] },
+        openedAt: { gte: todayStart },
+      },
+    }),
     prisma.attendanceAlert.findMany({
-      where: { courseUnit: { facultyId }, resolved: false },
+      where: {
+        courseUnit: { OR: [{ facultyId }, { sharedFaculties: { some: { facultyId } } }] },
+        resolved: false,
+      },
       include: {
         student: { select: { id: true, fullName: true, regNumber: true } },
         courseUnit: { select: { id: true, code: true, name: true } },

@@ -369,6 +369,8 @@ export interface FacultyUnitOverview {
     email: string
     regNumber: string | null
     programme: { id: string; name: string; code: string } | null
+    year: number | null
+    semester: number | null
     enrollments: {
       id: string
       courseUnitId: string

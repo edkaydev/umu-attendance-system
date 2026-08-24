@@ -1,6 +1,5 @@
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
-import { isProfileEditingEnabled } from './settings.service'
 
 export interface EnrollmentInput {
   studentId: string
@@ -113,6 +112,8 @@ export async function getFacultyUnitOverview(facultyId: string) {
         email: true,
         regNumber: true,
         programme: { select: { id: true, name: true, code: true } },
+        year: true,
+        semester: true,
         enrollments: {
           select: {
             id: true,
@@ -147,93 +148,21 @@ export async function getFacultyUnitOverview(facultyId: string) {
   return { courseUnits: allUnits, students, lecturers }
 }
 
-/** Enrol a student in a course unit — both must be in (or shared with) the admin's faculty. */
+/**
+ * Enrolment is derived from the curriculum path (programme → year → semester),
+ * so individual student enrolment edits are disabled. Faculty Admins manage
+ * the path itself via curriculum mappings, which propagate to every student
+ * in the cohort (see propagateCurriculumToCohort).
+ */
+const ENROLLMENT_LOCKED = 'Student units follow the study path — manage them from the Pathways tab instead of editing students individually'
+
 export async function createEnrollment(
-  input: EnrollmentInput,
-  facultyId: string
+  _input: EnrollmentInput,
+  _facultyId: string
 ): Promise<void> {
-  if (!(await isProfileEditingEnabled('admins'))) {
-    throw new ApiError('Unit editing is currently disabled by the System Admin', 403)
-  }
-
-  const student = await prisma.user.findUnique({ where: { id: input.studentId } })
-  if (!student || student.role !== 'student') {
-    throw new ApiError('Student not found', 404)
-  }
-  if (student.facultyId !== facultyId) {
-    throw new ApiError('Student is outside your faculty', 403)
-  }
-
-  const courseUnit = await prisma.courseUnit.findUnique({
-    where: { id: input.courseUnitId },
-    include: { sharedFaculties: { select: { facultyId: true } } },
-  })
-  if (!courseUnit) throw new ApiError('Course unit not found', 404)
-
-  const allowedFaculties = new Set([
-    courseUnit.facultyId,
-    ...courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
-    throw new ApiError('Course unit is not available to your faculty', 403)
-  }
-
-  if (!/^\d{4}\/\d{4}$/.test(input.academicYear)) {
-    throw new ApiError('Academic year must be like 2025/2026', 400)
-  }
-  if (!Number.isInteger(input.semester) || input.semester < 1 || input.semester > 2) {
-    throw new ApiError('Semester must be 1 or 2', 400)
-  }
-
-  await prisma.enrollment.upsert({
-    where: {
-      studentId_courseUnitId_academicYear_semester: {
-        studentId: input.studentId,
-        courseUnitId: input.courseUnitId,
-        academicYear: input.academicYear,
-        semester: input.semester,
-      },
-    },
-    create: {
-      studentId: input.studentId,
-      courseUnitId: input.courseUnitId,
-      academicYear: input.academicYear,
-      semester: input.semester,
-    },
-    update: {},
-  })
+  throw new ApiError(ENROLLMENT_LOCKED, 403)
 }
 
-/** Remove a student's enrolment — scoped to the admin's faculty (owned or shared). */
-export async function removeEnrollment(id: string, facultyId: string): Promise<void> {
-  if (!(await isProfileEditingEnabled('admins'))) {
-    throw new ApiError('Unit editing is currently disabled by the System Admin', 403)
-  }
-
-  const existing = await prisma.enrollment.findUnique({
-    where: { id },
-    include: {
-      student: { select: { facultyId: true } },
-      courseUnit: {
-        select: {
-          facultyId: true,
-          sharedFaculties: { select: { facultyId: true } },
-        },
-      },
-    },
-  })
-  if (!existing) throw new ApiError('Enrolment not found', 404)
-  if (existing.student.facultyId !== facultyId) {
-    throw new ApiError('Enrolment is outside your faculty', 403)
-  }
-
-  const allowedFaculties = new Set([
-    existing.courseUnit.facultyId,
-    ...existing.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-  ])
-  if (!allowedFaculties.has(facultyId)) {
-    throw new ApiError('Course unit is not available to your faculty', 403)
-  }
-
-  await prisma.enrollment.delete({ where: { id } })
+export async function removeEnrollment(_id: string, _facultyId: string): Promise<void> {
+  throw new ApiError(ENROLLMENT_LOCKED, 403)
 }

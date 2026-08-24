@@ -234,7 +234,12 @@ export async function listSessionsForFaculty(
 
   return prisma.session.findMany({
     where: {
-      courseUnit: { facultyId },
+      // Sessions for units this faculty owns OR units shared with it — so a
+      // faculty admin also sees joint classes taught to their students from a
+      // shared (other-faculty-owned) unit.
+      courseUnit: {
+        OR: [{ facultyId }, { sharedFaculties: { some: { facultyId } } }],
+      },
       ...(filters?.academicYear ? { academicYear: filters.academicYear } : {}),
       ...(filters?.semester ? { semester: filters.semester } : {}),
       ...(filters?.status ? { status: filters.status } : {}),
