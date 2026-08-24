@@ -73,67 +73,95 @@ export async function seedDemoData(): Promise<Record<string, number>> {
   }
 
   // Course units (+ owning-faculty link) -------------------------------------
-  for (const r of readCsv('course_units.csv')) {
-    const facultyId = facultyIds.get(r.facultyCode)
-    if (!facultyId) continue
-    const existing = await prisma.courseUnit.findFirst({ where: { facultyId, code: r.code } })
-    if (!existing) {
-      const unit = await prisma.courseUnit.create({ data: { name: r.name, code: r.code, facultyId } })
-      await prisma.courseUnitFaculty.create({ data: { courseUnitId: unit.id, facultyId } })
-      counts.units++
-    }
+  const unitRows = readCsv('course_units.csv')
+    .map((r) => ({ name: r.name, code: r.code, facultyCode: r.facultyCode }))
+    .filter((r) => facultyIds.has(r.facultyCode))
+  const knownUnits = await prisma.courseUnit.findMany({
+    where: { code: { in: unitRows.map((r) => r.code) } },
+    select: { id: true, code: true, facultyId: true },
+  })
+  const knownUnitKeys = new Set(knownUnits.map((u) => `${u.facultyId}:${u.code}`))
+  const newUnitRows = unitRows
+    .filter((r) => !knownUnitKeys.has(`${facultyIds.get(r.facultyCode)}:${r.code}`))
+    .map((r) => ({ name: r.name, code: r.code, facultyId: facultyIds.get(r.facultyCode)! }))
+  if (newUnitRows.length > 0) {
+    await prisma.courseUnit.createMany({ data: newUnitRows })
+    counts.units = newUnitRows.length
   }
+  // Refresh the id map, then link every unit to its owning faculty
+  const unitByCode = new Map<string, { id: string; facultyId: string }>()
+  for (const u of await prisma.courseUnit.findMany({
+    where: { code: { in: unitRows.map((r) => r.code) } },
+    select: { id: true, code: true, facultyId: true },
+  })) {
+    unitByCode.set(u.code, { id: u.id, facultyId: u.facultyId })
+  }
+  const unitLinks = [...unitByCode.values()].filter((u) => facultyIds.has(u.facultyId) || true)
+  await prisma.courseUnitFaculty.createMany({
+    data: unitLinks.map((u) => ({ courseUnitId: u.id, facultyId: u.facultyId })),
+    skipDuplicates: true,
+  })
 
   // Curriculum matrix ---------------------------------------------------------
-  const programmeByCode = new Map<string, { id: string }>()
+  const programmeByCode = new Map<string, string>()
   for (const p of await prisma.programme.findMany({ select: { id: true, code: true } })) {
-    programmeByCode.set(p.code, { id: p.id })
+    programmeByCode.set(p.code, p.id)
   }
-  for (const r of readCsv('curriculum.csv')) {
-    const programme = programmeByCode.get(r.programmeCode)
-    const unit = await prisma.courseUnit.findFirst({ where: { code: r.courseUnitCode } })
-    if (!programme || !unit) continue
-    const exists = await prisma.curriculumUnit.findFirst({
-      where: { programmeId: programme.id, courseUnitId: unit.id, year: Number(r.year), semester: Number(r.semester) },
-    })
-    if (!exists) {
-      await prisma.curriculumUnit.create({
-        data: { programmeId: programme.id, courseUnitId: unit.id, year: Number(r.year), semester: Number(r.semester) },
+  const curriculaCsv = readCsv('curriculum.csv')
+  const existingCurriculum = new Set(
+    (
+      await prisma.curriculumUnit.findMany({
+        where: {
+          programmeId: { in: [...new Set(curriculaCsv.map((r) => programmeByCode.get(r.programmeCode)).filter(Boolean))] as string[] },
+        },
+        select: { programmeId: true, courseUnitId: true, year: true, semester: true },
       })
-      counts.curriculum++
-    }
+    ).map((c) => `${c.programmeId}:${c.courseUnitId}:${c.year}:${c.semester}`)
+  )
+  const curriculumCreates = curriculaCsv
+    .map((r) => ({
+      programmeId: programmeByCode.get(r.programmeCode),
+      courseUnitId: unitByCode.get(r.courseUnitCode)?.id,
+      year: Number(r.year),
+      semester: Number(r.semester),
+    }))
+    .filter(
+      (c): c is { programmeId: string; courseUnitId: string; year: number; semester: number } =>
+        Boolean(c.programmeId && c.courseUnitId) &&
+        !existingCurriculum.has(`${c.programmeId}:${c.courseUnitId}:${c.year}:${c.semester}`)
+    )
+  if (curriculumCreates.length > 0) {
+    await prisma.curriculumUnit.createMany({ data: curriculumCreates, skipDuplicates: true })
+    counts.curriculum = curriculumCreates.length
   }
 
   // Accounts ------------------------------------------------------------------
-  for (const r of readCsv('students.csv')) {
-    const existing = await prisma.user.findUnique({ where: { email: r.email.toLowerCase() } })
-    if (!existing) {
-      await prisma.user.create({
-        data: {
-          email: r.email.toLowerCase(),
-          password: passwordHash,
-          fullName: r.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-          role: Role.student,
-                  },
-      })
-      counts.students++
-    }
+  async function seedRoleAccounts(csvName: string, role: Role): Promise<number> {
+    const rows = readCsv(csvName)
+      .map((r) => r.email.toLowerCase())
+      .filter(Boolean)
+    const existing = new Set(
+      (
+        await prisma.user.findMany({
+          where: { email: { in: rows }, role },
+          select: { email: true },
+        })
+      ).map((u) => u.email)
+    )
+    const creates = [...new Set(rows)]
+      .filter((email) => !existing.has(email))
+      .map((email) => ({
+        email,
+        password: passwordHash,
+        fullName: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        role,
+      }))
+    if (creates.length > 0) await prisma.user.createMany({ data: creates })
+    return creates.length
   }
 
-  for (const r of readCsv('staff.csv')) {
-    const existing = await prisma.user.findUnique({ where: { email: r.email.toLowerCase() } })
-    if (!existing) {
-      await prisma.user.create({
-        data: {
-          email: r.email.toLowerCase(),
-          password: passwordHash,
-          fullName: r.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-          role: Role.lecturer,
-        },
-      })
-      counts.lecturers++
-    }
-  }
+  counts.students = await seedRoleAccounts('students.csv', Role.student)
+  counts.lecturers = await seedRoleAccounts('staff.csv', Role.lecturer)
 
   for (const r of readCsv('faculty_admins.csv')) {
     const facultyId = facultyIds.get(r.facultyCode)
