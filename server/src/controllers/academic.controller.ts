@@ -18,6 +18,7 @@ import {
   removeCurriculumMapping,
   updateCurriculumMapping,
   setElectiveRequirement,
+  listElectiveRequirements,
   listCurriculum,
   getProfileOptions,
 } from '../services/academic.service'
