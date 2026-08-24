@@ -69,6 +69,10 @@ export const userRepository = {
         mustChangePassword: true,
         facultyId: true,
         faculty: { select: { id: true, name: true, code: true } },
+        lecturerFaculties: {
+          select: { facultyId: true, isPrimary: true, faculty: { select: { id: true, name: true } } },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        },
         programmeId: true,
         programme: { select: { id: true, name: true, code: true } },
         year: true,

@@ -21,7 +21,8 @@ import {
   deleteCurriculum,
   getOptions,
   importStructure,
-  importStaff,
+  importLecturers,
+  importFacultyAdmins,
   importStudents,
   facultySchema,
   programmeSchema,
@@ -74,7 +75,8 @@ router.delete('/curriculum/:id', authenticate, curriculumAccess, deleteCurriculu
 
 // CSV imports — system_admin only
 router.post('/import/structure', authenticate, adminOnly, upload.single('file'), importStructure)
-router.post('/import/staff', authenticate, adminOnly, upload.single('file'), importStaff)
+router.post('/import/lecturers', authenticate, adminOnly, upload.single('file'), importLecturers)
+router.post('/import/faculty-admins', authenticate, adminOnly, upload.single('file'), importFacultyAdmins)
 router.post('/import/students', authenticate, adminOnly, upload.single('file'), importStudents)
 
 export default router

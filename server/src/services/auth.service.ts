@@ -156,6 +156,11 @@ export async function getCurrentUser(userId: string): Promise<{
   mustChangePassword: boolean
   facultyId: string | null
   faculty: { id: string; name: string; code: string } | null
+  lecturerFaculties: {
+    facultyId: string
+    isPrimary: boolean
+    faculty: { id: string; name: string }
+  }[]
   programmeId: string | null
   programme: { id: string; name: string; code: string } | null
   year: number | null

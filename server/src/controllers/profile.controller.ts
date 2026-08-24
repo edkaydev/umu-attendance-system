@@ -22,7 +22,7 @@ export const studentProfileSchema = z.object({
 })
 
 export const lecturerProfileSchema = z.object({
-  facultyId: z.string().uuid(),
+  facultyIds: z.array(z.string().uuid()).min(1).max(3),
 })
 
 async function routeByRole(
@@ -42,10 +42,10 @@ async function routeByRole(
       return
     }
     if (role === 'lecturer') {
-      const { facultyId } = lecturerProfileSchema.parse(req.body)
+      const { facultyIds } = lecturerProfileSchema.parse(req.body)
       const result = complete
-        ? await completeLecturerProfile(req.user!.id, facultyId)
-        : await updateLecturerProfile(req.user!.id, facultyId)
+        ? await completeLecturerProfile(req.user!.id, facultyIds)
+        : await updateLecturerProfile(req.user!.id, facultyIds)
       ok(res, { message: 'Profile saved', result })
       return
     }

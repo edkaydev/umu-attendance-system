@@ -29,6 +29,11 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
   const [regNumber, setRegNumber] = useState('')
   const [studentNumber, setStudentNumber] = useState('')
 
+  // Lecturer faculty selection — primary + up to 2 additional faculties
+  const [primaryFacultyId, setPrimaryFacultyId] = useState('')
+  const [extraFaculty1, setExtraFaculty1] = useState('')
+  const [extraFaculty2, setExtraFaculty2] = useState('')
+
   useEffect(() => {
     if (edit && user) {
       const scope = user.role === 'student' ? 'students' : 'lecturers'
@@ -50,6 +55,11 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           setYear(user.year ? String(user.year) : '')
           setRegNumber(user.regNumber ?? '')
           setStudentNumber(user.studentNumber ?? '')
+          // Lecturer prefill: primary + previously chosen additional faculties
+          setPrimaryFacultyId(user.facultyId ?? '')
+          const extras = (user.lecturerFaculties ?? []).filter((m) => !m.isPrimary)
+          setExtraFaculty1(extras[0]?.facultyId ?? '')
+          setExtraFaculty2(extras[1]?.facultyId ?? '')
           if (user.facultyId) {
             for (const c of opts.campuses) {
               if (c.faculties.some((f) => f.id === user.facultyId)) {
@@ -71,6 +81,11 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
     if (!options) return []
     return options.campuses.find((c) => c.code === campusCode)?.faculties ?? []
   }, [options, campusCode])
+
+  const allFaculties = useMemo(
+    () => (options?.campuses ?? []).flatMap((c) => c.faculties),
+    [options]
+  )
 
   const programmes = useMemo(() => {
     if (!options || !facultyId) return []
@@ -108,8 +123,13 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       return
     }
     if (isStudent) {
-      if (!campusCode || !facultyId || !programmeId || !year || !regNumber.trim() || !studentNumber.trim()) {
+      // Edit mode only changes identity numbers — academic path is locked
+      if (!edit && (!campusCode || !facultyId || !programmeId || !year)) {
         toast.error('Please complete all fields')
+        return
+      }
+      if (!regNumber.trim() || !studentNumber.trim()) {
+        toast.error('Please enter your Reg Number and Student Number')
         return
       }
       if (!globalPeriod) {
@@ -138,13 +158,14 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         setSaving(false)
       }
     } else {
-      if (!facultyId) {
-        toast.error('Please select your faculty')
+      const facultyIds = [primaryFacultyId, extraFaculty1, extraFaculty2].filter(Boolean)
+      if (!primaryFacultyId) {
+        toast.error('Please select your primary faculty')
         return
       }
       setSaving(true)
       try {
-        await (edit ? profileApi.update({ facultyId }) : profileApi.complete({ facultyId }))
+        await (edit ? profileApi.update({ facultyIds }) : profileApi.complete({ facultyIds }))
         await refresh()
         toast.success('Profile saved')
         // RequireAuth will redirect to /lecturer once profileComplete = true
@@ -162,7 +183,9 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         <h1 className="text-h1 font-bold text-text-primary">Welcome, {user?.fullName}!</h1>
         <p className="mt-1 mb-6 text-body-lg text-text-secondary">
           {edit
-            ? 'Update your academic details — your enrolled units will be recalculated.'
+            ? isStudent
+              ? 'Only your Reg Number and Student Number can be changed.'
+              : 'Update the faculties you teach in.'
             : 'Complete your profile to continue.'}
         </p>
 
@@ -185,89 +208,115 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           )}
 
           {isStudent ? (
-            <>
-              <Select
-                label="Campus"
-                placeholder="Select campus"
-                value={campusCode}
-                onChange={(e) => { setCampusCode(e.target.value); setFacultyId(''); setProgrammeId('') }}
-                options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
-              />
-              <Select
-                label="Faculty"
-                placeholder="Select faculty"
-                value={facultyId}
-                onChange={(e) => { setFacultyId(e.target.value); setProgrammeId('') }}
-                options={faculties.map((f) => ({ value: f.id, label: f.name }))}
-              />
-              <Select
-                label="Programme"
-                placeholder="Select programme"
-                value={programmeId}
-                onChange={(e) => setProgrammeId(e.target.value)}
-                options={programmes.map((p) => ({ value: p.id, label: p.name }))}
-              />
-              <Select
-                label="Year of Study"
-                placeholder="Select year"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                options={YEAR_OPTIONS}
-              />
-              <Input
-                label="Reg Number"
-                placeholder="e.g. BSCS/2024/0123"
-                value={regNumber}
-                onChange={(e) => setRegNumber(e.target.value)}
-              />
-              <Input
-                label="Student Number"
-                placeholder="e.g. 2024012301"
-                value={studentNumber}
-                onChange={(e) => setStudentNumber(e.target.value)}
-              />
-            </>
-          ) : edit ? (
-            /* Lecturer edit mode — faculty is assigned by System Admin, read-only */
-            <>
-              <div className="mb-4">
-                <p className="mb-1 text-body-sm font-medium text-text-secondary">Faculty</p>
-                <div className="rounded bg-surface-1 px-3 py-2 text-body text-text-primary">
-                  {(options?.campuses ?? [])
-                    .flatMap((c) => c.faculties)
-                    .find((f) => f.id === facultyId)?.name ?? (
-                    <span className="text-text-disabled">Not yet assigned</span>
-                  )}
+            edit ? (
+              <>
+                <div className="mb-4 rounded bg-surface-1 px-4 py-3 text-body-sm">
+                  <p className="font-medium text-text-primary">Your study path</p>
+                  <p className="mt-1 text-text-secondary">
+                    {allFaculties.find((f) => f.id === facultyId)?.name ?? 'Faculty'} ·{' '}
+                    {user?.programme?.name ?? 'Programme'}
+                    {user?.year ? ` · Year ${user.year}` : ''}
+                  </p>
+                  <p className="mt-1 text-text-disabled">
+                    Your units follow the curriculum for this path and cannot be changed here.
+                  </p>
                 </div>
-                <p className="mt-1 text-body-sm text-text-disabled">
-                  Your faculty is assigned by the System Admin and cannot be changed here.
-                </p>
-              </div>
-            </>
+                <Input
+                  label="Reg Number"
+                  placeholder="e.g. BSCS/2024/0123"
+                  value={regNumber}
+                  onChange={(e) => setRegNumber(e.target.value)}
+                />
+                <Input
+                  label="Student Number"
+                  placeholder="e.g. 2024012301"
+                  value={studentNumber}
+                  onChange={(e) => setStudentNumber(e.target.value)}
+                />
+              </>
+            ) : (
+              <>
+                <Select
+                  label="Campus"
+                  placeholder="Select campus"
+                  value={campusCode}
+                  onChange={(e) => { setCampusCode(e.target.value); setFacultyId(''); setProgrammeId('') }}
+                  options={(options?.campuses ?? []).map((c) => ({ value: c.code, label: c.name }))}
+                />
+                <Select
+                  label="Faculty"
+                  placeholder="Select faculty"
+                  value={facultyId}
+                  onChange={(e) => { setFacultyId(e.target.value); setProgrammeId('') }}
+                  options={faculties.map((f) => ({ value: f.id, label: f.name }))}
+                />
+                <Select
+                  label="Programme"
+                  placeholder="Select programme"
+                  value={programmeId}
+                  onChange={(e) => setProgrammeId(e.target.value)}
+                  options={programmes.map((p) => ({ value: p.id, label: p.name }))}
+                />
+                <Select
+                  label="Year of Study"
+                  placeholder="Select year"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  options={YEAR_OPTIONS}
+                />
+                <Input
+                  label="Reg Number"
+                  placeholder="e.g. BSCS/2024/0123"
+                  value={regNumber}
+                  onChange={(e) => setRegNumber(e.target.value)}
+                />
+                <Input
+                  label="Student Number"
+                  placeholder="e.g. 2024012301"
+                  value={studentNumber}
+                  onChange={(e) => setStudentNumber(e.target.value)}
+                />
+              </>
+            )
           ) : (
-            /* Lecturer first-time profile setup — choose faculty */
+            /* Lecturer — choose a primary faculty plus up to two more (max 3) */
             <>
               <Select
-                label="Faculty"
-                placeholder="Select your faculty"
-                value={facultyId}
-                onChange={(e) => setFacultyId(e.target.value)}
-                options={(options?.campuses ?? [])
-                  .flatMap((c) => c.faculties)
+                label="Primary Faculty"
+                placeholder="Select your primary faculty"
+                value={primaryFacultyId}
+                onChange={(e) => setPrimaryFacultyId(e.target.value)}
+                options={allFaculties
+                  .filter((f) => f.id !== extraFaculty1 && f.id !== extraFaculty2)
                   .map((f) => ({ value: f.id, label: f.name }))}
               />
+              <Select
+                label="Additional Faculty (optional)"
+                placeholder="None"
+                value={extraFaculty1}
+                onChange={(e) => setExtraFaculty1(e.target.value)}
+                options={[{ value: '', label: 'None' }, ...allFaculties
+                  .filter((f) => f.id !== primaryFacultyId && f.id !== extraFaculty2)
+                  .map((f) => ({ value: f.id, label: f.name }))]}
+              />
+              <Select
+                label="Additional Faculty (optional)"
+                placeholder="None"
+                value={extraFaculty2}
+                onChange={(e) => setExtraFaculty2(e.target.value)}
+                options={[{ value: '', label: 'None' }, ...allFaculties
+                  .filter((f) => f.id !== primaryFacultyId && f.id !== extraFaculty1)
+                  .map((f) => ({ value: f.id, label: f.name }))]}
+              />
               <p className="mb-4 text-body-sm text-text-secondary">
-                Your unit assignments will be set by the Faculty Admin.
+                You can belong to up to 3 faculties. Your unit assignments are set by the Faculty Admin.
               </p>
             </>
           )}
 
-          {/* Lecturer in edit mode has nothing to save — faculty is read-only */}
-          {!(!isStudent && edit) && (
-            <Button fullWidth loading={saving} disabled={editingDisabled} onClick={handleSubmit}>
-              Save &amp; Continue
-            </Button>
-          )}
+          <Button fullWidth loading={saving} disabled={editingDisabled} onClick={handleSubmit}>
+            Save &amp; Continue
+          </Button>
         </Card>
       </div>
     </div>

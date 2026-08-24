@@ -25,6 +25,7 @@ model Faculty {
   courseUnits         CourseUnit[]
   sharedCourseUnits   CourseUnitFaculty[]
   users               User[]
+  lecturerMemberships LecturerFaculty[] @relation("LecturerFacultyMemberships")
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
@@ -108,7 +109,7 @@ model User {
   password        String?  @db.VarChar(255)
   fullName        String   @db.VarChar(100)
   role            Role
-  // Faculty link (all roles except system_admin set this)
+  // Faculty link (primary faculty for lecturers — full membership list in LecturerFaculty)
   facultyId       String?
   faculty         Faculty? @relation(fields: [facultyId], references: [id])
   // Student-only fields
@@ -130,6 +131,7 @@ model User {
   enrollments          Enrollment[]
   lecturerAssignments  LecturerAssignment[] @relation("LecturerAssignments")
   assignmentsMade      LecturerAssignment[] @relation("AssignedByAdmin")
+  lecturerFaculties    LecturerFaculty[]     @relation("LecturerFaculties")
   sessionsOpened       Session[]
   attendanceRecords    AttendanceRecord[]
   attendanceEdits      AttendanceEdit[]
@@ -183,6 +185,22 @@ model LecturerAssignment {
 
   @@unique([lecturerId, courseUnitId, academicYear, semester])
   @@map("lecturer_assignments")
+}
+
+// Lecturer ↔ Faculty membership — a lecturer teaches from up to 3 faculties;
+// the first (isPrimary) is mirrored onto users.facultyId for fast scoping.
+model LecturerFaculty {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("LecturerFaculties", fields: [userId], references: [id], onDelete: Cascade)
+  facultyId String
+  faculty   Faculty  @relation("LecturerFacultyMemberships", fields: [facultyId], references: [id], onDelete: Cascade)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, facultyId])
+  @@index([facultyId])
+  @@map("lecturer_faculties")
 }
 
 // ─────────────────────────────────────────────

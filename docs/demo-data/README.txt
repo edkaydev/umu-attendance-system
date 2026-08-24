@@ -11,7 +11,7 @@ Upload these files in this exact order through the System Admin dashboard:
 2. programmes.csv        → Academic Structure  
 3. course_units.csv      → Academic Structure
 4. curriculum.csv        → Academic Structure
-5. staff.csv             → CSV Imports → Staff Accounts
+5. staff.csv             → CSV Imports → Lecturer Accounts (emails only)
 6. students.csv          → CSV Imports → Student Accounts
 
 CONTENTS SUMMARY
@@ -53,7 +53,7 @@ NOTES
   - Staff: @umu.ac.ug
   - Students: @stud.umu.ac.ug
 - CSV formats:
-  - Staff: email,role,facultyCode
+  - Staff (lecturers): email — one per row. Faculty admins are imported separately (email,facultyCode).
   - Students: email
   - Curriculum: courseUnitCode,programmeCode,year,semester
 

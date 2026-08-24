@@ -21,6 +21,7 @@ export interface User {
   hasCompletedTour?: boolean
   facultyId: string | null
   faculty: FacultyRef | null
+  lecturerFaculties?: { facultyId: string; isPrimary: boolean; faculty: { id: string; name: string } }[]
   programmeId: string | null
   programme: ProgrammeRef | null
   year: number | null

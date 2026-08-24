@@ -32,12 +32,31 @@ async function assertFacultyAdminAccess(actor: ReportActor, facultyId: string | 
 export async function getLecturerReport(actor: ReportActor, lecturerId: string, period: ReportPeriod) {
   const lecturer = await prisma.user.findUnique({
     where: { id: lecturerId },
-    select: { id: true, fullName: true, email: true, facultyId: true, role: true },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      facultyId: true,
+      role: true,
+      lecturerFaculties: { select: { facultyId: true } },
+    },
   })
   if (!lecturer || lecturer.role !== 'lecturer') {
     throw new ApiError('Lecturer not found', 404)
   }
-  await assertFacultyAdminAccess(actor, lecturer.facultyId)
+  // Faculty Admin may view lecturers whose primary faculty is theirs
+  // OR who also teach in their faculty (multi-faculty membership).
+  if (actor.role === 'system_admin') {
+    // global access
+  } else if (actor.role === 'faculty_admin') {
+    const inPrimary = lecturer.facultyId === actor.facultyId
+    const inMemberships = lecturer.lecturerFaculties.some((m) => m.facultyId === actor.facultyId)
+    if (!inPrimary && !inMemberships) {
+      throw new ApiError('Report is outside your faculty', 403)
+    }
+  } else {
+    throw new ApiError('Faculty Admin access required', 403)
+  }
 
   const assignments = await prisma.lecturerAssignment.findMany({
     where: { lecturerId, academicYear: period.academicYear, semester: period.semester },

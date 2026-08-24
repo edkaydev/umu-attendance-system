@@ -21,7 +21,8 @@ import {
 } from '../services/academic.service'
 import {
   importStructure as importStructureCsv,
-  importStaff as importStaffCsv,
+  importLecturers as importLecturersCsv,
+  importFacultyAdmins as importFacultyAdminsCsv,
   importStudents as importStudentsCsv,
   StructureImportType,
 } from '../services/import.service'
@@ -251,7 +252,7 @@ export async function importStructure(
   }
 }
 
-export async function importStaff(
+export async function importLecturers(
   req: Request,
   res: Response,
   next: NextFunction
@@ -261,8 +262,29 @@ export async function importStaff(
       res.status(400).json({ error: 'CSV file is required (field name: file)' })
       return
     }
-    const result = await importStaffCsv(req.file.buffer)
-    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'staff', {
+    const result = await importLecturersCsv(req.file.buffer)
+    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'lecturers', {
+      imported: result.imported,
+      failed: result.failed,
+    })
+    ok(res, { result })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function importFacultyAdmins(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'CSV file is required (field name: file)' })
+      return
+    }
+    const result = await importFacultyAdminsCsv(req.file.buffer)
+    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'faculty_admins', {
       imported: result.imported,
       failed: result.failed,
     })

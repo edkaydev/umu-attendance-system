@@ -62,9 +62,9 @@ export const profileApi = {
     const res = await http.get<{ campuses: ProfileOptions['campuses'] }>('/api/academic/options')
     return { campuses: res.campuses }
   },
-  complete: (data: StudentProfileInput | { facultyId: string }) =>
+  complete: (data: StudentProfileInput | { facultyIds: string[] }) =>
     http.put<{ message: string }>('/api/profile/complete', data),
-  update: (data: StudentProfileInput | { facultyId: string }) =>
+  update: (data: StudentProfileInput | { facultyIds: string[] }) =>
     http.put<{ message: string }>('/api/profile', data),
   markTourComplete: () =>
     http.put<{ message: string }>('/api/profile/tour-complete', {}),
@@ -459,10 +459,15 @@ export const importApi = {
     fd.append('file', file)
     return http.upload<{ result: ImportResult }>('/api/academic/import/structure', fd)
   },
-  staff: (file: File) => {
+  lecturers: (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/staff', fd)
+    return http.upload<{ result: ImportResult }>('/api/academic/import/lecturers', fd)
+  },
+  facultyAdmins: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return http.upload<{ result: ImportResult }>('/api/academic/import/faculty-admins', fd)
   },
   students: (file: File) => {
     const fd = new FormData()

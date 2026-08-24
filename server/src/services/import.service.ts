@@ -211,15 +211,15 @@ async function importCurriculumRow(row: Row): Promise<void> {
 }
 
 /**
- * Import staff accounts from CSV (FR-03.6).
- * Columns: email, role (lecturer | faculty_admin), facultyCode.
+ * Import LECTURER accounts from CSV (FR-03.6).
+ * Columns: email only. Every imported staff member becomes a LECTURER with no
+ * faculty attached — at first login they complete their profile by choosing a
+ * primary faculty plus up to two additional ones themselves (like students do).
  * Names are filled in from the staff member's Google profile at first sign-in;
  * a placeholder derived from the email is used until then. Accounts start with
- * the system default password and must change it at first login. Lecturers
- * receive no course-unit assignments during import; those remain the Faculty
- * Admin's job. Each faculty may have only one Faculty Admin.
+ * the system default password and must change it at first login.
  */
-export async function importStaff(buffer: Buffer): Promise<ImportResult> {
+export async function importLecturers(buffer: Buffer): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, failed: 0, errors: [] }
 
   let rows: Row[]
@@ -234,63 +234,102 @@ export async function importStaff(buffer: Buffer): Promise<ImportResult> {
     const line = i + 2
     try {
       const email = row['email']?.trim().toLowerCase()
-      const roleRaw = normalizeCode(row['role'])
-      const facultyCode = normalizeCode(row['facultyCode'])
-
-      if (!email || !facultyCode) throw new Error('Missing email or facultyCode')
+      if (!email) throw new Error('Missing email')
       if (!email.endsWith('@umu.ac.ug')) {
         throw new Error(`Email must be @umu.ac.ug`)
-      }
-
-      const role = roleRaw === 'FACULTY_ADMIN' ? Role.faculty_admin : roleRaw === 'LECTURER' ? Role.lecturer : null
-      if (!role) throw new Error('Role must be "lecturer" or "faculty_admin"')
-
-      const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
-      if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
-
-      const existing = await prisma.user.findUnique({ where: { email } })
-
-      if (role === Role.faculty_admin) {
-        const facultyAdmin = await prisma.user.findFirst({
-          where: {
-            role: Role.faculty_admin,
-            facultyId: faculty.id,
-            ...(existing ? { id: { not: existing.id } } : {}),
-          },
-          select: { fullName: true },
-        })
-        if (facultyAdmin) {
-          throw new Error(`Faculty "${facultyCode}" already has a Faculty Admin (${facultyAdmin.fullName})`)
-        }
       }
 
       // Placeholder display name until Google provides the real one.
       const fullName = email.split('@')[0]
 
-      if (existing) {
-        await prisma.user.update({
-          where: { email },
-          data: {
-            role,
-            facultyId: faculty.id,
-            profileComplete: true,
-            isActive: true,
-          },
-        })
-      } else {
-        await prisma.user.create({
-          data: {
-            email,
-            password: await getDefaultUserPasswordHash(),
-            mustChangePassword: true,
-            fullName,
-            role,
-            facultyId: faculty.id,
-            profileComplete: true,
-            isActive: true,
-          },
-        })
+      await prisma.user.upsert({
+        where: { email },
+        // Re-importing an existing account just reactivates it — never clobber
+        // the faculties the lecturer has chosen for themselves.
+        update: {
+          isActive: true,
+        },
+        create: {
+          email,
+          password: await getDefaultUserPasswordHash(),
+          mustChangePassword: true,
+          fullName,
+          role: Role.lecturer,
+          facultyId: null,
+          profileComplete: false,
+          isActive: true,
+        },
+      })
+      result.imported++
+    } catch (error) {
+      result.failed++
+      result.errors.push({ row: line, message: (error as Error).message })
+    }
+  }
+
+  return result
+}
+
+/**
+ * Import FACULTY ADMIN accounts from CSV (FR-03.6).
+ * Columns: email, facultyCode. Each admin is bound to exactly one faculty and
+ * each faculty may only have one Faculty Admin. Admins do NOT choose their
+ * faculty themselves — the System Admin assigns it via this upload.
+ */
+export async function importFacultyAdmins(buffer: Buffer): Promise<ImportResult> {
+  const result: ImportResult = { imported: 0, failed: 0, errors: [] }
+
+  let rows: Row[]
+  try {
+    rows = parseCsv(buffer)
+  } catch (error) {
+    throw new ApiError(`Could not parse CSV: ${(error as Error).message}`, 400)
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const line = i + 2
+    try {
+      const email = row['email']?.trim().toLowerCase()
+      const facultyCode = normalizeCode(row['facultyCode'])
+      if (!email || !facultyCode) throw new Error('Missing email or facultyCode')
+      if (!email.endsWith('@umu.ac.ug')) {
+        throw new Error('Email must be @umu.ac.ug')
       }
+
+      const faculty = await prisma.faculty.findFirst({ where: { code: facultyCode, isActive: true } })
+      if (!faculty) throw new Error(`Active faculty "${facultyCode}" not found`)
+
+      const existing = await prisma.user.findUnique({ where: { email } })
+      const otherAdmin = await prisma.user.findFirst({
+        where: {
+          role: Role.faculty_admin,
+          facultyId: faculty.id,
+          ...(existing ? { id: { not: existing.id } } : {}),
+        },
+        select: { fullName: true },
+      })
+      if (otherAdmin) {
+        throw new Error(`Faculty "${facultyCode}" already has a Faculty Admin (${otherAdmin.fullName})`)
+      }
+
+      // Placeholder display name until Google provides the real one.
+      const fullName = email.split('@')[0]
+
+      await prisma.user.upsert({
+        where: { email },
+        update: { role: Role.faculty_admin, facultyId: faculty.id, profileComplete: true, isActive: true },
+        create: {
+          email,
+          password: await getDefaultUserPasswordHash(),
+          mustChangePassword: true,
+          fullName,
+          role: Role.faculty_admin,
+          facultyId: faculty.id,
+          profileComplete: true,
+          isActive: true,
+        },
+      })
       result.imported++
     } catch (error) {
       result.failed++

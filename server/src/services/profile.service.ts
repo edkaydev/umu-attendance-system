@@ -94,50 +94,65 @@ export async function completeStudentProfile(userId: string, input: StudentPathI
   return { unitsEnrolled }
 }
 
-/** Student edits their academic path — enrolments recalculated (FR-02.5/02.6). */
+/** Student edits their profile — only Reg/Student numbers may change (toggle-gated). */
 export async function updateStudentProfile(userId: string, input: StudentPathInput) {
   await assertProfileEditingAllowed('students')
-  await validateStudentPath(input)
+  // Academic path (campus/faculty/programme/year) is fixed by the curriculum —
+  // ignore whatever the client sends and update the two identity numbers only.
   await prisma.user.update({
     where: { id: userId },
     data: {
-      facultyId: input.facultyId,
-      programmeId: input.programmeId,
-      year: input.year,
-      semester: input.semester,
-      academicYear: input.academicYear,
       regNumber: input.regNumber,
       studentNumber: input.studentNumber,
       profileComplete: true,
     },
   }).catch(friendlyUniqueError)
-  const unitsEnrolled = await recalculateEnrollments(userId, input)
-  return { unitsEnrolled }
+  return { updatedFields: ['regNumber', 'studentNumber'] }
 }
 
-/** First-time lecturer profile completion (FR-02.7/02.8). */
-export async function completeLecturerProfile(userId: string, facultyId: string) {
-  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
+export const MAX_LECTURER_FACULTIES = 3
 
+/** Validate + replace a lecturer's faculty memberships (first entry = primary). */
+async function setLecturerFaculties(userId: string, facultyIds: string[]) {
+  const unique = [...new Set(facultyIds)]
+  if (unique.length < 1) throw new ApiError('Select at least one faculty', 400)
+  if (unique.length > MAX_LECTURER_FACULTIES) {
+    throw new ApiError(`You can belong to at most ${MAX_LECTURER_FACULTIES} faculties`, 400)
+  }
+  const faculties = await prisma.faculty.findMany({
+    where: { id: { in: unique }, isActive: true },
+    select: { id: true },
+  })
+  if (faculties.length !== unique.length) {
+    throw new ApiError('One of the selected faculties was not found or is inactive', 404)
+  }
+
+  // Primary faculty stays denormalised on users.facultyId so existing
+  // faculty-scoped queries keep working.
+  await prisma.$transaction([
+    prisma.lecturerFaculty.deleteMany({ where: { userId } }),
+    prisma.lecturerFaculty.createMany({
+      data: unique.map((facultyId, i) => ({ userId, facultyId, isPrimary: i === 0 })),
+    }),
+    prisma.user.update({ where: { id: userId }, data: { facultyId: unique[0] } }),
+  ])
+  return { facultyIds: unique }
+}
+
+/** First-time lecturer profile completion — pick their faculties (max 3). */
+export async function completeLecturerProfile(userId: string, facultyIds: string[]) {
+  const result = await setLecturerFaculties(userId, facultyIds)
   await prisma.user.update({
     where: { id: userId },
-    data: { facultyId, profileComplete: true },
+    data: { profileComplete: true },
   })
-  return { facultyId }
+  return result
 }
 
-/** Lecturer changes their faculty. */
-export async function updateLecturerProfile(userId: string, facultyId: string) {
+/** Lecturer changes their faculty selection (toggle-gated). */
+export async function updateLecturerProfile(userId: string, facultyIds: string[]) {
   await assertProfileEditingAllowed('lecturers')
-  const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { facultyId, profileComplete: true },
-  })
-  return { facultyId }
+  return setLecturerFaculties(userId, facultyIds)
 }
 
 /** Profile edits are blocked while the System Admin has frozen the scope. */

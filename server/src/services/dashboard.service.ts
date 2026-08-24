@@ -1,5 +1,6 @@
 import { prisma } from '../config/db'
 
+import { getCurrentPeriod } from './settings.service'
 import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
 
 function dayRange(daysAgo: number): { start: Date; end: Date } {
@@ -41,7 +42,22 @@ export async function getStudentDashboard(studentId: string) {
     return { period: null, units: [], recentCheckIns: [], weeklyChart: [] }
   }
 
-  const { academicYear, semester } = enrollments[0]
+  // The system calendar decides which semester is "now" — students only ever
+  // see units for that period (falls back to their newest enrollments).
+  let academicYear = enrollments[0].academicYear
+  let semester = enrollments[0].semester
+  try {
+    const current = await getCurrentPeriod()
+    const inCurrent = enrollments.some(
+      (e) => e.academicYear === current.academicYear && e.semester === current.semester
+    )
+    if (inCurrent) {
+      academicYear = current.academicYear
+      semester = current.semester
+    }
+  } catch {
+    // No configured period — keep newest-enrollment fallback
+  }
   const units = enrollments.filter((e) => e.academicYear === academicYear && e.semester === semester)
 
   const closedSessions = await prisma.session.findMany({
@@ -247,7 +263,12 @@ export async function getFacultyAdminDashboard(adminId: string) {
   ])
 
   const lecturers = await prisma.user.findMany({
-    where: { facultyId, role: 'lecturer', isActive: true },
+    // Primary faculty OR additional memberships (up to 3 faculties per lecturer)
+    where: {
+      role: 'lecturer',
+      isActive: true,
+      OR: [{ facultyId }, { lecturerFaculties: { some: { facultyId } } }],
+    },
     select: { id: true, fullName: true, email: true },
   })
 

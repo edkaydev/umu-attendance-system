@@ -22,7 +22,8 @@ const TEMPLATES: Record<string, string> = {
   curriculum: 'courseUnitCode,programmeCode,year,semester',
 }
 
-const STAFF_TEMPLATE = 'email,role,facultyCode'
+const LECTURER_TEMPLATE = 'email'
+const FACULTY_ADMIN_TEMPLATE = 'email,facultyCode'
 const STUDENT_TEMPLATE = 'email'
 
 const IMPORT_ORDER: Array<{ key: string; label: string; needs?: string[]; why?: string }> = [
@@ -45,7 +46,8 @@ const IMPORT_ORDER: Array<{ key: string; label: string; needs?: string[]; why?: 
     needs: ['course_units', 'programmes'],
     why: 'each row maps a unit code (step 3) to a programme code (step 2)',
   },
-  { key: 'staff', label: 'Staff', needs: ['faculties'], why: 'staff rows link to faculty codes' },
+  { key: 'lecturers', label: 'Lecturers', needs: [], why: '' },
+  { key: 'faculty_admins', label: 'Faculty Admins', needs: ['faculties'], why: 'each admin is bound to a faculty code' },
   { key: 'students', label: 'Students', needs: [], why: '' },
 ]
 
@@ -150,17 +152,20 @@ export default function ImportData() {
   const toast = useToast()
   const [type, setType] = useState('faculties')
   const [file, setFile] = useState<File | null>(null)
-  const [staffFile, setStaffFile] = useState<File | null>(null)
+  const [lecturerFile, setLecturerFile] = useState<File | null>(null)
+  const [adminFile, setAdminFile] = useState<File | null>(null)
   const [studentFile, setStudentFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState<'structure' | 'staff' | 'students' | null>(null)
+  const [loading, setLoading] = useState<'structure' | 'lecturers' | 'admins' | 'students' | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [result, setResult] = useState<ImportResult | null>(null)
-  const [staffResult, setStaffResult] = useState<ImportResult | null>(null)
+  const [lecturerResult, setLecturerResult] = useState<ImportResult | null>(null)
+  const [adminResult, setAdminResult] = useState<ImportResult | null>(null)
   const [studentResult, setStudentResult] = useState<ImportResult | null>(null)
   const [completed, setCompleted] = useState<Record<string, boolean>>({})
   const [headerWarning, setHeaderWarning] = useState<{ card: string; msg: string } | null>(null)
   const structureRef = useRef<HTMLInputElement>(null)
-  const staffRef = useRef<HTMLInputElement>(null)
+  const lecturerRef = useRef<HTMLInputElement>(null)
+  const adminRef = useRef<HTMLInputElement>(null)
   const studentRef = useRef<HTMLInputElement>(null)
 
   const activeStep = IMPORT_ORDER.find((s) => s.key === type)
@@ -179,12 +184,22 @@ export default function ImportData() {
     URL.revokeObjectURL(url)
   }
 
-  function downloadStaffTemplate() {
-    const blob = new Blob([STAFF_TEMPLATE + '\n'], { type: 'text/csv' })
+  function downloadLecturerTemplate() {
+    const blob = new Blob([LECTURER_TEMPLATE + '\n'], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'staff-template.csv'
+    a.download = 'lecturers-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadAdminTemplate() {
+    const blob = new Blob([FACULTY_ADMIN_TEMPLATE + '\n'], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'faculty-admins-template.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -228,25 +243,53 @@ export default function ImportData() {
     }
   }
 
-  async function runStaff() {
-    if (!staffFile) {
+  async function runLecturers() {
+    if (!lecturerFile) {
       toast.error('Choose a CSV file first')
       return
     }
-    setLoading('staff')
+    setLoading('lecturers')
     setUploadProgress(0)
     try {
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90))
       }, 200)
-      
-      const res = await importApi.staff(staffFile)
-      
+
+      const res = await importApi.lecturers(lecturerFile)
+
       clearInterval(progressInterval)
       setUploadProgress(100)
-      
-      setStaffResult(res.result)
-      setCompleted((c) => ({ ...c, staff: true }))
+
+      setLecturerResult(res.result)
+      setCompleted((c) => ({ ...c, lecturers: true }))
+      toast.success('Import finished')
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
+    } finally {
+      setLoading(null)
+      setTimeout(() => setUploadProgress(0), 1000)
+    }
+  }
+
+  async function runAdmins() {
+    if (!adminFile) {
+      toast.error('Choose a CSV file first')
+      return
+    }
+    setLoading('admins')
+    setUploadProgress(0)
+    try {
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+
+      const res = await importApi.facultyAdmins(adminFile)
+
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+
+      setAdminResult(res.result)
+      setCompleted((c) => ({ ...c, faculty_admins: true }))
       toast.success('Import finished')
     } catch (e) {
       toast.error(e instanceof ApiClientError ? e.message : 'Import failed')
@@ -353,46 +396,87 @@ export default function ImportData() {
           </p>
         </Card>
 
-        <Card title="Staff Accounts">
+        <Card title="Lecturer Accounts">
           <p className="mb-3 text-body-sm text-text-secondary">
-            Creates or updates lecturer / faculty admin accounts and links each person to the
-            faculty identified by its code. Lecturers are not assigned to course units during import.
-            Each faculty can have one Faculty Admin. Emails must end in @umu.ac.ug. Leave the password
-            column blank to use the system default password; users must change it on first sign-in.
+            Upload emails only — one lecturer email per row. Each imported staff member becomes a
+            lecturer with no faculty attached: at first sign-in they choose their own primary
+            faculty plus up to two additional ones (max 3). Emails must end in @umu.ac.ug.
+            Accounts start with the system default password and must change it at first login.
           </p>
-          {headerWarning?.card === 'staff' && headerWarning.msg && (
+          {headerWarning?.card === 'lecturers' && headerWarning.msg && (
             <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
               ⚠ {headerWarning.msg}
             </div>
           )}
           <input
-            ref={staffRef}
+            ref={lecturerRef}
             type="file"
             accept=".csv,text/csv"
             className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
             onChange={async (e) => {
               const f = e.target.files?.[0] ?? null
-              setStaffFile(f)
-              setStaffResult(null)
-              setHeaderWarning(f ? { card: 'staff', msg: (await checkCsvHeader(f, STAFF_TEMPLATE)) ?? '' } : null)
+              setLecturerFile(f)
+              setLecturerResult(null)
+              setHeaderWarning(f ? { card: 'lecturers', msg: (await checkCsvHeader(f, LECTURER_TEMPLATE)) ?? '' } : null)
             }}
           />
           <div className="flex flex-wrap gap-3">
-            <Button loading={loading === 'staff'} onClick={runStaff}>
-              Import Staff
+            <Button loading={loading === 'lecturers'} onClick={runLecturers}>
+              Import Lecturers
             </Button>
-            <Button variant="secondary" onClick={downloadStaffTemplate}>
+            <Button variant="secondary" onClick={downloadLecturerTemplate}>
               Download Template
             </Button>
           </div>
-          {loading === 'staff' && (
+          {loading === 'lecturers' && (
             <ProgressBar progress={uploadProgress} label="Uploading..." tone="success" />
           )}
-          {staffResult && <ResultPanel result={staffResult} label="Staff import" />}
+          {lecturerResult && <ResultPanel result={lecturerResult} label="Lecturers import" />}
           <p className="mt-4 text-xs text-text-secondary">
-            Template columns: <code className="code-font">{STAFF_TEMPLATE}</code>{' '}
-            (role: lecturer | faculty_admin). Names come from Google at first
-            sign-in; accounts start with the default password.
+            Template columns: <code className="code-font">{LECTURER_TEMPLATE}</code>{' '}
+            — one @umu.ac.ug email per row. Names come from Google at first
+            sign-in; lecturers pick their faculties on first login.
+          </p>
+        </Card>
+
+        <Card title="Faculty Admin Accounts">
+          <p className="mb-3 text-body-sm text-text-secondary">
+            Upload email + facultyCode. Each admin is bound to exactly one faculty and each faculty
+            may have only one Faculty Admin. Unlike lecturers, admins do NOT choose their faculty —
+            you assign it here.
+          </p>
+          {headerWarning?.card === 'admins' && headerWarning.msg && (
+            <div className="mb-4 rounded-md border border-warning-border bg-warning-light px-3 py-2 text-xs text-warning">
+              ⚠ {headerWarning.msg}
+            </div>
+          )}
+          <input
+            ref={adminRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="mb-4 block w-full text-sm text-text-secondary file:mr-4 file:rounded file:border-0 file:bg-umu-red file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-umu-red-dark"
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null
+              setAdminFile(f)
+              setAdminResult(null)
+              setHeaderWarning(f ? { card: 'admins', msg: (await checkCsvHeader(f, FACULTY_ADMIN_TEMPLATE)) ?? '' } : null)
+            }}
+          />
+          <div className="flex flex-wrap gap-3">
+            <Button loading={loading === 'admins'} onClick={runAdmins}>
+              Import Faculty Admins
+            </Button>
+            <Button variant="secondary" onClick={downloadAdminTemplate}>
+              Download Template
+            </Button>
+          </div>
+          {loading === 'admins' && (
+            <ProgressBar progress={uploadProgress} label="Uploading..." tone="success" />
+          )}
+          {adminResult && <ResultPanel result={adminResult} label="Faculty admins import" />}
+          <p className="mt-4 text-xs text-text-secondary">
+            Template columns: <code className="code-font">{FACULTY_ADMIN_TEMPLATE}</code>{' '}
+            (facultyCode from step 1). Names come from Google at first sign-in.
           </p>
         </Card>
 

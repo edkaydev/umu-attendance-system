@@ -126,7 +126,11 @@ export async function getFacultyUnitOverview(facultyId: string) {
       },
     }),
     prisma.user.findMany({
-      where: { role: 'lecturer', facultyId },
+      // Lecturers whose primary faculty is this one OR who also teach here
+      where: {
+        role: 'lecturer',
+        OR: [{ facultyId }, { lecturerFaculties: { some: { facultyId } } }],
+      },
       orderBy: { fullName: 'asc' },
       select: {
         id: true,

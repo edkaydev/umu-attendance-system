@@ -119,7 +119,7 @@ export default function FacultyUnits() {
 
   const [data, setData] = useState<FacultyUnitOverview | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [tab, setTab] = useState<'students' | 'lecturers' | 'pathways'>('students')
+  const [tab, setTab] = useState<'lecturers' | 'matrix'>('matrix')
   const [search, setSearch] = useState('')
 
   async function reload() {
@@ -139,16 +139,15 @@ export default function FacultyUnits() {
 
   const list = useMemo(() => {
     if (!data) return []
-    const base = tab === 'students' ? data.students : data.lecturers
-    return base.filter((u) => matchesQuery(u, search))
-  }, [data, tab, search])
+    return data.lecturers.filter((u) => matchesQuery(u, search))
+  }, [data, search])
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-h1 font-bold text-text-primary">Course Units</h1>
+        <h1 className="text-h1 font-bold text-text-primary">Course Matrix</h1>
         <p className="mt-1 text-body text-text-secondary">
-          Manage the units assigned to students and lecturers in your faculty.
+          The study paths your students follow, plus the lecturers teaching in your faculty.
         </p>
       </div>
 
@@ -158,9 +157,8 @@ export default function FacultyUnits() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex gap-2">
             {([
-              ['students', 'Students'],
+              ['matrix', 'Course Matrix'],
               ['lecturers', 'Lecturers'],
-              ['pathways', 'Pathways'],
             ] as const).map(([t, label]) => (
               <button
                 key={t}
@@ -174,10 +172,10 @@ export default function FacultyUnits() {
               </button>
             ))}
           </div>
-          {tab !== 'pathways' && (
+          {tab !== 'matrix' && (
             <Input
               label="Search"
-              placeholder={`Search ${tab} by name, email${tab === 'students' ? ' or reg number' : ''}`}
+              placeholder="Search lecturers by name or email"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="mb-0 md:w-80"
@@ -186,9 +184,9 @@ export default function FacultyUnits() {
         </div>
       </Card>
 
-      {tab === 'pathways' ? (
+      {tab === 'matrix' ? (
         loaded && data ? (
-          <PathwaysTab overview={data} onChanged={reload} />
+          <CourseMatrixTab overview={data} onChanged={reload} />
         ) : (
           <Card noPadding>
             <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
@@ -205,7 +203,7 @@ export default function FacultyUnits() {
           </div>
         ) : list.length === 0 ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">
-            {search ? 'No matching users.' : `No ${tab} in this faculty yet.`}
+            {search ? 'No matching lecturers.' : 'No lecturers in this faculty yet.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -213,47 +211,37 @@ export default function FacultyUnits() {
               <thead>
                 <tr className="border-b border-border bg-surface-1">
                   <th className="px-5 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
-                    {tab === 'students' ? 'Student' : 'Lecturer'}
+                    Lecturer
                   </th>
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
                     Units
                   </th>
-                  {tab !== 'students' && (
-                    <th className="px-4 py-3 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">
-                      Actions
-                    </th>
-                  )}
+                  <th className="px-4 py-3 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {list.map((u) => {
-                  const count = isStudent(u) ? u.enrollments.length : u.lecturerAssignments.length
-                  return (
-                    <tr key={u.id} className="transition-colors hover:bg-surface-1">
-                      <td className="px-5 py-3">
-                        <p className="text-body font-medium text-text-primary">{u.fullName}</p>
-                        <p className="text-body-sm text-text-secondary">{u.email}</p>
-                        {isStudent(u) && u.regNumber && (
-                          <p className="text-body-sm text-text-disabled">{u.regNumber}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-body text-text-secondary">{count}</td>
-                      {!isStudent(u) && (
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end">
-                            <Button
-                              variant="secondary"
-                              className="px-3 py-1 text-body-sm"
-                              onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
-                            >
-                              Manage Units
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
+                {list.map((u) => (
+                  <tr key={u.id} className="transition-colors hover:bg-surface-1">
+                    <td className="px-5 py-3">
+                      <p className="text-body font-medium text-text-primary">{u.fullName}</p>
+                      <p className="text-body-sm text-text-secondary">{u.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-body text-text-secondary">{u.lecturerAssignments.length}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <Button
+                          variant="secondary"
+                          className="px-3 py-1 text-body-sm"
+                          onClick={() => navigate(`/faculty-admin/units/${u.id}`)}
+                        >
+                          Assign Units
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -618,12 +606,13 @@ type PathwayAdd =
  * add a unit to the path or remove it. The Students column shows how many
  * students in this faculty are enrolled in the unit for the current period.
  */
-function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; onChanged: () => void }) {
+function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOverview; onChanged: () => void }) {
   const { user } = useAuth()
   const toast = useToast()
   const { period } = usePeriod()
   const [curriculum, setCurriculum] = useState<CurriculumUnitEntry[] | null>(null)
   const [programmes, setProgrammes] = useState<Programme[] | null>(null)
+  const [selectedProgrammeId, setSelectedProgrammeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<PathwayAdd | null>(null)
   /** Per-section selected unit for the inline "add to path" row, keyed by programmeId:year:semester */
@@ -648,6 +637,12 @@ function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; o
   const myProgrammes = useMemo(
     () => (programmes ?? []).filter((p) => p.facultyId === facultyId).sort((a, b) => a.name.localeCompare(b.name)),
     [programmes, facultyId]
+  )
+
+  // Drill-down: which programme's matrix is open (defaults to the first)
+  const selectedProgramme = useMemo(
+    () => myProgrammes.find((p) => p.id === selectedProgrammeId) ?? myProgrammes[0] ?? null,
+    [myProgrammes, selectedProgrammeId]
   )
 
   // Curriculum entries grouped by programmeId
@@ -740,19 +735,30 @@ function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; o
         </div>
       )}
 
-      {myProgrammes.map((prog) => {
+      {/* Programme picker — drill into one programme's matrix */}
+      {myProgrammes.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {myProgrammes.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedProgrammeId(p.id)}
+              aria-pressed={selectedProgramme?.id === p.id}
+              className={`min-h-[44px] rounded px-4 text-body font-semibold transition-colors ${
+                selectedProgramme?.id === p.id
+                  ? 'bg-umu-red text-white'
+                  : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(() => {
+        const prog = selectedProgramme
+        if (!prog) return null
         const entries = entriesByProgramme.get(prog.id) ?? []
-        // Sections in Excel order: year asc, semester asc
-        const sections = new Map<string, CurriculumUnitEntry[]>()
-        for (const e of entries) {
-          const key = `${e.year}:${e.semester}`
-          const list = sections.get(key) ?? []
-          list.push(e)
-          sections.set(key, list)
-        }
-        const sortedSections = [...sections.entries()].sort(
-          ([aY, aS], [bY, bS]) => Number(aY) - Number(bY) || Number(aS) - Number(bS)
-        )
         const mappedUnitIds = new Set(entries.map((e) => e.courseUnitId))
         const year = addYear[prog.id] ?? 1
         const semester = addSemester[prog.id] ?? 1
@@ -763,6 +769,9 @@ function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; o
         const availableUnits = overview.courseUnits.filter((cu) => !sectionUnitIds.has(cu.id))
         const pickedUnitId = addPick[sectionKey] ?? ''
 
+        // Years present on this programme's path (Excel order)
+        const years = [...new Set(entries.map((e) => e.year))].sort((a, b) => a - b)
+
         return (
           <Card key={prog.id} noPadding>
             <div className="border-b border-border bg-surface-1 px-5 py-3">
@@ -770,58 +779,88 @@ function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; o
               <p className="text-body-sm text-text-secondary">{prog.code}</p>
             </div>
 
-            {sortedSections.length === 0 ? (
+            {entries.length === 0 ? (
               <p className="px-5 py-6 text-body-sm text-text-secondary">
-                No units on this pathway yet — add the first one below.
+                No units on this path yet — add the first one below.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="px-5 py-2 text-label font-semibold uppercase tracking-wide text-text-secondary">Code</th>
-                      <th className="px-4 py-2 text-label font-semibold uppercase tracking-wide text-text-secondary">Course Name</th>
-                      <th className="px-4 py-2 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">Students</th>
-                      <th className="px-4 py-2" aria-label="Actions" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {sortedSections.flatMap(([key, list]) => {
-                      const [y, s] = key.split(':')
-                      return [
-                        <tr key={`${prog.id}-hdr-${key}`} className="bg-surface-1/60">
-                          <td colSpan={4} className="px-5 py-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                            Year {y} · Semester {s}
-                          </td>
-                        </tr>,
-                        ...list
-                          .slice()
+              <div className="divide-y divide-border">
+                {years.map((y) => (
+                  <div key={y} className="px-5 py-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <h3 className="text-body-lg font-semibold text-text-primary">Year {y}</h3>
+                      {period?.semester != null && (
+                        <span className="rounded-full bg-[#FFF4F4] px-2 py-0.5 text-xs font-medium text-umu-red">
+                          Now: Semester {period.semester} · {period.academicYear}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {[1, 2].map((s) => {
+                        const list = entries
+                          .filter((e) => e.year === y && e.semester === s)
                           .sort((a, b) => a.courseUnit.code.localeCompare(b.courseUnit.code))
-                          .map((e) => (
-                            <tr key={e.id} className="transition-colors hover:bg-surface-1">
-                              <td className="whitespace-nowrap px-5 py-3 text-body font-medium text-text-primary">{e.courseUnit.code}</td>
-                              <td className="px-4 py-3 text-body text-text-primary">{e.courseUnit.name}</td>
-                              <td className="px-4 py-3 text-right text-body text-text-secondary">
-                                {period ? (enrolledCounts.get(e.courseUnitId) ?? 0) : '—'}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <Button
-                                  variant="ghost"
-                                  className="px-2 py-1 text-body-sm"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    setPending({ kind: 'remove', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name })
-                                  }
-                                >
-                                  Remove
-                                </Button>
-                              </td>
-                            </tr>
-                          )),
-                      ]
-                    })}
-                  </tbody>
-                </table>
+                        const isCurrent = period?.semester === s
+                        return (
+                          <div
+                            key={s}
+                            className={`rounded border ${
+                              isCurrent ? 'border-umu-red' : 'border-border'
+                            }`}
+                          >
+                            <div className={`flex items-center justify-between border-b px-3 py-2 ${
+                              isCurrent ? 'border-[#FFD9D9] bg-[#FFF4F4]' : 'border-border bg-surface-1'
+                            }`}>
+                              <span className="text-body-sm font-semibold text-text-primary">Semester {s}</span>
+                              {isCurrent && (
+                                <span className="rounded-full bg-umu-red px-2 py-0.5 text-xs font-medium text-white">
+                                  Current
+                                </span>
+                              )}
+                            </div>
+                            {list.length === 0 ? (
+                              <p className="px-3 py-3 text-body-sm text-text-disabled">No units.</p>
+                            ) : (
+                              <table className="w-full text-left">
+                                <thead>
+                                  <tr className="border-b border-border">
+                                    <th className="px-3 py-1.5 text-label font-semibold uppercase tracking-wide text-text-secondary">Code</th>
+                                    <th className="px-2 py-1.5 text-label font-semibold uppercase tracking-wide text-text-secondary">Course Name</th>
+                                    <th className="px-2 py-1.5 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">Students</th>
+                                    <th className="px-2 py-1.5" aria-label="Actions" />
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {list.map((e) => (
+                                    <tr key={e.id} className="transition-colors hover:bg-surface-1">
+                                      <td className="whitespace-nowrap px-3 py-2 text-body-sm font-medium text-text-primary">{e.courseUnit.code}</td>
+                                      <td className="px-2 py-2 text-body-sm text-text-primary">{e.courseUnit.name}</td>
+                                      <td className="px-2 py-2 text-right text-body-sm text-text-secondary">
+                                        {period ? (enrolledCounts.get(e.courseUnitId) ?? 0) : '—'}
+                                      </td>
+                                      <td className="px-2 py-2 text-right">
+                                        <Button
+                                          variant="ghost"
+                                          className="px-2 py-1 text-body-sm"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            setPending({ kind: 'remove', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name })
+                                          }
+                                        >
+                                          Remove
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -866,7 +905,7 @@ function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; o
             )}
           </Card>
         )
-      })}
+      })()}
 
       {/* Confirm modal */}
       <Modal
