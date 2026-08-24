@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { spawnSync } from 'child_process'
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { hashPassword } from '../utils/password'
@@ -157,11 +158,28 @@ export async function seedDemoData(): Promise<Record<string, number>> {
   return counts
 }
 
-/** Runs the seeder only when the database has no users at all. */
+/** Runs the seeder only when the database has no users at all.
+ *  If the schema itself is missing (full database wipe), migrations are
+ *  applied first — so restarting the API alone fully rebuilds the system. */
 export async function ensureDemoData(): Promise<void> {
   if (process.env.SEED_ON_EMPTY === 'false') return
-  const userCount = await prisma.user.count()
+
+  let userCount: number
+  try {
+    userCount = await prisma.user.count()
+  } catch (e) {
+    // P2021 = table does not exist → apply pending migrations and retry once.
+    if ((e as { code?: string })?.code !== 'P2021') throw e
+    console.log('[bootstrap] database schema missing — running prisma migrate deploy …')
+    const migrated = spawnSync('npx', ['prisma', 'migrate', 'deploy'], {
+      stdio: 'inherit',
+      env: process.env,
+    })
+    if (migrated.status !== 0) throw e
+    userCount = await prisma.user.count()
+  }
   if (userCount > 0) return
+
   console.log('[bootstrap] empty database detected — seeding demo data …')
   const counts = await seedDemoData()
   console.log(
