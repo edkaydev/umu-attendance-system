@@ -48,6 +48,8 @@ COPY server/package*.json ./
 RUN npm install
 
 COPY server/ ./
+# Demo dataset used by the empty-database bootstrap seeder
+COPY docs/demo-data ./demo-data
 RUN npx prisma generate && npm run build
 
 ENV NODE_ENV=production

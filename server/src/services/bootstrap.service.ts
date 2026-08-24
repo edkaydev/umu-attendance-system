@@ -23,8 +23,18 @@ const SYSTEM_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'edward@umu.ac.ug'
 type Row = Record<string, string>
 
 function readCsv(name: string): Row[] {
-  const file = path.resolve(process.cwd(), '..', 'docs', 'demo-data', name)
-  if (!fs.existsSync(file)) return []
+  // Inside the Docker image the CSVs live at /app/demo-data; in development
+  // they are in <repo>/docs/demo-data relative to server/.
+  const candidates = [
+    path.resolve(process.cwd(), 'demo-data', name),
+    path.resolve(process.cwd(), '..', 'docs', 'demo-data', name),
+    path.resolve(process.cwd(), 'docs', 'demo-data', name),
+  ]
+  const file = candidates.find((f) => fs.existsSync(f))
+  if (!file) {
+    console.warn(`[bootstrap] ${name} not found — looked in: ${candidates.join(', ')}`)
+    return []
+  }
   const [headerLine, ...lines] = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean)
   const headers = headerLine.split(',').map((h) => h.trim())
   return lines.map((line) => {
