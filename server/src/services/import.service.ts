@@ -251,7 +251,8 @@ export async function importLecturers(buffer: Buffer): Promise<ImportResult> {
         create: {
           email,
           password: await getDefaultUserPasswordHash(),
-          mustChangePassword: true,
+          mustChangePassword: false,
+        demoManaged: true,
           fullName,
           role: Role.lecturer,
           facultyId: null,
@@ -321,7 +322,8 @@ export async function importFacultyAdmins(buffer: Buffer): Promise<ImportResult>
         create: {
           email,
           password: await getDefaultUserPasswordHash(),
-          mustChangePassword: true,
+          mustChangePassword: false,
+          demoManaged: true,
           fullName,
           role: Role.faculty_admin,
           facultyId: faculty.id,
@@ -406,7 +408,8 @@ export async function importStudents(buffer: Buffer): Promise<ImportResult> {
       data: newStudents.slice(i, i + 200).map((s) => ({
         email: s.email,
         password: defaultPasswordHash,
-        mustChangePassword: true,
+        mustChangePassword: false,
+          demoManaged: true,
         fullName: s.fullName,
         role: Role.student,
         profileComplete: false,

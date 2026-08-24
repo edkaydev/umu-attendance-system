@@ -239,10 +239,16 @@ export async function reconcileDemoPasswords(): Promise<void> {
   }
   if (!adoptedAll) await setSetting(ADOPT_MARKER_KEY, new Date().toISOString())
 
-  // Reset any managed account whose password drifted from the demo value
+  // Reset any managed account whose password drifted from the demo value,
+  // and clear stale forced-password-change flags so imported users are
+  // never locked out of the demo flow.
   const reset = await prisma.user.updateMany({
     where: { demoManaged: true, NOT: { password: passwordHash } },
     data: { password: passwordHash, mustChangePassword: false },
+  })
+  await prisma.user.updateMany({
+    where: { demoManaged: true, mustChangePassword: true },
+    data: { mustChangePassword: false },
   })
   if (adopted.count > 0 || reset.count > 0) {
     console.log(`[bootstrap] reconciled demo passwords — adopted ${adopted.count}, reset ${reset.count}`)
