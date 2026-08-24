@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
+import type { CurriculumUnitEntry, Programme } from '../types'
 
 type ManageUser =
   | FacultyUnitOverview['students'][number]
@@ -118,7 +119,7 @@ export default function FacultyUnits() {
 
   const [data, setData] = useState<FacultyUnitOverview | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [tab, setTab] = useState<'students' | 'lecturers'>('students')
+  const [tab, setTab] = useState<'students' | 'lecturers' | 'pathways'>('students')
   const [search, setSearch] = useState('')
 
   async function reload() {
@@ -156,7 +157,11 @@ export default function FacultyUnits() {
       <Card>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex gap-2">
-            {(['students', 'lecturers'] as const).map((t) => (
+            {([
+              ['students', 'Students'],
+              ['lecturers', 'Lecturers'],
+              ['pathways', 'Pathways'],
+            ] as const).map(([t, label]) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -165,20 +170,31 @@ export default function FacultyUnits() {
                   tab === t ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
                 }`}
               >
-                {t === 'students' ? 'Students' : 'Lecturers'}
+                {label}
               </button>
             ))}
           </div>
-          <Input
-            label="Search"
-            placeholder={`Search ${tab} by name, email${tab === 'students' ? ' or reg number' : ''}`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="mb-0 md:w-80"
-          />
+          {tab !== 'pathways' && (
+            <Input
+              label="Search"
+              placeholder={`Search ${tab} by name, email${tab === 'students' ? ' or reg number' : ''}`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="mb-0 md:w-80"
+            />
+          )}
         </div>
       </Card>
 
+      {tab === 'pathways' ? (
+        loaded && data ? (
+          <PathwaysTab overview={data} onChanged={reload} />
+        ) : (
+          <Card noPadding>
+            <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
+          </Card>
+        )
+      ) : (
       <Card noPadding>
         {!loaded ? (
           <p className="px-5 py-12 text-center text-body text-text-secondary">Loading…</p>
@@ -239,6 +255,7 @@ export default function FacultyUnits() {
           </div>
         )}
       </Card>
+      )}
     </div>
   )
 }
@@ -538,6 +555,300 @@ function UserUnitsEditor({
               {pending?.kind === 'remove' ? 'Remove' : 'Add Unit'}
             </Button>
           </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+/* ─────────────────────────── Pathways tab ─────────────────────────── */
+
+const PATHWAY_YEARS = [1, 2, 3, 4, 5, 6]
+
+type PathwayAdd =
+  | { kind: 'add'; programmeId: string; programmeName: string; year: number; semester: number; unitId: string; unitName: string }
+  | { kind: 'remove'; entryId: string; unitName: string; programmeName: string }
+
+/**
+ * Curriculum pathway tables — Programme → Year → Semester sections, like the
+ * faculty curriculum matrix. Each section is editable by the Faculty Admin:
+ * add a unit to the path or remove it. The Students column shows how many
+ * students in this faculty are enrolled in the unit for the current period.
+ */
+function PathwaysTab({ overview, onChanged }: { overview: FacultyUnitOverview; onChanged: () => void }) {
+  const { user } = useAuth()
+  const toast = useToast()
+  const { period } = usePeriod()
+  const [curriculum, setCurriculum] = useState<CurriculumUnitEntry[] | null>(null)
+  const [programmes, setProgrammes] = useState<Programme[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<PathwayAdd | null>(null)
+  /** Per-section selected unit for the inline "add to path" row, keyed by programmeId:year:semester */
+  const [addPick, setAddPick] = useState<Record<string, string>>({})
+  /** Year/semester chosen in each programme's add-row, keyed by programmeId */
+  const [addYear, setAddYear] = useState<Record<string, number>>({})
+  const [addSemester, setAddSemester] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    Promise.all([academicApi.curriculum(), academicApi.programmes()])
+      .then(([c, p]) => {
+        setCurriculum(c)
+        setProgrammes(p)
+      })
+      .catch(() => toast.error('Failed to load the curriculum'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const facultyId = user?.facultyId ?? null
+
+  // Only programmes that belong to this admin's faculty
+  const myProgrammes = useMemo(
+    () => (programmes ?? []).filter((p) => p.facultyId === facultyId).sort((a, b) => a.name.localeCompare(b.name)),
+    [programmes, facultyId]
+  )
+
+  // Curriculum entries grouped by programmeId
+  const entriesByProgramme = useMemo(() => {
+    const map = new Map<string, CurriculumUnitEntry[]>()
+    for (const e of curriculum ?? []) {
+      const list = map.get(e.programmeId) ?? []
+      list.push(e)
+      map.set(e.programmeId, list)
+    }
+    return map
+  }, [curriculum])
+
+  // Enrolled-student counts per course unit for the current period
+  const enrolledCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    if (!period) return counts
+    for (const s of overview.students) {
+      for (const e of s.enrollments) {
+        if (e.academicYear === period.academicYear && e.semester === period.semester) {
+          counts.set(e.courseUnitId, (counts.get(e.courseUnitId) ?? 0) + 1)
+        }
+      }
+    }
+    return counts
+  }, [overview, period])
+
+  async function reloadCurriculum() {
+    try {
+      setCurriculum(await academicApi.curriculum())
+    } catch {
+      toast.error('Failed to refresh the curriculum')
+    }
+    onChanged() // also refresh enrollment counts
+  }
+
+  async function runPending() {
+    if (!pending) return
+    setBusy(true)
+    try {
+      if (pending.kind === 'add') {
+        await academicApi.createCurriculum({
+          courseUnitId: pending.unitId,
+          programmeId: pending.programmeId,
+          year: pending.year,
+          semester: pending.semester,
+        })
+        toast.success(`${pending.unitName} added to ${pending.programmeName} · Year ${pending.year} Sem ${pending.semester}`)
+      } else {
+        await academicApi.removeCurriculum(pending.entryId)
+        toast.success(`${pending.unitName} removed from ${pending.programmeName} path`)
+      }
+      setPending(null)
+      await reloadCurriculum()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update the pathway')
+      setPending(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!curriculum || !programmes) {
+    return (
+      <Card noPadding>
+        <p className="px-5 py-12 text-center text-body text-text-secondary">Loading curriculum…</p>
+      </Card>
+    )
+  }
+
+  if (myProgrammes.length === 0) {
+    return (
+      <Card>
+        <p className="py-6 text-center text-body-sm text-text-secondary">
+          No programmes are linked to your faculty yet. Ask a System Admin to import them.
+        </p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {period && (
+        <div className="rounded border border-border bg-surface-1 px-4 py-2 text-body-sm text-text-secondary">
+          Student counts for{' '}
+          <span className="font-semibold text-text-primary">
+            {period.academicYear} · Semester {period.semester}
+          </span>{' '}
+          (set by System Admin)
+        </div>
+      )}
+
+      {myProgrammes.map((prog) => {
+        const entries = entriesByProgramme.get(prog.id) ?? []
+        // Sections in Excel order: year asc, semester asc
+        const sections = new Map<string, CurriculumUnitEntry[]>()
+        for (const e of entries) {
+          const key = `${e.year}:${e.semester}`
+          const list = sections.get(key) ?? []
+          list.push(e)
+          sections.set(key, list)
+        }
+        const sortedSections = [...sections.entries()].sort(
+          ([aY, aS], [bY, bS]) => Number(aY) - Number(bY) || Number(aS) - Number(bS)
+        )
+        const mappedUnitIds = new Set(entries.map((e) => e.courseUnitId))
+        const year = addYear[prog.id] ?? 1
+        const semester = addSemester[prog.id] ?? 1
+        const sectionKey = `${prog.id}:${year}:${semester}`
+        const sectionUnitIds = new Set(
+          entries.filter((e) => e.year === year && e.semester === semester).map((e) => e.courseUnitId)
+        )
+        const availableUnits = overview.courseUnits.filter((cu) => !sectionUnitIds.has(cu.id))
+        const pickedUnitId = addPick[sectionKey] ?? ''
+
+        return (
+          <Card key={prog.id} noPadding>
+            <div className="border-b border-border bg-surface-1 px-5 py-3">
+              <h2 className="text-h4 font-semibold text-text-primary">{prog.name}</h2>
+              <p className="text-body-sm text-text-secondary">{prog.code}</p>
+            </div>
+
+            {sortedSections.length === 0 ? (
+              <p className="px-5 py-6 text-body-sm text-text-secondary">
+                No units on this pathway yet — add the first one below.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-5 py-2 text-label font-semibold uppercase tracking-wide text-text-secondary">Code</th>
+                      <th className="px-4 py-2 text-label font-semibold uppercase tracking-wide text-text-secondary">Course Name</th>
+                      <th className="px-4 py-2 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">Students</th>
+                      <th className="px-4 py-2" aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {sortedSections.flatMap(([key, list]) => {
+                      const [y, s] = key.split(':')
+                      return [
+                        <tr key={`${prog.id}-hdr-${key}`} className="bg-surface-1/60">
+                          <td colSpan={4} className="px-5 py-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                            Year {y} · Semester {s}
+                          </td>
+                        </tr>,
+                        ...list
+                          .slice()
+                          .sort((a, b) => a.courseUnit.code.localeCompare(b.courseUnit.code))
+                          .map((e) => (
+                            <tr key={e.id} className="transition-colors hover:bg-surface-1">
+                              <td className="whitespace-nowrap px-5 py-3 text-body font-medium text-text-primary">{e.courseUnit.code}</td>
+                              <td className="px-4 py-3 text-body text-text-primary">{e.courseUnit.name}</td>
+                              <td className="px-4 py-3 text-right text-body text-text-secondary">
+                                {period ? (enrolledCounts.get(e.courseUnitId) ?? 0) : '—'}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Button
+                                  variant="ghost"
+                                  className="px-2 py-1 text-body-sm"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setPending({ kind: 'remove', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name })
+                                  }
+                                >
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          )),
+                      ]
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Add-to-path row */}
+            <div className="flex flex-wrap items-end gap-3 border-t border-border px-5 py-4">
+              <Select
+                label="Year"
+                value={String(year)}
+                onChange={(e) => setAddYear({ ...addYear, [prog.id]: Number(e.target.value) })}
+                options={PATHWAY_YEARS.map((y) => ({ value: String(y), label: `Year ${y}` }))}
+                className="mb-0 w-32"
+              />
+              <Select
+                label="Semester"
+                value={String(semester)}
+                onChange={(e) => setAddSemester({ ...addSemester, [prog.id]: Number(e.target.value) })}
+                options={[1, 2].map((s) => ({ value: String(s), label: `Semester ${s}` }))}
+                className="mb-0 w-36"
+              />
+              <Select
+                label="Course Unit"
+                placeholder={availableUnits.length === 0 ? 'All faculty units are on this path' : 'Select a unit'}
+                value={pickedUnitId}
+                onChange={(e) => setAddPick({ ...addPick, [sectionKey]: e.target.value })}
+                options={availableUnits.map((cu) => ({ value: cu.id, label: `${cu.code} — ${cu.name}` }))}
+                className="mb-0 min-w-[240px] flex-1"
+              />
+              <Button
+                disabled={!pickedUnitId || busy}
+                onClick={() => {
+                  const cu = availableUnits.find((x) => x.id === pickedUnitId)
+                  if (cu) setPending({ kind: 'add', programmeId: prog.id, programmeName: prog.name, year, semester, unitId: cu.id, unitName: cu.name })
+                }}
+              >
+                Add to Path
+              </Button>
+            </div>
+            {mappedUnitIds.size > 0 && (
+              <p className="px-5 pb-3 text-xs text-text-disabled">
+                Units already on another Year/Semester of this path can be repeated there if your curriculum requires it.
+              </p>
+            )}
+          </Card>
+        )
+      })}
+
+      {/* Confirm modal */}
+      <Modal
+        open={Boolean(pending)}
+        onClose={() => setPending(null)}
+        closeOnOverlay={false}
+        closeOnEscape={false}
+        title={pending?.kind === 'remove' ? 'Remove from pathway?' : 'Add to pathway?'}
+        description={
+          pending?.kind === 'remove'
+            ? `Remove ${pending.unitName} from the ${pending.programmeName} path.`
+            : pending
+              ? `Add ${pending.unitName} to ${pending.programmeName} · Year ${pending.year} · Semester ${pending.semester}?`
+              : ''
+        }
+      >
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>Cancel</Button>
+          <Button
+            variant={pending?.kind === 'remove' ? 'danger' : 'primary'}
+            loading={busy}
+            onClick={runPending}
+          >
+            {pending?.kind === 'remove' ? 'Remove' : 'Add'}
+          </Button>
         </div>
       </Modal>
     </div>

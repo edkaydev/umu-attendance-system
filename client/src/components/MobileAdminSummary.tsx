@@ -107,7 +107,7 @@ export function MobileAdminSummary({ role }: { role: Extract<Role, 'faculty_admi
                     <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
                       <p className="text-body-sm font-semibold text-text-primary">{entry.action.replace(/_/g, ' ')}</p>
                       <p className="text-body-sm text-text-secondary">
-                        {entry.user.fullName} · {new Date(entry.createdAt).toLocaleString()}
+                        {entry.user?.fullName ?? 'System'} · {new Date(entry.createdAt).toLocaleString()}
                       </p>
                     </li>
                   ))}

@@ -129,7 +129,7 @@ export default function FacultyAdminSessions() {
                         <p className="text-body font-medium text-text-primary">{s.courseUnit?.name ?? '—'}</p>
                         <p className="text-body-sm text-text-secondary">{s.courseUnit?.code ?? ''}</p>
                       </td>
-                      <td className="px-4 py-3 text-body text-text-secondary">{s.lecturer.fullName}</td>
+                      <td className="px-4 py-3 text-body text-text-secondary">{s.lecturer?.fullName ?? '—'}</td>
                       <td className="px-4 py-3 text-body text-text-secondary">
                         {todayOnly
                           ? new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
