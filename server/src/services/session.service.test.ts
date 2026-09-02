@@ -88,9 +88,28 @@ describe('openSession', () => {
     ).rejects.toMatchObject({ status: 403 })
   })
 
-  it('throws 409 when a session is already open for the unit', async () => {
+  it('throws 409 LECTURER_HAS_OPEN_SESSION when lecturer already has any open session', async () => {
     mockAssigned()
-    db.session.findFirst.mockResolvedValue(makeSession())
+    // findFirst for lecturer check returns an open session
+    db.session.findFirst.mockResolvedValueOnce(
+      makeSession({ courseUnit: { id: 'cu2', code: 'CS200', name: 'Data Structures' } })
+    )
+    await expect(
+      openSession('lec1', {
+        courseUnitId: 'cu1',
+        academicYear: '2025/2026',
+        semester: 1,
+        mode: 'online',
+      })
+    ).rejects.toMatchObject({ code: 'LECTURER_HAS_OPEN_SESSION' })
+  })
+
+  it('throws 409 SESSION_ALREADY_OPEN when unit already has an open session from another lecturer', async () => {
+    mockAssigned()
+    // Lecturer check: no open session for this lecturer
+    db.session.findFirst.mockResolvedValueOnce(null)
+    // Unit check: unit already has an open session
+    db.session.findFirst.mockResolvedValueOnce(makeSession())
     await expect(
       openSession('lec1', {
         courseUnitId: 'cu1',
@@ -103,7 +122,7 @@ describe('openSession', () => {
 
   it('throws 400 when physical session has no location', async () => {
     mockAssigned()
-    db.session.findFirst.mockResolvedValue(null)
+    db.session.findFirst.mockResolvedValueOnce(null) // lecturer check
     await expect(
       openSession('lec1', {
         courseUnitId: 'cu1',
@@ -117,7 +136,8 @@ describe('openSession', () => {
 
   it('creates a session for an online session', async () => {
     mockAssigned()
-    db.session.findFirst.mockResolvedValue(null)
+    db.session.findFirst.mockResolvedValueOnce(null) // lecturer check: no open session
+    db.session.findFirst.mockResolvedValueOnce(null) // unit check: unit not open
     const created = makeSession({ mode: 'online' })
     db.session.create.mockResolvedValue(created)
 

@@ -116,9 +116,19 @@ export default function LecturerDashboard() {
             })}
           </p>
         </div>
-        <Link to="/lecturer/sessions/new" data-tour="lecturer-new-session" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
-          Start Session
-        </Link>
+        {openSessions.length > 0 ? (
+          <span
+            title="Close your running session before starting a new one"
+            className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded bg-umu-red/40 px-6 py-3 text-sm font-semibold text-white"
+            aria-disabled="true"
+          >
+            Start Session
+          </span>
+        ) : (
+          <Link to="/lecturer/sessions/new" data-tour="lecturer-new-session" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
+            Start Session
+          </Link>
+        )}
       </div>
 
       {/* ── Active session banner ── */}
@@ -248,14 +258,24 @@ export default function LecturerDashboard() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {/* Start Session — appears on hover, links pre-selecting this unit */}
-                    <Link
-                      to={`/lecturer/sessions/new?unit=${a.courseUnit.id}`}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-4 py-1 text-body-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                      aria-label={`Start session for ${a.courseUnit.name}`}
-                    >
-                      Start Session
-                    </Link>
+                    {/* Start Session — appears on hover */}
+                    {openSessions.length > 0 ? (
+                      <span
+                        title="Close your running session before starting a new one"
+                        className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded bg-umu-red/40 px-4 py-1 text-body-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-disabled="true"
+                      >
+                        Start Session
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/lecturer/sessions/new?unit=${a.courseUnit.id}`}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-4 py-1 text-body-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Start session for ${a.courseUnit.name}`}
+                      >
+                        Start Session
+                      </Link>
+                    )}
                     <Link
                       to={`/lecturer/sessions?unit=${a.courseUnit.id}`}
                       className="inline-flex min-h-[44px] items-center justify-center rounded px-3 py-1 text-body-sm font-semibold text-umu-red hover:bg-[#FFECEC]"

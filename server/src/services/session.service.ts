@@ -94,6 +94,20 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     }
   }
 
+  // One active session per lecturer at a time — a lecturer cannot teach
+  // two classes simultaneously.
+  const lecturerOpenSession = await prisma.session.findFirst({
+    where: { lecturerId, status: 'open' },
+    include: { courseUnit: { select: { id: true, code: true, name: true } } },
+  })
+  if (lecturerOpenSession) {
+    throw new ApiError(
+      `You already have an open session for "${lecturerOpenSession.courseUnit.name}". Close it before starting a new one.`,
+      409,
+      'LECTURER_HAS_OPEN_SESSION',
+    )
+  }
+
   // FR-05.6: only one active session per course unit at a time
   const existing = await prisma.session.findFirst({
     where: {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { dashboardApi, sessionApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
@@ -11,6 +11,7 @@ import { getCurrentPosition, GeoError } from '../utils/geo'
 import type { SessionMode } from '../types'
 
 type Assignment = Awaited<ReturnType<typeof dashboardApi.lecturer>>['units'][number]
+type TodaySession = Awaited<ReturnType<typeof dashboardApi.lecturer>>['todaySessions'][number]
 
 const CLASS_DURATION_OPTIONS = [
   { value: '30', label: '30 minutes' },
@@ -34,6 +35,7 @@ export default function OpenSession() {
   const preselectedUnitId = searchParams.get('unit') ?? ''
 
   const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [openSession, setOpenSession] = useState<TodaySession | null>(null)
   const [selectedId, setSelectedId]   = useState('')
   const [mode, setMode]               = useState<SessionMode>('physical')
   const [venue, setVenue]             = useState('')
@@ -50,6 +52,9 @@ export default function OpenSession() {
       .lecturer()
       .then((d) => {
         setAssignments(d.units)
+        // Detect any currently open session owned by this lecturer
+        const running = d.todaySessions.find((s) => s.status === 'open') ?? null
+        setOpenSession(running)
         // Pre-select: ?unit= param wins; otherwise auto-select if only one unit
         if (preselectedUnitId && d.units.some((a) => a.courseUnit.id === preselectedUnitId)) {
           setSelectedId(preselectedUnitId)
@@ -125,13 +130,19 @@ export default function OpenSession() {
       toast.success('Session started — code ' + res.session.code)
       navigate(`/lecturer/sessions/${res.session.id}/live`)
     } catch (e) {
-      const msg = e instanceof ApiClientError ? e.message : 'Failed to open session'
-      // Geo-related server rejections — show inline rather than toast
+      const msg = e instanceof ApiClientError ? e.message : 'Failed to start session'
       if (e instanceof ApiClientError && (
         e.code === 'LECTURER_OUTSIDE_CAMPUS' || e.code === 'LOCATION_REQUIRED'
       )) {
         setGeoError(msg)
         setGeoStatus('error')
+      } else if (e instanceof ApiClientError && e.code === 'LECTURER_HAS_OPEN_SESSION') {
+        // Refresh dashboard data to get the running session id
+        dashboardApi.lecturer().then((d) => {
+          const running = d.todaySessions.find((s) => s.status === 'open') ?? null
+          setOpenSession(running)
+        }).catch(() => {})
+        toast.error(msg)
       } else {
         toast.error(msg)
       }
@@ -159,7 +170,34 @@ export default function OpenSession() {
         </p>
       </div>
 
-      <Card>
+      {/* ── Blocked: lecturer already has a running session ── */}
+      {openSession && (
+        <div className="rounded-md border border-warning-border bg-warning-light px-5 py-4" role="alert">
+          <p className="text-body font-semibold text-warning-dark">
+            You already have an open session
+          </p>
+          <p className="mt-1 text-body-sm text-warning-dark">
+            <span className="font-medium">{openSession.courseUnit.name}</span> is currently running.
+            You can only have one session open at a time — close it first before starting a new one.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              to={`/lecturer/sessions/${openSession.id}/live`}
+              className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-5 py-2 text-sm font-semibold text-white hover:bg-umu-red-dark"
+            >
+              Go to Live Session
+            </Link>
+            <Link
+              to="/lecturer/sessions"
+              className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-border bg-white px-5 py-2 text-sm font-semibold text-text-primary hover:bg-surface-1"
+            >
+              View All Sessions
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <Card className={openSession ? 'pointer-events-none opacity-50' : ''}>
         {assignments.length === 0 ? (
           <p className="py-6 text-center text-body-sm text-text-secondary">
             You have no course units assigned. Contact your Faculty Admin.
@@ -227,7 +265,7 @@ export default function OpenSession() {
                 ) : (
                   <>
                     <span className="font-medium text-text-primary">Location required.</span>{' '}
-                    Your location will be recorded when you open the session so students can be checked against it.
+                    Your location will be recorded when you start the session so students can be checked against it.
                   </>
                 )}
               </div>
@@ -286,7 +324,7 @@ export default function OpenSession() {
 
             <p className="mb-4 text-xs text-text-secondary">
               <span className="font-medium text-text-primary">Class ends after</span> — how long the session runs
-              {' '}({classDuration} min), then it closes automatically. {' '}
+              {' '}({classDuration} min), then it closes automatically.{' '}
               <span className="font-medium text-text-primary">Students can use code for</span> — how long students have
               to enter the code before it expires ({codeTtl} min).
               Use <em>Extend</em> on the live screen to refresh it.
@@ -298,7 +336,7 @@ export default function OpenSession() {
             <Button
               fullWidth
               loading={isLocating || (submitting && geoStatus !== 'error')}
-              disabled={!assignment}
+              disabled={!assignment || !!openSession}
               onClick={handleSubmit}
             >
               {isLocating ? 'Getting location…' : 'Start Session'}
