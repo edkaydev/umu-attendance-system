@@ -32,8 +32,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   const cookieToken = req.cookies?.[CSRF_COOKIE_NAME]
   const headerToken = req.headers?.[CSRF_HEADER_NAME] as string
 
-  // For development, be more lenient
-  if (process.env.NODE_ENV !== 'production') {
+  // CSRF enforcement can be disabled in development/test by setting
+  // CSRF_DISABLED=true, but production always enforces it regardless.
+  // This keeps the middleware on the code path in dev so bugs are caught
+  // before deployment, while still allowing local testing without a browser.
+  if (process.env.NODE_ENV !== 'production' && process.env.CSRF_DISABLED === 'true') {
     return next()
   }
 

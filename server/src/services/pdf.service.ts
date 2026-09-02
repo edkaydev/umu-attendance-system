@@ -1,6 +1,57 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
-import puppeteer from 'puppeteer'
+import puppeteer, { Browser } from 'puppeteer'
+
+/**
+ * Singleton Puppeteer browser.
+ * Launching one browser per PDF request wastes ~250 MB per concurrent request.
+ * Instead we launch once, reuse the instance, and limit concurrent renders
+ * to avoid OOM on the Azure VM.
+ */
+let _browser: Browser | null = null
+let _launching = false
+const _queue: Array<() => void> = []
+const MAX_CONCURRENT = 2
+let _active = 0
+
+async function getBrowser(): Promise<Browser> {
+  if (_browser && _browser.connected) return _browser
+  if (_launching) {
+    await new Promise<void>((resolve) => _queue.push(resolve))
+    return getBrowser()
+  }
+  _launching = true
+  try {
+    _browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    })
+    // If the browser process crashes, clear the reference so the next request re-launches.
+    _browser.on('disconnected', () => {
+      _browser = null
+    })
+  } finally {
+    _launching = false
+    _queue.splice(0).forEach((r) => r())
+  }
+  return _browser!
+}
+
+/** Acquire a render slot (max MAX_CONCURRENT concurrent renders). */
+async function acquireSlot(): Promise<void> {
+  if (_active < MAX_CONCURRENT) {
+    _active++
+    return
+  }
+  await new Promise<void>((resolve) => _queue.push(resolve))
+  _active++
+}
+
+function releaseSlot(): void {
+  _active--
+  const next = _queue.shift()
+  if (next) next()
+}
 
 /**
  * Embed the UMU badge in PDF templates as base64 (FR-10.5).
@@ -85,21 +136,23 @@ export function buildPdfHtml(header: PdfHeader, tables: PdfTable[]): string {
 
 /** Render an HTML document to a PDF buffer via Puppeteer (FR-10). */
 export async function renderPdf(html: string): Promise<Buffer> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  })
+  await acquireSlot()
   try {
+    const browser = await getBrowser()
     const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'load' })
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '18mm', bottom: '18mm', left: '14mm', right: '14mm' },
-    })
-    return Buffer.from(pdf)
+    try {
+      await page.setContent(html, { waitUntil: 'load' })
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '18mm', bottom: '18mm', left: '14mm', right: '14mm' },
+      })
+      return Buffer.from(pdf)
+    } finally {
+      await page.close()
+    }
   } finally {
-    await browser.close()
+    releaseSlot()
   }
 }
 

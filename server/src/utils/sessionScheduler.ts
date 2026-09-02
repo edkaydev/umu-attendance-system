@@ -21,6 +21,7 @@ import { writeAuditLog } from './audit'
 import { tryRedis } from '../config/redis'
 import { randomUUID } from 'crypto'
 import { sendWeeklyAttendanceSummaries } from '../services/email.service'
+import { toEATDateString, eatHour } from '../constants/campuses'
 
 const TICK_MS = 60_000 // 1 minute
 const LEADER_LOCK_KEY = 'scheduler:leader'
@@ -95,17 +96,18 @@ const WEEKLY_LOCK_TTL_MS = 8 * 24 * 60 * 60 * 1000
 const weeklySentInMemory = new Set<string>()
 
 function kampalaWeekKey(now: Date): string {
-  // Africa/Kampala is UTC+3 year-round — offset manually, then use UTC accessors.
+  // Africa/Kampala is UTC+3 year-round — use the shared toEATDateString helper
+  // and anchor to the Monday of the current ISO week.
   const eat = new Date(now.getTime() + 3 * 60 * 60 * 1000)
   const day = eat.getUTCDay() // 0=Sun … 1=Mon
   const monday = new Date(eat)
   monday.setUTCDate(eat.getUTCDate() - ((day + 6) % 7))
-  return `${monday.getUTCFullYear()}-${monday.getUTCMonth() + 1}-${monday.getUTCDate()}`
+  return toEATDateString(monday)
 }
 
 async function maybeSendWeeklySummaries(now: Date): Promise<void> {
+  const hour = eatHour(now)
   const eat = new Date(now.getTime() + 3 * 60 * 60 * 1000)
-  const hour = eat.getUTCHours()
   const isMonday = eat.getUTCDay() === 1
   if (!isMonday || hour !== 7) return
 

@@ -1,10 +1,11 @@
 # Dependencies
 node_modules/
 
-# Environment files
-.env
-.env.local
-.env.production
+# Environment files — match at any depth so server/.env, client/.env, etc. are excluded
+**/.env
+**/.env.local
+**/.env.production
+**/.env.staging
 
 # Google OAuth client secret downloads
 client_secret_*.json

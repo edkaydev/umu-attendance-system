@@ -187,6 +187,7 @@ model Enrollment {
   enrolledAt   DateTime   @default(now())
 
   @@unique([studentId, courseUnitId, academicYear, semester])
+  @@index([studentId, academicYear, semester])
   @@map("enrollments")
 }
 
@@ -204,6 +205,7 @@ model LecturerAssignment {
   assignedAt   DateTime   @default(now())
 
   @@unique([lecturerId, courseUnitId, academicYear, semester])
+  @@index([courseUnitId, academicYear, semester])
   @@map("lecturer_assignments")
 }
 
@@ -256,6 +258,7 @@ model Session {
 
   @@index([code])
   @@index([courseUnitId, status])
+  @@index([lecturerId, status])
   @@map("sessions")
 }
 
@@ -285,6 +288,8 @@ model AttendanceRecord {
   edits       AttendanceEdit[]
 
   @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@index([sessionId, status])
   @@map("attendance_records")
 }
 
@@ -342,6 +347,8 @@ model RefreshToken {
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  @@index([userId])
+  @@index([tokenHash])
   @@map("refresh_tokens")
 }
 
@@ -358,6 +365,7 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+  @@index([targetType, targetId])
   @@map("audit_logs")
 }
 
