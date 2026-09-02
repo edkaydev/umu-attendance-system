@@ -65,13 +65,12 @@ export default function SessionDetail() {
   const [generating, setGenerating] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  // Only the session's own lecturer can edit attendance (closed sessions only).
-  // Faculty Admin is read-only — they monitor, not modify.
+  // Only Faculty Admin and System Admin can edit attendance records.
+  // Lecturers are read-only — they cannot change a student's recorded status.
   const canEdit =
     session !== null &&
     session.status === 'closed' &&
-    isLecturer &&
-    session.lecturer.id === user?.id
+    (user?.role === 'faculty_admin' || user?.role === 'system_admin')
 
   async function handleGenerateAndDownload() {
     if (!session) return
@@ -283,7 +282,7 @@ export default function SessionDetail() {
           </svg>
           <p className="text-body-sm text-warning">
             <span className="font-semibold">Session is still open.</span>{' '}
-            Attendance records are not final — students may still check in. Editing is only available after the session is closed.
+            Attendance records are not final — students may still check in. Editing is only available to Faculty Admin after the session is closed.
           </p>
         </div>
       )}
@@ -369,6 +368,10 @@ export default function SessionDetail() {
                           >
                             Edit
                           </Button>
+                        ) : isLecturer ? (
+                          <span className="text-body-sm text-text-disabled" title="Only Faculty Admin can edit attendance records">
+                            Read-only
+                          </span>
                         ) : session?.status === 'open' ? (
                           <span className="text-body-sm text-text-disabled" title="Close the session before editing attendance">
                             Session open

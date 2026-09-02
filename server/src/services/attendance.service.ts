@@ -236,15 +236,10 @@ export async function editAttendance(
     throw new ApiError('Status is already ' + newStatus, 400)
   }
 
-  if (record.session.status !== 'open' && editor.role === 'lecturer') {
-    // Records lock once a session closes — only admins may correct them
-    throw new ApiError('This session is closed. Ask your Faculty Admin to correct attendance.', 403)
-  }
-
+  // Only Faculty Admin and System Admin can edit attendance records.
+  // Lecturers are not permitted to change a student's recorded status.
   if (editor.role === 'lecturer') {
-    if (record.session.lecturerId !== editor.id) {
-      throw new ApiError('You can only edit attendance for your own sessions', 403)
-    }
+    throw new ApiError('Lecturers cannot edit attendance records. Contact your Faculty Admin.', 403)
   } else if (editor.role === 'faculty_admin') {
     const allowedFaculties = new Set([
       record.session.courseUnit.facultyId,
