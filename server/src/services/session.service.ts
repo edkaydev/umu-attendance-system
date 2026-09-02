@@ -21,7 +21,7 @@ export interface OpenSessionInput {
   academicYear: string
   semester: number
   classDuration?: number  // 1–180 min; defaults to the code TTL — sessions always auto-close
-  codeTtl?: number        // 15–30 min; defaults to 15
+  codeTtl?: number        // 5–15 min; defaults to 15
   /** Lecturer GPS — required for physical sessions (Check 1). */
   lat?: number
   lng?: number
@@ -131,7 +131,7 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     return Boolean(taken)
   })
 
-  const codeTtlMinutes = Math.min(30, Math.max(15, input.codeTtl ?? DEFAULT_CODE_TTL))
+  const codeTtlMinutes = Math.min(15, Math.max(5, input.codeTtl ?? DEFAULT_CODE_TTL))
   // Every session ends automatically: when no explicit duration is given the
   // session closes with the code window, so nothing can stay open forever.
   const classDuration = Math.min(180, Math.max(1, input.classDuration ?? codeTtlMinutes))

@@ -24,8 +24,9 @@ const CLASS_DURATION_OPTIONS = [
 ]
 
 const CODE_TTL_OPTIONS = [
+  { value: '5', label: '5 minutes' },
+  { value: '10', label: '10 minutes' },
   { value: '15', label: '15 minutes' },
-  { value: '30', label: '30 minutes' },
 ]
 
 export default function OpenSession() {
