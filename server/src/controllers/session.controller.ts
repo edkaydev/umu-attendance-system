@@ -122,7 +122,7 @@ export async function closeSessionController(req: Request, res: Response, next: 
       result.session.academicYear,
       result.session.semester
     )
-    ok(res, { message: 'Session closed', ...result })
+    ok(res, { message: `Session closed. ${result.absenteesAutoMarked} student(s) auto-marked absent, ${result.excusesAutoRejected} excuse(s) auto-rejected.`, ...result })
   } catch (e) {
     next(e)
   }

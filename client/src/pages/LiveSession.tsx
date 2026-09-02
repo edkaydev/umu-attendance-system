@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { sessionApi } from '../api/endpoints'
+import { sessionApi, excuseApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { ApiClientError } from '../api/client'
+import { useRealtime } from '../hooks/useRealtime'
 import {
   Skeleton,
   SkeletonRows,
@@ -74,9 +75,14 @@ export default function LiveSession() {
   const [copied, setCopied] = useState(false)
   const [attendanceAnnouncement, setAttendanceAnnouncement] = useState('')
   const [expiryAnnouncement, setExpiryAnnouncement] = useState('')
+  const [excuseAnnouncement, setExcuseAnnouncement] = useState('')
   const firstLoad = useRef(true)
   const presentCountRef = useRef<number | null>(null)
+  const excuseCountRef = useRef<number | null>(null)
   const expiryStageRef = useRef<'minute' | 'thirtySeconds' | 'expired' | null>(null)
+
+  // Instant refresh when a student submits or the lecturer reviews an excuse
+  useRealtime(['excuse-changed', 'attendance-changed'], () => { void load() })
 
   const load = useCallback(async () => {
     try {
@@ -95,6 +101,19 @@ export default function LiveSession() {
         )
       }
       presentCountRef.current = live.presentCount
+      const previousExcuseCount = excuseCountRef.current
+      if (
+        !firstLoad.current &&
+        live.session.status === 'open' &&
+        previousExcuseCount !== null &&
+        live.pendingExcuses.length > previousExcuseCount
+      ) {
+        const newExcuses = live.pendingExcuses.length - previousExcuseCount
+        setExcuseAnnouncement(
+          `${newExcuses} new excuse request${newExcuses === 1 ? '' : 's'} — review them below.`
+        )
+      }
+      excuseCountRef.current = live.pendingExcuses.length
       if (live.session.status === 'closed' && !firstLoad.current) {
         toast.info('Session was closed')
       }
@@ -188,6 +207,26 @@ export default function LiveSession() {
     }
   }
 
+  async function handleApprove(excuseId: string, studentName: string) {
+    try {
+      await excuseApi.approve(excuseId)
+      toast.success(`${studentName} is now excused`)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to approve excuse')
+    }
+  }
+
+  async function handleReject(excuseId: string, studentName: string) {
+    try {
+      await excuseApi.reject(excuseId)
+      toast.success(`${studentName} marked absent`)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reject excuse')
+    }
+  }
+
   if (!loaded) {
     return (
       <SkeletonScreen label="Loading live session…" className="space-y-6">
@@ -223,6 +262,7 @@ export default function LiveSession() {
     <div className="space-y-6">
       <p className="sr-only" aria-live="polite" aria-atomic="true">{attendanceAnnouncement}</p>
       <p className="sr-only" aria-live="polite" aria-atomic="true">{expiryAnnouncement}</p>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{excuseAnnouncement}</p>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-h2 font-bold text-text-primary">{data.session.courseUnit.name}</h1>
@@ -381,6 +421,48 @@ export default function LiveSession() {
             </div>
           </div>
         </Card>
+
+        {/* Pending excuse requests */}
+        {!closed && data.pendingExcuses.length > 0 && (
+          <Card title={`Excuse Requests (${data.pendingExcuses.length})`} className="border-warning-border">
+            <ul className="divide-y divide-border">
+              {data.pendingExcuses.map((e) => (
+                <li key={e.id} className="group flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text-primary">{e.student.fullName}</p>
+                    <p className="text-xs text-text-secondary">
+                      {e.student.regNumber ?? '—'} · requested {new Date(e.createdAt).toLocaleTimeString()}
+                    </p>
+                    <p className="mt-1 rounded bg-warning-light px-2 py-1 text-xs italic text-warning-dark">
+                      “{e.reason}”
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1 text-body-sm text-success"
+                      onClick={() => handleApprove(e.id, e.student.fullName)}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="px-3 py-1 text-body-sm text-danger"
+                      onClick={() => handleReject(e.id, e.student.fullName)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {(data.pendingExcuses.length > 0) && (
+              <p className="mt-3 text-xs text-text-disabled">
+                Approve marks the student as excused; reject marks them absent. You can hover over a request to act on it.
+              </p>
+            )}
+          </Card>
+        )}
 
         {/* Present list */}
         <Card title="Checked In">

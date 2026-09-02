@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { dashboardApi, attendanceApi, checkinApi, electivesApi } from '../api/endpoints'
+import { dashboardApi, attendanceApi, checkinApi, electivesApi, excuseApi } from '../api/endpoints'
 import type { LiveSessionForStudent } from '../api/endpoints'
 import type { UnitAttendance, ElectivesState } from '../types'
 import { Button } from '../components/ui/Button'
@@ -80,6 +80,11 @@ export default function StudentDashboard() {
   const [checkingIn, setCheckingIn] = useState(false)
   const [gettingLocation, setGettingLocation] = useState(false)
 
+  // Excuse request state
+  const [excuseSession, setExcuseSession] = useState<LiveSessionForStudent | null>(null)
+  const [excuseReason, setExcuseReason] = useState('')
+  const [submittingExcuse, setSubmittingExcuse] = useState(false)
+
   // Electives picker state
   const [electives, setElectives] = useState<ElectivesState | null>(null)
   const [picks, setPicks] = useState<Set<string>>(new Set())
@@ -136,9 +141,10 @@ export default function StudentDashboard() {
 
   // Instant refresh when anything relevant changes anywhere in the system.
   useRealtime(
-    ['sessions-changed', 'attendance-changed', 'enrollments-changed', 'users-changed'],
+    ['sessions-changed', 'attendance-changed', 'enrollments-changed', 'users-changed', 'excuse-changed'],
     () => {
       dashboardApi.student().then(setData).catch(() => {})
+      checkinApi.live().then(setLive).catch(() => {})
       electivesApi.get().then((state) => {
         if (state) {
           setElectives(state)
@@ -218,6 +224,27 @@ export default function StudentDashboard() {
       checkinApi.live().then(setLive).catch(() => {})
     } finally {
       setCheckingIn(false)
+    }
+  }
+
+  async function handleSubmitExcuse() {
+    if (!excuseSession) return
+    const trimmed = excuseReason.trim()
+    if (!trimmed) {
+      toast.info('Please provide a reason for your absence')
+      return
+    }
+    setSubmittingExcuse(true)
+    try {
+      await excuseApi.submit(excuseSession.id, trimmed)
+      toast.success('Excuse request submitted — waiting for your lecturer to review')
+      setExcuseSession(null)
+      setExcuseReason('')
+      checkinApi.live().then(setLive).catch(() => {})
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to submit excuse')
+    } finally {
+      setSubmittingExcuse(false)
     }
   }
 
@@ -368,18 +395,35 @@ export default function StudentDashboard() {
                     <span className="inline-flex animate-scaleIn items-center gap-1 rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success">
                       ✓ Checked in
                     </span>
+                  ) : s.excusePending ? (
+                    <span className="inline-flex animate-scaleIn items-center gap-1 rounded-full bg-warning-light px-3 py-1 text-xs font-semibold text-warning">
+                      ⏳ Excuse pending
+                    </span>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      className="px-3 py-1 text-body-sm"
-                      disabled={new Date(s.codeExpiresAt).getTime() <= now}
-                      onClick={() => {
-                        setSelected(s)
-                        setModalCode('')
-                      }}
-                    >
-                      Check In
-                    </Button>
+                    <>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-body-sm"
+                        disabled={new Date(s.codeExpiresAt).getTime() <= now}
+                        onClick={() => {
+                          setSelected(s)
+                          setModalCode('')
+                        }}
+                      >
+                        Check In
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="px-3 py-1 text-body-sm text-warning"
+                        disabled={new Date(s.codeExpiresAt).getTime() <= now}
+                        onClick={() => {
+                          setExcuseSession(s)
+                          setExcuseReason('')
+                        }}
+                      >
+                        Can't Attend
+                      </Button>
+                    </>
                   )}
                   {s.mode === 'online' && s.meetingLink && (
                     <a
@@ -578,6 +622,41 @@ export default function StudentDashboard() {
               </Button>
               <Button loading={checkingIn || gettingLocation} onClick={handleCheckIn}>
                 {gettingLocation ? 'Getting location…' : 'Check In'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Excuse request modal */}
+      <Modal open={Boolean(excuseSession)} onClose={() => setExcuseSession(null)} title={excuseSession ? `Request Excuse — ${excuseSession.courseUnit.name}` : ''}>
+        {excuseSession && (
+          <div className="space-y-4">
+            <p className="text-body-sm text-text-secondary">
+              Explain why you cannot attend this session. Your lecturer will review your request.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-text-secondary" htmlFor="excuse-reason">
+                Reason
+              </label>
+              <textarea
+                id="excuse-reason"
+                value={excuseReason}
+                onChange={(e) => setExcuseReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="e.g. I am feeling unwell and cannot attend class today…"
+                autoFocus
+                className="w-full rounded border-[1.5px] border-border bg-surface-1 px-4 py-3 text-body text-text-primary focus:border-umu-red focus:outline-none focus:shadow-focus-red"
+              />
+              <p className="mt-1 text-xs text-text-secondary">{excuseReason.length}/500</p>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" disabled={submittingExcuse} onClick={() => setExcuseSession(null)}>
+                Cancel
+              </Button>
+              <Button loading={submittingExcuse} onClick={handleSubmitExcuse}>
+                Submit Excuse
               </Button>
             </div>
           </div>

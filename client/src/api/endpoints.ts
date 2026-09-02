@@ -17,6 +17,7 @@ import type {
   UnitAttendance,
   AttendanceStatus,
   AuditLogEntry,
+  ExcuseRequest,
 } from '../types'
 
 // ─── Auth ───
@@ -135,6 +136,7 @@ export interface LiveSessionData {
     checkedInAt: string
     student: { id: string; fullName: string; regNumber: string | null }
   }[]
+  pendingExcuses: ExcuseRequest[]
 }
 
 export const sessionApi = {
@@ -176,6 +178,7 @@ export interface LiveSessionForStudent {
   codeExpiresAt: string
   classDuration: number
   checkedIn: boolean
+  excusePending: boolean
 }
 
 export const checkinApi = {
@@ -519,6 +522,16 @@ export const auditLogApi = {
       `/api/audit-logs${qs ? `?${qs}` : ''}`
     )
   },
+}
+
+// ─── Excuse requests ───
+export const excuseApi = {
+  submit: (sessionId: string, reason: string) =>
+    http.post<{ message: string; excuse: ExcuseRequest }>('/api/excuses', { sessionId, reason }),
+  approve: (excuseId: string) =>
+    http.patch<{ message: string }>(`/api/excuses/${excuseId}/approve`),
+  reject: (excuseId: string) =>
+    http.patch<{ message: string }>(`/api/excuses/${excuseId}/reject`),
 }
 
 // ─── System settings ───

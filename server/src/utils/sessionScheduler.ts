@@ -22,6 +22,7 @@ import { tryRedis } from '../config/redis'
 import { randomUUID } from 'crypto'
 import { sendWeeklyAttendanceSummaries } from '../services/email.service'
 import { toEATDateString, eatHour } from '../constants/campuses'
+import { autoRejectPendingExcuses } from '../services/excuse.service'
 
 const TICK_MS = 60_000 // 1 minute
 const LEADER_LOCK_KEY = 'scheduler:leader'
@@ -55,6 +56,9 @@ async function closeSingleSession(sessionId: string): Promise<void> {
     select: { studentId: true },
   })
 
+  // Auto-reject pending excuse requests first
+  const excusesAutoRejected = await autoRejectPendingExcuses(sessionId)
+
   const existing = await prisma.attendanceRecord.findMany({
     where: { sessionId },
     select: { studentId: true },
@@ -79,10 +83,10 @@ async function closeSingleSession(sessionId: string): Promise<void> {
     'SESSION_AUTO_CLOSE',
     'session',
     sessionId,
-    { absenteesAutoMarked: absentIds.length, reason: 'classDuration elapsed' }
+    { absenteesAutoMarked: absentIds.length, excusesAutoRejected, reason: 'classDuration elapsed' }
   )
 
-  console.log(`[scheduler] auto-closed session ${sessionId} (${absentIds.length} absent records created)`)
+  console.log(`[scheduler] auto-closed session ${sessionId} (${absentIds.length} absent records created, ${excusesAutoRejected} excuses auto-rejected)`)
 }
 
 // ── Weekly attendance summary emails ─────────────────────────────────────────

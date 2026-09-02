@@ -7,6 +7,7 @@ import { writeAuditLog } from '../utils/audit'
 import { isWithinCampus, geofence } from '../config/geofence'
 import { notifySessionOpened } from './email.service'
 import { toEATDateString } from '../constants/campuses'
+import { autoRejectPendingExcuses } from './excuse.service'
 
 const DEFAULT_CODE_TTL = 15 // minutes
 
@@ -351,7 +352,7 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
     throw new ApiError('You do not own this session', 403)
   }
 
-  const [enrolledCount, presentRecords] = await Promise.all([
+  const [enrolledCount, presentRecords, pendingExcuses] = await Promise.all([
     prisma.enrollment.count({
       where: {
         courseUnitId: session.courseUnitId,
@@ -368,6 +369,18 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
       },
       orderBy: { checkedInAt: 'desc' },
     }),
+    session.status === 'open'
+      ? prisma.excuseRequest.findMany({
+          where: { sessionId, status: 'pending' },
+          select: {
+            id: true,
+            reason: true,
+            createdAt: true,
+            student: { select: { id: true, fullName: true, regNumber: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [],
   ])
 
   return {
@@ -388,6 +401,7 @@ export async function getLiveSession(sessionId: string, lecturerId: string) {
     presentCount: presentRecords.length,
     enrolledCount,
     present: presentRecords,
+    pendingExcuses,
   }
 }
 
@@ -414,6 +428,10 @@ export async function closeSession(sessionId: string, lecturerId: string) {
     select: { studentId: true },
   })
 
+  // Auto-reject any pending excuse requests → creates absent records for those students
+  const excusesAutoRejected = await autoRejectPendingExcuses(sessionId)
+
+  // Re-check existing attendance records (now includes auto-rejected excuses)
   const existing = await prisma.attendanceRecord.findMany({
     where: { sessionId },
     select: { studentId: true },
@@ -441,10 +459,11 @@ export async function closeSession(sessionId: string, lecturerId: string) {
 
   await writeAuditLog(lecturerId, 'SESSION_CLOSE', 'session', session.id, {
     absenteesAutoMarked: absentStudentIds.length,
+    excusesAutoRejected,
   })
 
   publish('sessions-changed')
-  return { session: closed, absenteesAutoMarked: absentStudentIds.length }
+  return { session: closed, absenteesAutoMarked: absentStudentIds.length, excusesAutoRejected }
 }
 
 /** Reopen a closed session on the same day (FR-05.9). */

@@ -158,6 +158,7 @@ model User {
   attendanceAlerts     AttendanceAlert[]
   refreshTokens        RefreshToken[]
   auditLogs            AuditLog[]
+  excuseRequests       ExcuseRequest[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -255,6 +256,7 @@ model Session {
   openedAt         DateTime          @default(now())
   closedAt         DateTime?
   attendanceRecords AttendanceRecord[]
+  excuseRequests   ExcuseRequest[]
 
   @@index([code])
   @@index([courseUnitId, status])
@@ -332,6 +334,37 @@ model AttendanceAlert {
 enum AlertType {
   warning   // fired at 80%
   critical  // fired at 75%
+}
+
+// ─────────────────────────────────────────────
+// EXCUSE REQUESTS
+// ─────────────────────────────────────────────
+
+/// A student submits an excuse before or during a session when they cannot attend.
+/// The lecturer reviews it on the live screen and approves (excused) or rejects (absent).
+/// Pending requests that are not acted on by session close are auto-marked Absent.
+model ExcuseRequest {
+  id        String            @id @default(uuid())
+  studentId String
+  student   User              @relation(fields: [studentId], references: [id])
+  sessionId String
+  session   Session           @relation(fields: [sessionId], references: [id])
+  reason    String            @db.Text
+  status    ExcuseRequestStatus @default(pending)
+  reviewedById String?
+  reviewedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId, status])
+  @@index([studentId])
+  @@map("excuse_requests")
+}
+
+enum ExcuseRequestStatus {
+  pending
+  approved
+  rejected
 }
 
 // ─────────────────────────────────────────────

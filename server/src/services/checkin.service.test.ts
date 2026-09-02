@@ -12,6 +12,7 @@ vi.mock('../config/db', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    excuseRequest: { findMany: vi.fn() },
   },
 }))
 

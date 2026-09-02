@@ -16,6 +16,7 @@ export type RealtimeEvent =
   | 'enrollments-changed'
   | 'curriculum-changed'
   | 'users-changed'
+  | 'excuse-changed'
 
 type Listener = (event: RealtimeEvent) => void
 
@@ -36,6 +37,7 @@ function ensureSource(): void {
     'enrollments-changed',
     'curriculum-changed',
     'users-changed',
+    'excuse-changed',
   ]) {
     source.addEventListener(name, forward as EventListener)
   }

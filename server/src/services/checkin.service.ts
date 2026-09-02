@@ -175,6 +175,16 @@ export async function listLiveForStudent(studentId: string) {
   })
   const checkedIn = new Set(checkedInRecords.map((r) => r.sessionId))
 
+  const pendingExcuses = await prisma.excuseRequest.findMany({
+    where: {
+      studentId,
+      sessionId: { in: openSessions.map((s) => s.id) },
+      status: 'pending',
+    },
+    select: { sessionId: true },
+  })
+  const excusePending = new Set(pendingExcuses.map((e) => e.sessionId))
+
   return openSessions.map((s) => ({
     id: s.id,
     courseUnit: s.courseUnit,
@@ -187,5 +197,6 @@ export async function listLiveForStudent(studentId: string) {
     codeExpiresAt: s.codeExpiresAt,
     classDuration: s.classDuration,
     checkedIn: checkedIn.has(s.id),
+    excusePending: excusePending.has(s.id),
   }))
 }

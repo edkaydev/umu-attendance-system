@@ -19,6 +19,7 @@ vi.mock('../config/db', () => ({
     },
     enrollment: { findMany: vi.fn(), count: vi.fn() },
     attendanceRecord: { findMany: vi.fn(), createMany: vi.fn() },
+    excuseRequest: { findMany: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   },
 }))
 
@@ -33,6 +34,12 @@ vi.mock('../config/geofence', () => ({
 }))
 vi.mock('../utils/codeGenerator', () => ({
   generateUniqueSessionCode: vi.fn().mockResolvedValue('ABCDEF'),
+}))
+vi.mock('./excuse.service', () => ({
+  autoRejectPendingExcuses: vi.fn().mockResolvedValue(0),
+  submitExcuse: vi.fn().mockResolvedValue({ id: 'exc1' }),
+  approveExcuse: vi.fn().mockResolvedValue(undefined),
+  rejectExcuse: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { prisma } from '../config/db'

@@ -16,6 +16,7 @@ export type RealtimeEvent =
   | 'enrollments-changed'
   | 'curriculum-changed'
   | 'users-changed'
+  | 'excuse-changed'
 
 const bus = new EventEmitter()
 bus.setMaxListeners(0) // one listener per connected client

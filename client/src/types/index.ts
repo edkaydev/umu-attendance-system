@@ -136,6 +136,15 @@ export interface AuditLogEntry {
   user: { id: string; fullName: string; email: string; role: Role }
 }
 
+export type ExcuseRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface ExcuseRequest {
+  id: string
+  reason: string
+  createdAt: string
+  student: { id: string; fullName: string; regNumber: string | null }
+}
+
 export interface CurriculumUnitEntry {
   id: string
   courseUnitId: string
