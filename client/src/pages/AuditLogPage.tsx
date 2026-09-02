@@ -8,20 +8,40 @@ import { ApiClientError } from '../api/client'
 
 const ACTION_OPTIONS = [
   { value: '', label: 'All actions' },
-  { value: 'ATTENDANCE_EDIT', label: 'Attendance edited' },
   { value: 'SESSION_OPEN', label: 'Session opened' },
   { value: 'SESSION_CLOSE', label: 'Session closed' },
-  { value: 'SESSION_REOPEN', label: 'Session reopened' },
+  { value: 'SESSION_AUTO_CLOSE', label: 'Session closed automatically' },
+  { value: 'SESSION_EXTEND', label: 'Session extended' },
+  { value: 'ATTENDANCE_EDIT', label: 'Attendance changed' },
+  { value: 'PDF_DOWNLOAD', label: 'Report downloaded' },
+  { value: 'PROFILE_COMPLETE', label: 'Profile completed' },
   { value: 'IMPORT', label: 'CSV import' },
   { value: 'USER_CREATE', label: 'User created' },
   { value: 'USER_UPDATE', label: 'User updated' },
   { value: 'USER_DELETE', label: 'User deleted' },
-  { value: 'ROLE_CHANGE', label: 'Role changed' },
-  { value: 'SETTINGS_UPDATE', label: 'Settings changed' },
-  { value: 'DB_RESET', label: 'Database reset' },
+  { value: 'LOGIN', label: 'Sign in' },
+  { value: 'LOGOUT', label: 'Sign out' },
+  { value: 'RESET_DATABASE', label: 'Database reset' },
 ]
 
 const PAGE_SIZE = 25
+
+const ACTION_LABEL: Record<string, string> = {
+  SESSION_OPEN: 'Session opened',
+  SESSION_CLOSE: 'Session closed',
+  SESSION_AUTO_CLOSE: 'Session closed automatically',
+  SESSION_EXTEND: 'Session extended',
+  ATTENDANCE_EDIT: 'Attendance changed',
+  PDF_DOWNLOAD: 'Report downloaded',
+  PROFILE_COMPLETE: 'Profile completed',
+  LOGIN: 'Signed in',
+  LOGOUT: 'Signed out',
+  USER_CREATE: 'User created',
+  USER_UPDATE: 'User updated',
+  USER_DELETE: 'User deleted',
+  IMPORT: 'CSV import',
+  RESET_DATABASE: 'Database reset',
+}
 
 export default function AuditLogPage() {
   const toast = useToast()
@@ -67,14 +87,12 @@ export default function AuditLogPage() {
           <p className="py-12 text-center text-body-sm text-text-secondary">No log entries found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
                   <th className="py-2 pr-4">When</th>
-                  <th className="py-2 pr-4">User</th>
-                  <th className="py-2 pr-4">Action</th>
-                  <th className="py-2 pr-4">Target</th>
-                  <th className="py-2">Details</th>
+                  <th className="py-2 pr-4">Who</th>
+                  <th className="py-2">What happened</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -84,19 +102,14 @@ export default function AuditLogPage() {
                       {new Date(l.createdAt).toLocaleString()}
                     </td>
                     <td className="py-3 pr-4">
-                      <p className="font-medium text-text-primary">{l.user?.fullName ?? 'System'}</p>
-                      <p className="text-xs text-text-secondary">{l.user?.email ?? '—'}</p>
+                      <p className="font-medium text-text-primary">{l.actor?.fullName ?? 'System'}</p>
+                      <p className="text-xs text-text-secondary">{l.actor?.email ?? '—'}</p>
                     </td>
-                    <td className="py-3 pr-4">
-                      <span className="rounded bg-surface-1 px-2 py-0.5 text-xs font-medium text-text-primary">
-                        {l.action}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-text-secondary">
-                      {l.targetType} · {l.targetId.slice(0, 8)}…
-                    </td>
-                    <td className="py-3 text-xs text-text-secondary">
-                      {l.meta ? JSON.stringify(l.meta) : '—'}
+                    <td className="py-3">
+                      <p className="text-text-primary">{l.summary}</p>
+                      <p className="mt-0.5 text-xs text-text-secondary">
+                        {ACTION_LABEL[l.action] ?? l.action}
+                      </p>
                     </td>
                   </tr>
                 ))}

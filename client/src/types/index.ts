@@ -133,7 +133,8 @@ export interface AuditLogEntry {
   targetId: string
   meta: Record<string, unknown> | null
   createdAt: string
-  user: { id: string; fullName: string; email: string; role: Role }
+  summary: string
+  actor: { id: string; fullName: string | null; email: string | null; role: Role } | null
 }
 
 export type ExcuseRequestStatus = 'pending' | 'approved' | 'rejected'
