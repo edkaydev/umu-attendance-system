@@ -134,6 +134,13 @@ export async function listCourseUnits(facultyId?: string, includeInactive = fals
   return [...owned, ...shared].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+export function getCourseUnit(id: string) {
+  return prisma.courseUnit.findUnique({
+    where: { id },
+    select: { id: true, facultyId: true, code: true, name: true, isActive: true },
+  })
+}
+
 export async function createCourseUnit(data: { facultyId: string; code: string; name: string }) {
   const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
   if (!faculty) throw new ApiError('Faculty not found', 404)

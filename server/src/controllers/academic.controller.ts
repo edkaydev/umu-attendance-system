@@ -10,6 +10,7 @@ import {
   createProgramme,
   updateProgramme,
   listCourseUnits,
+  getCourseUnit,
   createCourseUnit,
   updateCourseUnit,
   addCourseUnitFaculty,
@@ -170,7 +171,27 @@ export async function postCourseUnit(req: Request, res: Response, next: NextFunc
 
 export async function putCourseUnit(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    ok(res, { courseUnit: await updateCourseUnit(req.params.id, req.body) })
+    const body: Record<string, unknown> = { ...req.body }
+    // Faculty Admins may edit a unit's name/code only — and only for units in
+    // their own faculty. System Admin edits freely.
+    if (req.user!.role === 'faculty_admin') {
+      if (!req.user!.facultyId) {
+        res.status(403).json({ error: 'No faculty assigned to your account' })
+        return
+      }
+      delete body.facultyId
+      delete body.isActive
+      const unit = await getCourseUnit(req.params.id)
+      if (!unit) {
+        res.status(404).json({ error: 'Course unit not found' })
+        return
+      }
+      if (unit.facultyId !== req.user!.facultyId) {
+        res.status(403).json({ error: 'You can only edit units in your own faculty' })
+        return
+      }
+    }
+    ok(res, { courseUnit: await updateCourseUnit(req.params.id, body) })
   } catch (e) {
     next(e)
   }

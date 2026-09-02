@@ -31,25 +31,41 @@ function isStudent(u: ManageUser): u is FacultyUnitOverview['students'][number] 
 
 /* ─────────────────────────── Add unit form ─────────────────────────── */
 
-function AddCourseUnitCard({ onCreated }: { onCreated: () => void }) {
+function AddCourseUnitCard({
+  units,
+  onCreated,
+}: {
+  units: { id: string; code: string; name: string }[]
+  onCreated: () => void
+}) {
   const { user } = useAuth()
   const toast = useToast()
+  const [mode, setMode] = useState<'create' | 'edit'>('create')
+  const [selectedId, setSelectedId] = useState('')
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
 
   if (!user?.facultyId) {
     return (
-      <Card title="Add a New Course Unit">
+      <Card title="Course Units">
         <p className="text-body-sm text-text-secondary">
-          Your account is not linked to a faculty yet, so you cannot create units.
+          Your account is not linked to a faculty yet, so you cannot manage units.
           Ask a System Admin to assign your faculty first.
         </p>
       </Card>
     )
   }
 
-  async function handleCreate() {
+  // Switching into edit mode for a unit loads its current values.
+  function selectUnit(id: string) {
+    setSelectedId(id)
+    const unit = units.find((u) => u.id === id)
+    setName(unit?.name ?? '')
+    setCode(unit?.code ?? '')
+  }
+
+  async function handleSubmit() {
     const trimmedName = name.trim()
     const trimmedCode = code.trim().toUpperCase()
     if (!trimmedName || !trimmedCode) {
@@ -58,28 +74,80 @@ function AddCourseUnitCard({ onCreated }: { onCreated: () => void }) {
     }
     setBusy(true)
     try {
-      await academicApi.createCourseUnit({
-        facultyId: user!.facultyId!,
-        name: trimmedName,
-        code: trimmedCode,
-      })
-      toast.success(`Unit ${trimmedCode} created`)
-      setName('')
-      setCode('')
+      if (mode === 'edit') {
+        if (!selectedId) { toast.error('Select a unit to edit'); return }
+        await academicApi.updateCourseUnit(selectedId, {
+          name: trimmedName,
+          code: trimmedCode,
+        })
+        toast.success(`Unit ${trimmedCode} updated`)
+      } else {
+        await academicApi.createCourseUnit({
+          facultyId: user!.facultyId!,
+          name: trimmedName,
+          code: trimmedCode,
+        })
+        toast.success(`Unit ${trimmedCode} created`)
+        setName('')
+        setCode('')
+      }
       onCreated()
+      setMode('create')
+      setSelectedId('')
     } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to create unit')
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to save unit')
     } finally {
       setBusy(false)
     }
   }
 
+  const editing = mode === 'edit'
+
   return (
-    <Card title="Add a New Course Unit">
-      <p className="mb-3 text-body-sm text-text-secondary">
-        Missing a unit from the import? Create it here — it goes straight into your faculty and
-        becomes available in the Add-unit dropdowns.
-      </p>
+    <Card title={editing ? 'Edit a Course Unit' : 'Add a New Course Unit'}>
+      <div className="mb-3 flex gap-2">
+        <button
+          aria-pressed={mode === 'create'}
+          onClick={() => { setMode('create'); setSelectedId(''); setName(''); setCode('') }}
+          className={`min-h-[44px] rounded px-4 text-body-sm font-semibold transition-colors ${
+            mode === 'create' ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
+          }`}
+        >
+          Add new
+        </button>
+        <button
+          aria-pressed={mode === 'edit'}
+          onClick={() => { setMode('edit'); setSelectedId(''); setName(''); setCode('') }}
+          className={`min-h-[44px] rounded px-4 text-body-sm font-semibold transition-colors ${
+            mode === 'edit' ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
+          }`}
+        >
+          Edit unit
+        </button>
+      </div>
+      {editing ? (
+        <>
+          <p className="mb-3 text-body-sm text-text-secondary">
+            Change a unit's name or code. This updates it everywhere it appears across your faculty.
+          </p>
+          <Select
+            label="Course Unit"
+            placeholder={units.length === 0 ? 'No units in your faculty yet' : 'Select a unit to edit'}
+            value={selectedId}
+            onChange={(e) => selectUnit(e.target.value)}
+            options={units
+              .slice()
+              .sort((a, b) => a.code.localeCompare(b.code))
+              .map((u) => ({ value: u.id, label: `${u.code} — ${u.name}` }))}
+            className="mb-3"
+          />
+        </>
+      ) : (
+        <p className="mb-3 text-body-sm text-text-secondary">
+          Missing a unit from the import? Create it here — it goes straight into your faculty and
+          becomes available in the Add-unit dropdowns.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
           label="Unit name"
@@ -92,12 +160,15 @@ function AddCourseUnitCard({ onCreated }: { onCreated: () => void }) {
           placeholder="e.g. BCS2201"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          className=""
         />
       </div>
       <div className="mt-3">
-        <Button loading={busy} disabled={!name.trim() || !code.trim()} onClick={handleCreate}>
-          Create Unit
+        <Button
+          loading={busy}
+          disabled={!name.trim() || !code.trim() || (editing && !selectedId)}
+          onClick={handleSubmit}
+        >
+          {editing ? 'Save Changes' : 'Create Unit'}
         </Button>
       </div>
     </Card>
@@ -152,7 +223,7 @@ export default function FacultyUnits() {
         </p>
       </div>
 
-      <AddCourseUnitCard onCreated={reload} />
+      <AddCourseUnitCard units={data?.courseUnits ?? []} onCreated={reload} />
 
       <Card>
         <div className="flex flex-wrap items-end gap-3">

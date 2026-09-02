@@ -316,7 +316,7 @@ export const academicApi = {
     const res = await http.post<{ courseUnit: CourseUnit }>('/api/academic/course-units', data)
     return res.courseUnit
   },
-  updateCourseUnit: async (id: string, data: { facultyId: string; name: string; code: string }) => {
+  updateCourseUnit: async (id: string, data: { facultyId?: string; name: string; code: string }) => {
     const res = await http.put<{ courseUnit: CourseUnit }>(`/api/academic/course-units/${id}`, data)
     return res.courseUnit
   },
