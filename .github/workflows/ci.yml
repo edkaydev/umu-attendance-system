@@ -26,6 +26,21 @@ jobs:
   server:
     name: Server — typecheck, build & test
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test-root
+          MYSQL_DATABASE: umu_attendance
+          MYSQL_USER: umu_user
+          MYSQL_PASSWORD: test-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -ptest-root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: server
@@ -38,6 +53,12 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      # Apply all migrations against a clean MySQL instance so a bad migration
+      # (e.g. the single-open-session constraint index) fails CI, not prod.
+      - name: Apply migrations
+        env:
+          DATABASE_URL: mysql://umu_user:test-password@localhost:3306/umu_attendance
+        run: npx prisma migrate deploy
       - run: npm run build
       - run: npx vitest run
 

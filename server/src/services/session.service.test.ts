@@ -20,6 +20,8 @@ vi.mock('../config/db', () => ({
     enrollment: { findMany: vi.fn(), count: vi.fn() },
     attendanceRecord: { findMany: vi.fn(), createMany: vi.fn() },
     excuseRequest: { findMany: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 'x' }]),
+    $transaction: vi.fn(),
   },
 }))
 
@@ -78,6 +80,10 @@ function makeSession(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Run interactive transactions synchronously against the same mocked client.
+  ;(db.$transaction as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    async (fn: (tx: unknown) => unknown) => fn(db)
+  )
 })
 
 // ── openSession ─────────────────────────────────────────────────────────────
@@ -176,6 +182,51 @@ describe('openSession', () => {
         semester: 3,
       })
     ).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('serializes the two concurrent openers so only one session is created (race fix)', async () => {
+    mockAssigned()
+    // First opener: lecturer check sees no open session, unit check sees none → creates.
+    // Second opener: waits on the row lock, then its lecturer check sees the session
+    // the first opener just created → 409.
+    db.session.findFirst
+      .mockResolvedValueOnce(null) // opener 1 · lecturer
+      .mockResolvedValueOnce(null) // opener 1 · unit
+      .mockResolvedValueOnce(makeSession()) // opener 2 · lecturer (post-lock)
+    const created = makeSession()
+    db.session.create.mockResolvedValue(created)
+
+    const [a, b] = await Promise.allSettled([
+      openSession('lec1', { courseUnitId: 'cu1', academicYear: '2025/2026', semester: 1, mode: 'online' }),
+      openSession('lec1', { courseUnitId: 'cu1', academicYear: '2025/2026', semester: 1, mode: 'online' }),
+    ])
+
+    // Exactly one wins; the loser is a clean 409 conflict — never a 500.
+    const fulfilled = [a, b].filter((r) => r.status === 'fulfilled')
+    const rejected = [a, b].filter((r) => r.status === 'rejected')
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+    const loserReason = (rejected[0] as PromiseRejectedResult).reason
+    // Either guard may fire depending on microtask interleaving — what matters
+    // is it is a 409 conflict proving serialization, not a second success.
+    expect(['LECTURER_HAS_OPEN_SESSION', 'SESSION_ALREADY_OPEN']).toContain(loserReason.code)
+    expect(loserReason.status).toBe(409)
+    // The insert is attempted only once (the loser is stopped before create).
+    expect(db.session.create).toHaveBeenCalledTimes(1)
+    // The authoritative check must run inside the transaction (after the locks).
+    expect(db.$transaction).toHaveBeenCalled()
+    expect(db.$queryRaw).toHaveBeenCalled()
+  })
+
+  it('translates a DB unique-constraint violation (P2002) into a 409 conflict', async () => {
+    mockAssigned()
+    db.session.findFirst.mockResolvedValue(null)
+    const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+    db.session.create.mockRejectedValue(p2002)
+
+    await expect(
+      openSession('lec1', { courseUnitId: 'cu1', academicYear: '2025/2026', semester: 1, mode: 'online' })
+    ).rejects.toMatchObject({ status: 409, code: 'SESSION_ALREADY_OPEN' })
   })
 })
 

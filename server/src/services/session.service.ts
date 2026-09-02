@@ -57,6 +57,16 @@ function validatePeriod(academicYear: string, semester: number): void {
   }
 }
 
+/** True for Prisma unique-constraint violations (P2002). */
+function isUniqueConstraintError(err: unknown): boolean {
+  if (typeof err === 'object' && err !== null) {
+    const code = (err as { code?: unknown }).code
+    if (code === 'P2002') return true
+    if (code === 1062) return true // raw MySQL ER_DUP_ENTRY
+  }
+  return false
+}
+
 /** Open a new attendance session (FR-05.1 → 05.6). */
 export async function openSession(lecturerId: string, input: OpenSessionInput) {
   validatePeriod(input.academicYear, input.semester)
@@ -95,69 +105,98 @@ export async function openSession(lecturerId: string, input: OpenSessionInput) {
     }
   }
 
-  // One active session per lecturer at a time — a lecturer cannot teach
-  // two classes simultaneously.
-  const lecturerOpenSession = await prisma.session.findFirst({
-    where: { lecturerId, status: 'open' },
-    include: { courseUnit: { select: { id: true, code: true, name: true } } },
-  })
-  if (lecturerOpenSession) {
-    throw new ApiError(
-      `You already have an open session for "${lecturerOpenSession.courseUnit.name}". Close it before starting a new one.`,
-      409,
-      'LECTURER_HAS_OPEN_SESSION',
-    )
-  }
-
-  // FR-05.6: only one active session per course unit at a time
-  const existing = await prisma.session.findFirst({
-    where: {
-      courseUnitId: input.courseUnitId,
-      status: 'open',
-      academicYear: input.academicYear,
-      semester: input.semester,
-    },
-  })
-  if (existing) {
-    throw new ApiError('A session is already open for this course unit', 409, 'SESSION_ALREADY_OPEN')
-  }
-
-  // FR-05.2/05.3: unique 6-char code from the safe pool
-  const code = await generateUniqueSessionCode(async (candidate) => {
-    const taken = await prisma.session.findFirst({
-      where: { code: candidate, status: 'open' },
-      select: { id: true },
-    })
-    return Boolean(taken)
-  })
-
   const codeTtlMinutes = Math.min(15, Math.max(5, input.codeTtl ?? DEFAULT_CODE_TTL))
   // Every session ends automatically: when no explicit duration is given the
   // session closes with the code window, so nothing can stay open forever.
   const classDuration = Math.min(180, Math.max(1, input.classDuration ?? codeTtlMinutes))
 
-  const session = await prisma.session.create({
-    data: {
-      courseUnitId: input.courseUnitId,
-      lecturerId,
-      academicYear: input.academicYear,
-      semester: input.semester,
-      code,
-      codeExpiresAt: new Date(Date.now() + codeTtlMinutes * 60_000),
-      status: SessionStatus.open,
-      venue: input.venue ?? null,
-      meetingLink: mode === SessionMode.online ? (input.meetingLink ?? null) : null,
-      mode,
-      startsAt,
-      classDuration,
-      codeTtl: codeTtlMinutes,
-      // Store lecturer position for student proximity check (physical only)
-      lecturerLat: mode === SessionMode.physical ? input.lat : null,
-      lecturerLng: mode === SessionMode.physical ? input.lng : null,
-      proximityRadius: mode === SessionMode.physical ? geofence.lecturerProximityMeters : null,
-    },
-    include: { courseUnit: { select: { id: true, code: true, name: true } } },
-  })
+  // The invariant "never two simultaneously open sessions for the same
+  // lecturer, and never two for the same course unit + period" is enforced
+  // AUTHORITATIVELY inside a transaction, guarded by row locks so concurrent
+  // requests serialize. The checks must happen after the lock, not before it —
+  // a bare findFirst-then-create is a TOCTOU race that can produce duplicate
+  // open sessions. A DB-level partial-unique constraint is the final safety
+  // net; a P2002 violation is translated to 409 below.
+  let session: Awaited<ReturnType<typeof prisma.session.create>>
+  try {
+    session = await prisma.$transaction(async (tx) => {
+      // Lock rows that ALWAYS exist (a lecturer and a course unit), so the
+      // lock does not depend on any open session currently being present.
+      // SELECT ... FOR UPDATE serializes two concurrent openers: the second
+      // waits until the first commits, then sees the newly-open session below.
+      await tx.$queryRaw`
+        SELECT id FROM users WHERE id = ${lecturerId} FOR UPDATE
+      `
+      await tx.$queryRaw`
+        SELECT id FROM course_units WHERE id = ${input.courseUnitId} FOR UPDATE
+      `
+
+      // Now still-open for this lecturer?
+      const lecturerOpenSession = await tx.session.findFirst({
+        where: { lecturerId, status: SessionStatus.open },
+        include: { courseUnit: { select: { id: true, code: true, name: true } } },
+      })
+      if (lecturerOpenSession) {
+        throw new ApiError(
+          `You already have an open session for "${lecturerOpenSession.courseUnit.name}". Close it before starting a new one.`,
+          409,
+          'LECTURER_HAS_OPEN_SESSION',
+        )
+      }
+
+      // FR-05.6: only one active session per course unit at a time
+      const existing = await tx.session.findFirst({
+        where: {
+          courseUnitId: input.courseUnitId,
+          status: SessionStatus.open,
+          academicYear: input.academicYear,
+          semester: input.semester,
+        },
+      })
+      if (existing) {
+        throw new ApiError('A session is already open for this course unit', 409, 'SESSION_ALREADY_OPEN')
+      }
+
+      // FR-05.2/05.3: unique 6-char code from the safe pool
+      const code = await generateUniqueSessionCode(async (candidate) => {
+        const taken = await tx.session.findFirst({
+          where: { code: candidate, status: SessionStatus.open },
+          select: { id: true },
+        })
+        return Boolean(taken)
+      })
+
+      return tx.session.create({
+        data: {
+          courseUnitId: input.courseUnitId,
+          lecturerId,
+          academicYear: input.academicYear,
+          semester: input.semester,
+          code,
+          codeExpiresAt: new Date(Date.now() + codeTtlMinutes * 60_000),
+          status: SessionStatus.open,
+          venue: input.venue ?? null,
+          meetingLink: mode === SessionMode.online ? (input.meetingLink ?? null) : null,
+          mode,
+          startsAt,
+          classDuration,
+          codeTtl: codeTtlMinutes,
+          // Store lecturer position for student proximity check (physical only)
+          lecturerLat: mode === SessionMode.physical ? input.lat : null,
+          lecturerLng: mode === SessionMode.physical ? input.lng : null,
+          proximityRadius: mode === SessionMode.physical ? geofence.lecturerProximityMeters : null,
+        },
+        include: { courseUnit: { select: { id: true, code: true, name: true } } },
+      })
+    })
+  } catch (err) {
+    // A partial-unique constraint on open sessions may reject a duplicate that
+    // slipped past the locks — surface it as a clean conflict, not a 500.
+    if (isUniqueConstraintError(err)) {
+      throw new ApiError('A session is already open for this course unit', 409, 'SESSION_ALREADY_OPEN')
+    }
+    throw err
+  }
 
   await writeAuditLog(lecturerId, 'SESSION_OPEN', 'session', session.id, {
     courseUnitId: input.courseUnitId,
