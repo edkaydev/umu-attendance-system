@@ -117,7 +117,7 @@ export default function LecturerDashboard() {
           </p>
         </div>
         <Link to="/lecturer/sessions/new" data-tour="lecturer-new-session" className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-6 py-3 text-sm font-semibold text-white hover:bg-umu-red-dark">
-          Open New Session
+          Start Session
         </Link>
       </div>
 
@@ -185,7 +185,7 @@ export default function LecturerDashboard() {
               </p>
               <div className="mt-4">
                 <Link to="/lecturer/sessions/new" className="inline-flex min-h-[44px] items-center justify-center rounded border-[1.5px] border-umu-red bg-white px-6 py-3 text-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
-                  Open First Session
+                  Start First Session
                 </Link>
               </div>
             </div>
@@ -235,7 +235,10 @@ export default function LecturerDashboard() {
           ) : (
             <ul className="divide-y divide-border">
               {data.units.map((a) => (
-                <li key={a.courseUnit.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <li
+                  key={a.courseUnit.id}
+                  className="group flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-[#FFF4F4]"
+                >
                   <div className="min-w-0">
                     <p className="text-body font-medium text-text-primary truncate">
                       {a.courseUnit.name}
@@ -244,9 +247,22 @@ export default function LecturerDashboard() {
                       {a.courseUnit.code} · {a.academicYear} · Sem {a.semester}
                     </p>
                   </div>
-                  <Link to={`/lecturer/sessions?unit=${a.courseUnit.id}`} className="inline-flex min-h-[44px] items-center justify-center rounded px-3 py-1 text-body-sm font-semibold text-umu-red hover:bg-[#FFF4F4]">
-                    Sessions
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* Start Session — appears on hover, links pre-selecting this unit */}
+                    <Link
+                      to={`/lecturer/sessions/new?unit=${a.courseUnit.id}`}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded bg-umu-red px-4 py-1 text-body-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                      aria-label={`Start session for ${a.courseUnit.name}`}
+                    >
+                      Start Session
+                    </Link>
+                    <Link
+                      to={`/lecturer/sessions?unit=${a.courseUnit.id}`}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded px-3 py-1 text-body-sm font-semibold text-umu-red hover:bg-[#FFECEC]"
+                    >
+                      Sessions
+                    </Link>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -297,7 +313,7 @@ export default function LecturerDashboard() {
           to="/lecturer/sessions/new"
           className="text-body font-medium text-text-secondary hover:text-text-primary hover:underline"
         >
-          Open new session →
+          Start new session →
         </Link>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { dashboardApi, sessionApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
@@ -30,6 +30,8 @@ const CODE_TTL_OPTIONS = [
 export default function OpenSession() {
   const toast = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const preselectedUnitId = searchParams.get('unit') ?? ''
 
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [selectedId, setSelectedId]   = useState('')
@@ -48,10 +50,15 @@ export default function OpenSession() {
       .lecturer()
       .then((d) => {
         setAssignments(d.units)
-        if (d.units.length === 1) setSelectedId(d.units[0].courseUnit.id)
+        // Pre-select: ?unit= param wins; otherwise auto-select if only one unit
+        if (preselectedUnitId && d.units.some((a) => a.courseUnit.id === preselectedUnitId)) {
+          setSelectedId(preselectedUnitId)
+        } else if (d.units.length === 1) {
+          setSelectedId(d.units[0].courseUnit.id)
+        }
       })
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load your units'))
-  }, [toast])
+  }, [toast, preselectedUnitId])
 
   const assignment = assignments.find((a) => a.courseUnit.id === selectedId) ?? null
   const classDurationMinutes = Number(classDuration)
@@ -115,7 +122,7 @@ export default function OpenSession() {
         lng,
       })
 
-      toast.success('Session opened — code ' + res.session.code)
+      toast.success('Session started — code ' + res.session.code)
       navigate(`/lecturer/sessions/${res.session.id}/live`)
     } catch (e) {
       const msg = e instanceof ApiClientError ? e.message : 'Failed to open session'
@@ -146,7 +153,7 @@ export default function OpenSession() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <h1 className="text-h2 font-bold text-text-primary">Open a Session</h1>
+        <h1 className="text-h2 font-bold text-text-primary">Start a Session</h1>
         <p className="text-body-sm text-text-secondary">
           Set the class duration and how long the check-in code stays valid.
         </p>
@@ -294,7 +301,7 @@ export default function OpenSession() {
               disabled={!assignment}
               onClick={handleSubmit}
             >
-              {isLocating ? 'Getting location…' : 'Open Session'}
+              {isLocating ? 'Getting location…' : 'Start Session'}
             </Button>
           </>
         )}
