@@ -482,14 +482,6 @@ ALTER TABLE `lecturer_assignments`
     ADD CONSTRAINT `lecturer_assignments_assignedById_fkey`
         FOREIGN KEY (`assignedById`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
-ALTER TABLE `sessions`
-    ADD CONSTRAINT `sessions_courseUnitId_fkey`
-        FOREIGN KEY (`courseUnitId`) REFERENCES `course_units`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
-ALTER TABLE `sessions`
-    ADD CONSTRAINT `sessions_lecturerId_fkey`
-        FOREIGN KEY (`lecturerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
 ALTER TABLE `attendance_records`
     ADD CONSTRAINT `attendance_records_sessionId_fkey`
         FOREIGN KEY (`sessionId`) REFERENCES `sessions`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -545,5 +537,16 @@ ALTER TABLE `sessions`
 ALTER TABLE `sessions`
     ADD UNIQUE INDEX `sessions_open_lecturer_key_unique`(`open_lecturer_key`),
     ADD UNIQUE INDEX `sessions_open_unit_period_key_unique`(`open_unit_period_key`);
+
+-- Sessions FKs are added last (after generated columns) to work around
+-- MySQL 8.0 bug 90763: InnoDB rejects ADD COLUMN ... STORED when the
+-- generated expression references a column that already has a FK constraint.
+ALTER TABLE `sessions`
+    ADD CONSTRAINT `sessions_courseUnitId_fkey`
+        FOREIGN KEY (`courseUnitId`) REFERENCES `course_units`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE `sessions`
+    ADD CONSTRAINT `sessions_lecturerId_fkey`
+        FOREIGN KEY (`lecturerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 SET FOREIGN_KEY_CHECKS = 1;
