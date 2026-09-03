@@ -245,9 +245,9 @@ CREATE TABLE `lecturer_assignments` (
 
 -- ── Sessions ─────────────────────────────────────────────────────────────────
 -- NOTE: Generated columns (open_lecturer_key, open_unit_period_key) are added
--- via ALTER TABLE after all foreign keys are defined. MySQL 8.0 rejects FK
--- constraints on tables whose generated columns reference the FK column when
--- the generated columns are defined inline in CREATE TABLE.
+-- via ALTER TABLE after all foreign keys are defined, and use VIRTUAL (not
+-- STORED) because MySQL 8.0 error 3192 forbids a FK on a base column of a
+-- STORED generated column.
 CREATE TABLE `sessions` (
     `id`               VARCHAR(191)   NOT NULL,
     `courseUnitId`     VARCHAR(191)   NOT NULL,
@@ -524,15 +524,16 @@ ALTER TABLE `audit_logs`
 
 -- =============================================================================
 -- Generated columns for single-open-session enforcement
--- Added after FKs because MySQL 8.0 cannot add a FK to a table whose stored
--- generated columns reference the FK column when defined in CREATE TABLE.
+-- VIRTUAL (not STORED) because MySQL 8.0 error 3192 forbids adding a FK on
+-- a column that is a base column of a STORED generated column. VIRTUAL columns
+-- have no such restriction. Added after all other FKs for the same reason.
 -- =============================================================================
 
 ALTER TABLE `sessions`
     ADD COLUMN `open_lecturer_key`    VARCHAR(191)
-        AS (IF(status = 'open', lecturerId, NULL)) STORED,
+        AS (IF(status = 'open', lecturerId, NULL)) VIRTUAL,
     ADD COLUMN `open_unit_period_key` VARCHAR(64)
-        AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) STORED;
+        AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) VIRTUAL;
 
 ALTER TABLE `sessions`
     ADD UNIQUE INDEX `sessions_open_lecturer_key_unique`(`open_lecturer_key`),

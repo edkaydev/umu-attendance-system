@@ -39,14 +39,16 @@ JOIN (
 ) AS dup ON dup.id = s.id
 SET s.status = 'closed', s.closedAt = COALESCE(s.closedAt, s.openedAt);
 
--- 1) Generated key columns (STORED) that are NULL for non-open sessions and the
+-- 1) Generated key columns (VIRTUAL) that are NULL for non-open sessions and the
 --    key for open ones. Use separators that cannot appear in a UUID or in the
---    academic-year format (YYYY/YYYY).
+--    academic-year format (YYYY/YYYY). VIRTUAL (not STORED) is required because
+--    MySQL 8.0 error 3192 forbids adding a FK on a column that is a base column
+--    of a STORED generated column; VIRTUAL columns have no such restriction.
 ALTER TABLE sessions
   ADD COLUMN open_lecturer_key VARCHAR(191)
-    AS (IF(status = 'open', lecturerId, NULL)) STORED,
+    AS (IF(status = 'open', lecturerId, NULL)) VIRTUAL,
   ADD COLUMN open_unit_period_key VARCHAR(64)
-    AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) STORED;
+    AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) VIRTUAL;
 
 -- 2) Unique indexes → at most one open session per lecturer, and at most one
 --    open session per (course unit, academic year, semester). A violating
