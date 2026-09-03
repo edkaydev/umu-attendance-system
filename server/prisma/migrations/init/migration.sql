@@ -239,6 +239,10 @@ CREATE TABLE `lecturer_assignments` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- ── Sessions ─────────────────────────────────────────────────────────────────
+-- NOTE: Generated columns (open_lecturer_key, open_unit_period_key) are added
+-- via ALTER TABLE after all foreign keys are defined. MySQL 8.0 rejects FK
+-- constraints on tables whose generated columns reference the FK column when
+-- the generated columns are defined inline in CREATE TABLE.
 CREATE TABLE `sessions` (
     `id`               VARCHAR(191)   NOT NULL,
     `courseUnitId`     VARCHAR(191)   NOT NULL,
@@ -259,14 +263,9 @@ CREATE TABLE `sessions` (
     `meetingLink`      VARCHAR(500)   NULL,
     `openedAt`         DATETIME(3)    NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `closedAt`         DATETIME(3)    NULL,
-    -- Generated columns for single-open-session enforcement
-    `open_lecturer_key`    VARCHAR(191) AS (IF(status = 'open', lecturerId, NULL)) STORED,
-    `open_unit_period_key` VARCHAR(64)  AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) STORED,
 
     INDEX `sessions_code_idx`(`code`),
     INDEX `sessions_courseUnitId_status_idx`(`courseUnitId`, `status`),
-    UNIQUE INDEX `sessions_open_lecturer_key_unique`(`open_lecturer_key`),
-    UNIQUE INDEX `sessions_open_unit_period_key_unique`(`open_unit_period_key`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -525,3 +524,19 @@ ALTER TABLE `refresh_tokens`
 ALTER TABLE `audit_logs`
     ADD CONSTRAINT `audit_logs_userId_fkey`
         FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- =============================================================================
+-- Generated columns for single-open-session enforcement
+-- Added after FKs because MySQL 8.0 cannot add a FK to a table whose stored
+-- generated columns reference the FK column when defined in CREATE TABLE.
+-- =============================================================================
+
+ALTER TABLE `sessions`
+    ADD COLUMN `open_lecturer_key`    VARCHAR(191)
+        AS (IF(status = 'open', lecturerId, NULL)) STORED,
+    ADD COLUMN `open_unit_period_key` VARCHAR(64)
+        AS (IF(status = 'open', CONCAT(courseUnitId, ':', academicYear, ':', semester), NULL)) STORED;
+
+ALTER TABLE `sessions`
+    ADD UNIQUE INDEX `sessions_open_lecturer_key_unique`(`open_lecturer_key`),
+    ADD UNIQUE INDEX `sessions_open_unit_period_key_unique`(`open_unit_period_key`);
