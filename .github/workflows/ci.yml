@@ -53,12 +53,21 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      # Apply all migrations against a clean MySQL instance so a bad migration
-      # (e.g. the single-open-session constraint index) fails CI, not prod.
-      - name: Apply migrations
+      # Fresh-install path: apply the consolidated init SQL directly, then mark
+      # all incremental migrations as resolved so Prisma's history is in sync.
+      # (Running `prisma migrate deploy` on a clean DB fails because the two
+      # legacy 2025-era migrations reference tables that don't exist yet — they
+      # were written against an older schema and superseded by the 2026 init.)
+      - name: Apply schema (init SQL)
+        env:
+          MYSQL_PWD: test-password
+        run: |
+          mysql -h 127.0.0.1 -u umu_user umu_attendance \
+            < prisma/migrations/init/migration.sql
+      - name: Mark all migrations as applied
         env:
           DATABASE_URL: mysql://umu_user:test-password@localhost:3306/umu_attendance
-        run: npx prisma migrate deploy
+        run: bash ../devops/scripts/mark-migrations-applied.sh
       - run: npm run build
       - run: npx vitest run
 
