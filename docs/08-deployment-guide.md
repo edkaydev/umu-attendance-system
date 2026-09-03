@@ -871,3 +871,249 @@ du -sh /var/backups/umu-attendance/*
 | No space left on device | `docker system prune -f`, then `df -h`. Delete old backups in `/var/backups/umu-attendance/` if needed |
 | Container keeps restarting | `docker compose logs app --tail=20` — read the last few lines before the crash message |
 | Changes to `.env` not taking effect | Use `docker compose up -d app` — not `docker compose restart app`. `restart` keeps old env vars in memory; `up -d` recreates the container with the new values |
+
+---
+
+## Server security hardening
+
+Do these immediately after the server is up. They protect the server itself, not just the app.
+
+### SSH — disable password login
+
+Password-based SSH login can be brute-forced. Key-based auth cannot.
+
+```bash
+# First, make sure your SSH key is already on the server and you can log in with it.
+# Then disable password auth:
+sudo nano /etc/ssh/sshd_config
+```
+
+Set these lines:
+```
+PasswordAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin no
+```
+
+Save, then restart SSH:
+```bash
+sudo systemctl restart sshd
+```
+
+> Open a second SSH session before closing the first to verify you can still get in.
+
+### UFW firewall
+
+Docker manages its own iptables rules and bypasses UFW for container ports.
+These rules protect the host itself (SSH) and make intent explicit:
+
+```bash
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+### Fail2ban — block brute-force SSH attacks
+
+```bash
+sudo apt install fail2ban -y
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Check which IPs are currently banned
+sudo fail2ban-client status sshd
+```
+
+### Automatic security updates
+
+```bash
+sudo apt install unattended-upgrades -y
+sudo dpkg-reconfigure --priority=low unattended-upgrades
+# Choose "Yes" when prompted
+```
+
+This automatically installs OS security patches without manual intervention.
+
+### File permissions
+
+```bash
+# Only your user can read the secret files
+chmod 600 /var/www/umu-attendance/server/.env
+chmod 600 /var/www/umu-attendance/.env
+
+# The app directory should not be world-writable
+chmod 755 /var/www/umu-attendance
+```
+
+### What is already secure (you don't need to add these)
+
+- MySQL and Redis are on the internal Docker network — they are not reachable from the internet even without a firewall rule
+- All passwords use JWT in HttpOnly cookies — JavaScript cannot read them
+- Google OAuth only — no passwords stored in the database, nothing to leak or brute-force
+- HTTPS enforced — Nginx redirects all HTTP traffic to HTTPS
+- Security headers set in Nginx: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
+- Helmet.js adds security headers on every API response
+
+---
+
+## Ongoing maintenance schedule
+
+### Weekly (5 minutes)
+
+```bash
+# Are all containers running?
+docker compose ps
+
+# Any errors in the last 24 hours?
+docker compose logs app --since 24h | grep -i error
+
+# Disk space — warn if above 70%
+df -h
+
+# Memory — warn if swap is being used heavily
+free -h
+```
+
+### Monthly (15 minutes)
+
+```bash
+# OS security patches
+sudo apt update && sudo apt upgrade -y
+
+# SSL certificate status (should auto-renew, but verify)
+sudo certbot certificates
+# "VALID: 89 days" is fine. Anything under 30 days — force renew:
+sudo certbot renew --force-renewal && docker compose restart nginx
+
+# Docker cleanup — removes old images and stopped containers
+docker system prune -f
+
+# Check backup files are being created
+ls -lht /var/backups/umu-attendance/ | head -5
+# Most recent file should be from last night
+```
+
+### Each new semester
+
+1. **Settings → Current Period** — update academic year and semester number
+2. **Moodle Sync → Configure Period** — update the Moodle semester category ID
+3. **Moodle Sync → Run Full Sync** — pulls new students, lecturers, enrolments
+4. Notify Faculty Admins to assign lecturers to any new course units
+5. Verify a student can sign in and see their enrolled units
+
+### After any code update
+
+```bash
+bash devops/scripts/deploy.sh
+# Then verify:
+docker compose ps          # all Up
+curl -I https://attendance.umu.ac.ug   # HTTP 200
+docker compose logs app --tail=20      # no crash errors
+```
+
+---
+
+## Protecting student data (institutional responsibility)
+
+Student attendance records are personal data. These practices protect the university
+from data breaches and comply with data protection obligations.
+
+### Access control
+
+- **System Admin** — one or two people maximum. This role can see all data across all faculties.
+- **Faculty Admins** — scoped to their faculty only. They cannot see other faculties' data.
+- **Lecturers** — see only their own sessions and course units.
+- **Students** — see only their own attendance. They cannot see classmates' records.
+- Never share the System Admin Google account. Each person must use their own `@umu.ac.ug` account.
+
+### Secrets — never share, never commit
+
+| Secret | Where | Risk if leaked |
+|---|---|---|
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | `server/.env` | Anyone can forge login tokens and impersonate any user |
+| `MYSQL_ROOT_PASSWORD` | root `.env` | Full database access — all attendance records, all user data |
+| `MYSQL_PASSWORD` | root `.env` | Read/write access to all attendance data |
+| `MOODLE_WS_TOKEN` | `server/.env` | Read access to all Moodle users, enrolments, and course data |
+| `GOOGLE_CLIENT_SECRET` | `server/.env` | Can be used to impersonate the OAuth app |
+| `SMTP_PASS` | `server/.env` | Emails can be sent from the university attendance address |
+
+If any of these are ever accidentally exposed (committed to GitHub, shared in a chat, etc.):
+
+1. **Immediately** rotate the secret — generate a new one
+2. Update `server/.env` on the server
+3. Restart the app: `docker compose up -d app`
+4. For `MOODLE_WS_TOKEN` — regenerate on the Moodle server and update
+5. For `GOOGLE_CLIENT_SECRET` — regenerate in Google Cloud Console
+
+### Database backups and retention
+
+- Backups run automatically at 2am daily and are kept for 30 days
+- Backups are stored on the same server (`/var/backups/umu-attendance/`)
+- **Recommendation:** also copy backups off-server weekly (USB drive, university file server, or cloud storage):
+  ```bash
+  # Example: copy last backup to a network share
+  scp /var/backups/umu-attendance/$(ls -t /var/backups/umu-attendance/ | head -1) \
+    backup-user@nas.umu.ac.ug:/attendance-backups/
+  ```
+- Backups contain all student attendance records in plain SQL — treat backup files as sensitive. Store them securely and delete old ones properly.
+
+### What to do if the server is compromised
+
+1. **Take it offline immediately** — shut down the server or block all traffic in the firewall
+2. **Do not wipe it yet** — preserve logs for investigation
+3. **Copy the logs** before shutting down:
+   ```bash
+   docker compose logs app > /tmp/app-logs-incident.txt
+   docker compose logs nginx > /tmp/nginx-logs-incident.txt
+   sudo cp /var/log/auth.log /tmp/
+   ```
+4. **Rotate all secrets** — JWT secrets, DB passwords, Google Client Secret, Moodle token
+5. **Restore from backup** on a fresh server using the deployment guide from Step 1
+6. **Notify** the university data protection officer — student data may have been accessed
+
+---
+
+## System Admin checklist — first login
+
+Do these in order on the first day. Each step depends on the previous one.
+
+- [ ] Sign in with the `@umu.ac.ug` Google account matching `SEED_ADMIN_EMAIL`
+- [ ] **Settings → Current Period** — set academic year and semester
+- [ ] **Settings → Profile Editing** — enable for Students and Lecturers
+- [ ] **Moodle Sync → Configure Period** — set Moodle semester category ID
+- [ ] **Moodle Sync → Run Full Sync** — wait for it to complete, check the summary
+- [ ] Verify: correct number of faculties, programmes, course units, lecturers, students synced
+- [ ] **Imports → Faculty Admins** — upload `faculty_admins.csv`
+- [ ] Ask one Faculty Admin to sign in and assign lecturers to course units
+- [ ] Ask one Lecturer to sign in, open a test session, confirm code appears
+- [ ] Ask one Student to sign in, enter the code, confirm they are marked Present
+- [ ] Confirm the Faculty Admin can see the session and attendance record
+- [ ] **Test email** — trigger an action that sends an email, confirm it arrives
+
+---
+
+## System Admin checklist — each semester
+
+- [ ] **Settings → Current Period** — update to new semester
+- [ ] **Moodle Sync → Configure Period** — update Moodle semester category ID
+- [ ] **Moodle Sync → Run Full Sync** — check sync summary for errors
+- [ ] Check **User Management** for any students or lecturers with wrong email domains (they will have been skipped by sync)
+- [ ] Notify Faculty Admins: new semester has started, assign lecturers to new units
+- [ ] Notify Lecturers: they can now open sessions for the new semester
+
+---
+
+## Things that must never happen in production
+
+| Never do this | Why |
+|---|---|
+| Set `SEED_ON_EMPTY=true` | On an empty database it seeds demo data, destroying any real data that was accidentally deleted |
+| Edit files inside a running Docker container | Changes disappear on next `docker compose up` |
+| Run `git push --force` on main | Overwrites history — the server's next `git pull` will fail or pull the wrong code |
+| Share the System Admin Google account | Audit logs become useless — you can't tell who did what |
+| Store backup `.sql` files on a shared drive without access controls | Backup files contain all student records in plain text |
+| Expose port 3306 (MySQL) in the firewall | Direct internet access to the database |
+| Use the same JWT secret on two different servers | A token from one server becomes valid on the other |
+| Delete the `/var/www/umu-attendance/server/assets/` volume mount | Wipes the PDF logo and update logs stored there |
