@@ -13,6 +13,11 @@
 --   3. Run the seed script: npm run seed:admin
 -- =============================================================================
 
+-- Disable FK checks for the duration of the import so table/column creation
+-- order does not matter and MySQL does not reject STORED generated-column
+-- additions due to FK constraint re-validation during table rebuilds.
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- ── Faculties ────────────────────────────────────────────────────────────────
 CREATE TABLE `faculties` (
     `id`               VARCHAR(191) NOT NULL,
@@ -540,3 +545,5 @@ ALTER TABLE `sessions`
 ALTER TABLE `sessions`
     ADD UNIQUE INDEX `sessions_open_lecturer_key_unique`(`open_lecturer_key`),
     ADD UNIQUE INDEX `sessions_open_unit_period_key_unique`(`open_unit_period_key`);
+
+SET FOREIGN_KEY_CHECKS = 1;
