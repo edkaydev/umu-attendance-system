@@ -11,7 +11,6 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
-import { PasswordInput } from '../components/ui/PasswordInput'
 
 const PROFILE_SCOPES: { scope: ProfileEditingScope; label: string; description: string }[] = [
   { scope: 'students', label: 'Students', description: 'Allow students to edit their academic profile.' },
@@ -25,9 +24,6 @@ export default function GlobalSettings() {
   const [academicYear, setAcademicYear] = useState('')
   const [semester, setSemester] = useState('1')
   const [profileEditing, setProfileEditing] = useState<ProfileEditingSettings | null>(null)
-  const [defaultPasswordConfigured, setDefaultPasswordConfigured] = useState(false)
-  const [defaultPassword, setDefaultPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'session' | 'access'>('session')
 
@@ -38,7 +34,6 @@ export default function GlobalSettings() {
       setSemester(String(value.semester))
     }).catch(() => undefined)
     settingsApi.profileEditing().then(setProfileEditing).catch(() => undefined)
-    settingsApi.defaultUserPassword().then(({ configured }) => setDefaultPasswordConfigured(configured)).catch(() => undefined)
   }, [])
 
   async function savePeriod() {
@@ -61,21 +56,6 @@ export default function GlobalSettings() {
       toast.success(result.message)
     } catch (error) {
       toast.error(error instanceof ApiClientError ? error.message : 'Could not update setting — please try again')
-    } finally { setSaving(null) }
-  }
-
-  async function saveDefaultPassword() {
-    if (defaultPassword.length < 6) return toast.error('Password must be at least 6 characters')
-    if (defaultPassword !== confirmPassword) return toast.error('Passwords do not match')
-    setSaving('password')
-    try {
-      const result = await settingsApi.setDefaultUserPassword(defaultPassword)
-      setDefaultPasswordConfigured(true)
-      setDefaultPassword('')
-      setConfirmPassword('')
-      toast.success(result.message)
-    } catch (error) {
-      toast.error(error instanceof ApiClientError ? error.message : 'Could not save the default password — please try again')
     } finally { setSaving(null) }
   }
 
@@ -111,7 +91,7 @@ export default function GlobalSettings() {
         {period && <p className="mt-3 text-body-sm text-text-disabled">Currently: {period.academicYear}, Semester {period.semester}</p>}
       </Card>}
 
-      {activeTab === 'access' && <><Card title="Who can edit their profile?" noPadding>
+      {activeTab === 'access' && <Card title="Who can edit their profile?" noPadding>
         {PROFILE_SCOPES.map(({ scope, label, description }) => {
           const enabled = profileEditing?.[scope] ?? false
           return <div key={scope} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 last:border-b-0">
@@ -121,18 +101,7 @@ export default function GlobalSettings() {
             </button>
           </div>
         })}
-      </Card>
-
-      <Card title="Default Password for New Users">
-        <p className="mb-4 text-body-sm text-text-secondary">
-          {defaultPasswordConfigured ? 'A custom default is active.' : 'The initial default is Umu@2026.'} This affects only future accounts; every new user must change it at first sign-in.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <PasswordInput label="New Default Password" autoComplete="new-password" value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} showStrength />
-          <PasswordInput label="Confirm Default Password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-        </div>
-        <Button loading={saving === 'password'} onClick={saveDefaultPassword}>Save Default Password</Button>
-      </Card></>}
+      </Card>}
     </div>
   )
 }

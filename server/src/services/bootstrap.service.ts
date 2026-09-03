@@ -3,8 +3,6 @@ import path from 'path'
 import { spawnSync } from 'child_process'
 import { Role } from '@prisma/client'
 import { prisma } from '../config/db'
-import { hashPassword } from '../utils/password'
-import { getSetting, setSetting } from './settings.service'
 
 /**
  * Idempotent demo-data bootstrap.
@@ -12,15 +10,14 @@ import { getSetting, setSetting } from './settings.service'
  * If the users table is EMPTY (e.g. after a full database wipe), the API
  * automatically rebuilds the whole demo dataset from docs/demo-data/*.csv
  * on startup — faculties, programmes, course units, the curriculum matrix,
- * and every account (password Umu@2026). Existing databases are untouched,
- * so this is a no-op in normal operation.
+ * and every account. Existing databases are untouched, so this is a no-op
+ * in normal operation.
  *
+ * All accounts sign in via Google OAuth — no passwords are set.
  * Disable with SEED_ON_EMPTY=false.
  */
 
-const DEMO_PASSWORD = 'Umu@2026'
 const SYSTEM_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'edward@umu.ac.ug'
-const ADOPT_MARKER_KEY = 'bootstrap.demoAdopted'
 
 type Row = Record<string, string>
 
@@ -48,8 +45,7 @@ function readCsv(name: string): Row[] {
 }
 
 export async function seedDemoData(): Promise<Record<string, number>> {
-  const counts = { faculties: 0, programmes: 0, units: 0, curriculum: 0, students: 0, lecturers: 0, admins: 0 }
-  const passwordHash = await hashPassword(DEMO_PASSWORD)
+  const counts = { faculties: 0, programmes: 0, units: 0, students: 0, lecturers: 0, admins: 0 }
 
   // Faculties -------------------------------------------------------------
   const facultyIds = new Map<string, string>()
@@ -104,39 +100,6 @@ export async function seedDemoData(): Promise<Record<string, number>> {
     skipDuplicates: true,
   })
 
-  // Curriculum matrix ---------------------------------------------------------
-  const programmeByCode = new Map<string, string>()
-  for (const p of await prisma.programme.findMany({ select: { id: true, code: true } })) {
-    programmeByCode.set(p.code, p.id)
-  }
-  const curriculaCsv = readCsv('curriculum.csv')
-  const existingCurriculum = new Set(
-    (
-      await prisma.curriculumUnit.findMany({
-        where: {
-          programmeId: { in: [...new Set(curriculaCsv.map((r) => programmeByCode.get(r.programmeCode)).filter(Boolean))] as string[] },
-        },
-        select: { programmeId: true, courseUnitId: true, year: true, semester: true },
-      })
-    ).map((c) => `${c.programmeId}:${c.courseUnitId}:${c.year}:${c.semester}`)
-  )
-  const curriculumCreates = curriculaCsv
-    .map((r) => ({
-      programmeId: programmeByCode.get(r.programmeCode),
-      courseUnitId: unitByCode.get(r.courseUnitCode)?.id,
-      year: Number(r.year),
-      semester: Number(r.semester),
-    }))
-    .filter(
-      (c): c is { programmeId: string; courseUnitId: string; year: number; semester: number } =>
-        Boolean(c.programmeId && c.courseUnitId) &&
-        !existingCurriculum.has(`${c.programmeId}:${c.courseUnitId}:${c.year}:${c.semester}`)
-    )
-  if (curriculumCreates.length > 0) {
-    await prisma.curriculumUnit.createMany({ data: curriculumCreates, skipDuplicates: true })
-    counts.curriculum = curriculumCreates.length
-  }
-
   // Accounts ------------------------------------------------------------------
   async function seedRoleAccounts(csvName: string, role: Role): Promise<number> {
     const rows = readCsv(csvName)
@@ -154,7 +117,6 @@ export async function seedDemoData(): Promise<Record<string, number>> {
       .filter((email) => !existing.has(email))
       .map((email) => ({
         email,
-        password: passwordHash,
         fullName: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         role,
         demoManaged: true,
@@ -174,12 +136,11 @@ export async function seedDemoData(): Promise<Record<string, number>> {
       update: { role: Role.faculty_admin, facultyId },
       create: {
         email: r.email.toLowerCase(),
-        password: passwordHash,
         fullName: r.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         role: Role.faculty_admin,
         facultyId,
         profileComplete: true,
-              },
+      },
     })
     counts.admins++
   }
@@ -189,7 +150,6 @@ export async function seedDemoData(): Promise<Record<string, number>> {
     update: { role: Role.system_admin, profileComplete: true, isActive: true },
     create: {
       email: SYSTEM_ADMIN_EMAIL.toLowerCase(),
-      password: passwordHash,
       fullName: 'System Administrator',
       role: Role.system_admin,
       profileComplete: true,
@@ -198,61 +158,6 @@ export async function seedDemoData(): Promise<Record<string, number>> {
   })
 
   return counts
-}
-
-/**
- * Keeps every demo-managed account usable with the known demo password.
- * Runs on every boot:
- *  1. Accounts listed in the demo CSVs but created before the flag existed
- *     are adopted (flagged) so future syncs cover them.
- *  2. Any flagged account whose stored hash differs from the demo password
- *     is reset (single bulk UPDATE; users who changed their own password
- *     cleared the flag, so their choice is never overwritten).
- */
-export async function reconcileDemoPasswords(): Promise<void> {
-  const passwordHash = await hashPassword(DEMO_PASSWORD)
-
-  const csvEmails = [...new Set(
-    ['students.csv', 'staff.csv', 'faculty_admins.csv']
-      .flatMap((f) => readCsv(f).map((r) => r.email.toLowerCase()))
-      .filter(Boolean)
-      .concat(SYSTEM_ADMIN_EMAIL.toLowerCase())
-  )]
-
-  // Adopt accounts created before this flag existed.
-  // First boot after deployment: adopt ALL demo-listed accounts so every
-  // seeded/imported address becomes usable again (this is a one-time
-  // migration — afterwards users who pick their own password keep it,
-  // because changing a password clears the flag).
-  // Later boots only adopt rows that have no local password at all.
-  const adoptedAll = await getSetting(ADOPT_MARKER_KEY, '')
-  const adopted = await prisma.user.updateMany({
-    where: {
-      email: { in: csvEmails },
-      demoManaged: false,
-      ...(adoptedAll ? { password: null } : {}),
-    },
-    data: { demoManaged: true },
-  })
-  if (!adoptedAll && adopted.count > 0) {
-    console.log(`[bootstrap] adopted ${adopted.count} existing demo account(s)`)
-  }
-  if (!adoptedAll) await setSetting(ADOPT_MARKER_KEY, new Date().toISOString())
-
-  // Reset any managed account whose password drifted from the demo value,
-  // and clear stale forced-password-change flags so imported users are
-  // never locked out of the demo flow.
-  const reset = await prisma.user.updateMany({
-    where: { demoManaged: true, NOT: { password: passwordHash } },
-    data: { password: passwordHash, mustChangePassword: false },
-  })
-  await prisma.user.updateMany({
-    where: { demoManaged: true, mustChangePassword: true },
-    data: { mustChangePassword: false },
-  })
-  if (adopted.count > 0 || reset.count > 0) {
-    console.log(`[bootstrap] reconciled demo passwords — adopted ${adopted.count}, reset ${reset.count}`)
-  }
 }
 
 /** Runs the seeder only when the database has no users at all.
@@ -280,11 +185,7 @@ export async function ensureDemoData(): Promise<void> {
     const counts = await seedDemoData()
     console.log(
       `[bootstrap] seeded ${counts.faculties} faculties, ${counts.programmes} programmes, ` +
-        `${counts.units} units, ${counts.curriculum} curriculum rows, ` +
-        `${counts.students} students, ${counts.lecturers} lecturers, ${counts.admins} faculty admins`
+        `${counts.units} units, ${counts.students} students, ${counts.lecturers} lecturers, ${counts.admins} faculty admins`
     )
   }
-
-  // Every boot: make sure demo accounts are usable with the demo password.
-  await reconcileDemoPasswords()
 }

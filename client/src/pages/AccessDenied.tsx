@@ -7,6 +7,10 @@ const REASON_LABELS: Record<string, string> = {
     'This email is not registered in the UMU Attendance System. Contact your Faculty Admin.',
   'account-disabled': 'Your account has been deactivated. Contact the System Administrator.',
   'no-email': 'Google did not return an email address. Try signing in again.',
+  'not-synchronized':
+    'No student account is linked to this email yet. Student accounts are created by the Moodle synchronization before Google sign-in works. Contact your System Administrator if you believe this is an error.',
+  'oauth-state':
+    'The sign-in session was not valid (it may have been interrupted or expired). Please try signing in again.',
 }
 
 export default function AccessDenied() {

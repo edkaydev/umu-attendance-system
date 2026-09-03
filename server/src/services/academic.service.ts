@@ -1,8 +1,5 @@
 import { prisma } from '../config/db'
-import { publish } from './events.service'
-import { ApiError } from '../utils/apiResponse'
-import { CAMPUSES, isValidCampusCode, campusName } from '../constants/campuses'
-import { propagateCurriculumToCohort } from './enrollment.service'
+import { CAMPUSES, campusName } from '../constants/campuses'
 
 // ─────────────────────────────────────────────
 // CAMPUS (fixed locations, defined in code)
@@ -13,7 +10,7 @@ export function listCampuses() {
 }
 
 // ─────────────────────────────────────────────
-// FACULTY (task 26)
+// FACULTY (read-only — created by Moodle hierarchy sync)
 // ─────────────────────────────────────────────
 
 export async function listFaculties(campusCode?: string, includeInactive = false) {
@@ -27,33 +24,8 @@ export async function listFaculties(campusCode?: string, includeInactive = false
   return faculties.map((f) => ({ ...f, campusName: campusName(f.campusCode) }))
 }
 
-export async function createFaculty(data: { campusCode: string; name: string; code: string }) {
-  if (!isValidCampusCode(data.campusCode)) {
-    throw new ApiError(`Campus "${data.campusCode}" not found`, 404)
-  }
-  return prisma.faculty.create({ data: { ...data, campusCode: data.campusCode.toUpperCase() } })
-}
-
-export async function updateFaculty(
-  id: string,
-  data: { campusCode?: string; name?: string; code?: string; isActive?: boolean }
-) {
-  const existing = await prisma.faculty.findUnique({ where: { id } })
-  if (!existing) throw new ApiError('Faculty not found', 404)
-  if (data.campusCode && !isValidCampusCode(data.campusCode)) {
-    throw new ApiError(`Campus "${data.campusCode}" not found`, 404)
-  }
-  return prisma.faculty.update({
-    where: { id },
-    data: {
-      ...data,
-      ...(data.campusCode ? { campusCode: data.campusCode.toUpperCase() } : {}),
-    },
-  })
-}
-
 // ─────────────────────────────────────────────
-// PROGRAMME (task 27)
+// PROGRAMME (read-only — created by Moodle hierarchy sync)
 // ─────────────────────────────────────────────
 
 export function listProgrammes(facultyId?: string, includeInactive = false) {
@@ -67,27 +39,8 @@ export function listProgrammes(facultyId?: string, includeInactive = false) {
   })
 }
 
-export async function createProgramme(data: { facultyId: string; name: string; code: string }) {
-  const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-  return prisma.programme.create({ data })
-}
-
-export async function updateProgramme(
-  id: string,
-  data: { facultyId?: string; name?: string; code?: string; isActive?: boolean }
-) {
-  const existing = await prisma.programme.findUnique({ where: { id } })
-  if (!existing) throw new ApiError('Programme not found', 404)
-  if (data.facultyId) {
-    const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
-    if (!faculty) throw new ApiError('Faculty not found', 404)
-  }
-  return prisma.programme.update({ where: { id }, data })
-}
-
 // ─────────────────────────────────────────────
-// COURSE UNIT (task 28)
+// COURSE UNIT (read-only — created by Moodle hierarchy sync)
 // ─────────────────────────────────────────────
 
 /** Returns course units owned by OR shared with a faculty. */
@@ -134,261 +87,9 @@ export async function listCourseUnits(facultyId?: string, includeInactive = fals
   return [...owned, ...shared].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function getCourseUnit(id: string) {
-  return prisma.courseUnit.findUnique({
-    where: { id },
-    select: { id: true, facultyId: true, code: true, name: true, isActive: true },
-  })
-}
-
-export async function createCourseUnit(data: { facultyId: string; code: string; name: string }) {
-  const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-  return prisma.courseUnit.create({
-    data,
-    include: {
-      faculty: { select: { id: true, name: true } },
-      sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
-    },
-  })
-}
-
-export async function updateCourseUnit(
-  id: string,
-  data: { facultyId?: string; code?: string; name?: string; isActive?: boolean }
-) {
-  const existing = await prisma.courseUnit.findUnique({ where: { id } })
-  if (!existing) throw new ApiError('Course unit not found', 404)
-  if (data.facultyId) {
-    const faculty = await prisma.faculty.findUnique({ where: { id: data.facultyId } })
-    if (!faculty) throw new ApiError('Faculty not found', 404)
-  }
-  return prisma.courseUnit.update({
-    where: { id },
-    data,
-    include: {
-      faculty: { select: { id: true, name: true } },
-      sharedFaculties: { include: { faculty: { select: { id: true, name: true } } } },
-    },
-  })
-}
-
-/** Share a course unit with an additional faculty. */
-export async function addCourseUnitFaculty(courseUnitId: string, facultyId: string) {
-  const [courseUnit, faculty] = await Promise.all([
-    prisma.courseUnit.findUnique({ where: { id: courseUnitId } }),
-    prisma.faculty.findUnique({ where: { id: facultyId } }),
-  ])
-  if (!courseUnit) throw new ApiError('Course unit not found', 404)
-  if (!faculty) throw new ApiError('Faculty not found', 404)
-  if (courseUnit.facultyId === facultyId) {
-    throw new ApiError('This is already the owning faculty', 400)
-  }
-  return prisma.courseUnitFaculty.create({ data: { courseUnitId, facultyId } })
-}
-
-/** Remove a shared-faculty link from a course unit. */
-export async function removeCourseUnitFaculty(courseUnitId: string, facultyId: string) {
-  const link = await prisma.courseUnitFaculty.findUnique({
-    where: { courseUnitId_facultyId: { courseUnitId, facultyId } },
-  })
-  if (!link) throw new ApiError('Faculty share not found', 404)
-  await prisma.courseUnitFaculty.delete({
-    where: { courseUnitId_facultyId: { courseUnitId, facultyId } },
-  })
-  return link
-}
-
 // ─────────────────────────────────────────────
-// CURRICULUM MAPPING (task 29)
+// CURRICULUM (read-only — managed by Moodle hierarchy sync)
 // ─────────────────────────────────────────────
-
-export interface CurriculumInput {
-  courseUnitId: string
-  programmeId: string
-  year: number
-  semester: number
-}
-
-/**
- * Create a curriculum mapping. Path sets are standing — they persist across
- * academic periods until an admin changes them.
- *
- * Any faculty may map any existing course unit into their programmes: units
- * like Ethics legitimately cut across faculties, so no share-first gate.
- * @param actorFacultyId  When provided (faculty_admin), the programme must belong
- *                        to the actor's faculty.
- */
-export async function createCurriculumMapping(data: CurriculumInput, actorFacultyId?: string | null) {
-  const [courseUnit, programme] = await Promise.all([
-    prisma.courseUnit.findUnique({ where: { id: data.courseUnitId } }),
-    prisma.programme.findUnique({ where: { id: data.programmeId } }),
-  ])
-  if (!courseUnit) throw new ApiError('Course unit not found', 404)
-  if (!programme) throw new ApiError('Programme not found', 404)
-
-  // Faculty Admin scoping: programme must belong to their faculty
-  if (actorFacultyId) {
-    if (programme.facultyId !== actorFacultyId) {
-      throw new ApiError('You can only map curriculum for programmes in your own faculty', 403)
-    }
-  }
-
-  const mapping = await prisma.curriculumUnit.create({ data })
-
-  if (mapping.isElective) {
-    // First elective in a cell defaults the requirement to "pick at least 1"
-    await syncElectiveRequirementCreate(mapping.programmeId, mapping.year, mapping.semester)
-  }
-
-  const affected = await propagateCurriculumToCohort(
-    data.programmeId,
-    data.year,
-    data.semester
-  )
-
-  publish('curriculum-changed')
-  return { ...mapping, studentsAffected: affected }
-}
-
-/** Ensure a requirement row exists when a cell gains its first elective. */
-async function syncElectiveRequirementCreate(programmeId: string, year: number, semester: number) {
-  const existing = await prisma.electiveRequirement.findUnique({
-    where: { programmeId_year_semester: { programmeId, year, semester } },
-  })
-  if (!existing) {
-    await prisma.electiveRequirement.create({
-      data: { programmeId, year, semester, minPick: 1 },
-    })
-  }
-}
-
-export async function removeCurriculumMapping(id: string, actorFacultyId?: string | null) {
-  const existing = await prisma.curriculumUnit.findUnique({
-    where: { id },
-    include: { programme: { select: { facultyId: true } } },
-  })
-  if (!existing) throw new ApiError('Curriculum mapping not found', 404)
-
-  // Faculty Admin scoping: can only remove mappings in their own faculty
-  if (actorFacultyId && existing.programme.facultyId !== actorFacultyId) {
-    throw new ApiError('You can only remove curriculum mappings for your own faculty', 403)
-  }
-
-  await prisma.curriculumUnit.delete({ where: { id } })
-
-  // Keep the cell's pick-N requirement in sync when electives change
-  await syncElectiveRequirement(existing.programmeId, existing.year, existing.semester)
-
-  const studentsAffected = await propagateCurriculumToCohort(
-    existing.programmeId,
-    existing.year,
-    existing.semester
-  )
-
-  publish('curriculum-changed')
-  return { ...existing, studentsAffected }
-}
-
-/** Toggle an existing mapping between core and elective (faculty_admin scoped). */
-export async function updateCurriculumMapping(
-  id: string,
-  patch: { isElective?: boolean },
-  actorFacultyId?: string | null
-) {
-  const existing = await prisma.curriculumUnit.findUnique({
-    where: { id },
-    include: { programme: { select: { facultyId: true } } },
-  })
-  if (!existing) throw new ApiError('Curriculum mapping not found', 404)
-  if (actorFacultyId && existing.programme.facultyId !== actorFacultyId) {
-    throw new ApiError('You can only edit curriculum mappings for your own faculty', 403)
-  }
-
-  const updated = await prisma.curriculumUnit.update({
-    where: { id },
-    data: { ...(patch.isElective !== undefined ? { isElective: patch.isElective } : {}) },
-  })
-
-  if (patch.isElective !== undefined) {
-    await syncElectiveRequirement(existing.programmeId, existing.year, existing.semester)
-    // Core↔elective flips change what students are auto-enrolled in
-    await propagateCurriculumToCohort(existing.programmeId, existing.year, existing.semester)
-  }
-
-  publish('curriculum-changed')
-  return updated
-}
-
-/**
- * Set how many electives a path cell requires. minPick <= 0 removes the
- * requirement. Keeps the value within the number of elective units offered.
- */
-export async function setElectiveRequirement(
-  input: { programmeId: string; year: number; semester: number; minPick: number },
-  actorFacultyId?: string | null
-) {
-  const programme = await prisma.programme.findUnique({ where: { id: input.programmeId } })
-  if (!programme) throw new ApiError('Programme not found', 404)
-  if (actorFacultyId && programme.facultyId !== actorFacultyId) {
-    throw new ApiError('You can only set requirements for programmes in your own faculty', 403)
-  }
-
-  if (input.minPick <= 0) {
-    await prisma.electiveRequirement.deleteMany({
-      where: { programmeId: input.programmeId, year: input.year, semester: input.semester },
-    })
-    return { minPick: 0 }
-  }
-
-  const offered = await prisma.curriculumUnit.count({
-    where: {
-      programmeId: input.programmeId,
-      year: input.year,
-      semester: input.semester,
-      isElective: true,
-    },
-  })
-  const minPick = Math.min(input.minPick, Math.max(offered, 1))
-  const requirement = await prisma.electiveRequirement.upsert({
-    where: {
-      programmeId_year_semester: {
-        programmeId: input.programmeId,
-        year: input.year,
-        semester: input.semester,
-      },
-    },
-    update: { minPick },
-    create: { ...input, minPick },
-  })
-  publish('curriculum-changed')
-  return requirement
-}
-
-/** Drop a path cell's requirement once it has no electives left. */
-async function syncElectiveRequirement(programmeId: string, year: number, semester: number) {
-  const offered = await prisma.curriculumUnit.count({
-    where: { programmeId, year, semester, isElective: true },
-  })
-  if (offered === 0) {
-    await prisma.electiveRequirement.deleteMany({ where: { programmeId, year, semester } })
-  }
-}
-
-/** Elective rules for a path cell (used by the student picker and matrix UI). */
-export async function getElectiveRequirement(programmeId: string, year: number, semester: number) {
-  return prisma.electiveRequirement.findUnique({
-    where: { programmeId_year_semester: { programmeId, year, semester } },
-  })
-}
-
-/** All pick-N rules, optionally scoped to one faculty's programmes. */
-export function listElectiveRequirements(facultyId?: string | null) {
-  return prisma.electiveRequirement.findMany({
-    ...(facultyId ? { where: { programme: { facultyId } } } : {}),
-    select: { programmeId: true, year: true, semester: true, minPick: true },
-  })
-}
 
 export function listCurriculum(filters?: { programmeId?: string; facultyId?: string }) {
   const { facultyId, ...rest } = filters ?? {}

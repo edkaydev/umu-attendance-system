@@ -23,6 +23,7 @@ import { randomUUID } from 'crypto'
 import { sendWeeklyAttendanceSummaries } from '../services/email.service'
 import { toEATDateString, eatHour } from '../constants/campuses'
 import { autoRejectPendingExcuses } from '../services/excuse.service'
+import { publish } from '../services/events.service'
 
 const TICK_MS = 60_000 // 1 minute
 const LEADER_LOCK_KEY = 'scheduler:leader'
@@ -86,6 +87,7 @@ async function closeSingleSession(sessionId: string): Promise<void> {
     { absenteesAutoMarked: absentIds.length, excusesAutoRejected, reason: 'classDuration elapsed' }
   )
 
+  publish('sessions-changed')
   console.log(`[scheduler] auto-closed session ${sessionId} (${absentIds.length} absent records created, ${excusesAutoRejected} excuses auto-rejected)`)
 }
 

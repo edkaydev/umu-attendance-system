@@ -2,20 +2,16 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../config/db'
 
 export type AuditAction =
-  | 'LOGIN'
-  | 'LOGOUT'
   | 'SESSION_OPEN'
   | 'SESSION_CLOSE'
   | 'SESSION_AUTO_CLOSE'
   | 'SESSION_EXTEND'
-  | 'ATTENDANCE_EDIT'
-  | 'PDF_DOWNLOAD'
-  | 'PROFILE_COMPLETE'
   | 'USER_UPDATE'
   | 'USER_CREATE'
   | 'USER_DELETE'
   | 'IMPORT'
   | 'RESET_DATABASE'
+  | 'MOODLE_SYNC'
 
 /**
  * Write a system-level audit log entry (audit_logs table).

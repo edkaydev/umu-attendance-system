@@ -1,79 +1,19 @@
 import { Request, Response, NextFunction } from 'express'
-import { z } from 'zod'
-import { ok, created, noContent } from '../utils/apiResponse'
+import { ok } from '../utils/apiResponse'
 import {
   listCampuses,
   listFaculties,
-  createFaculty,
-  updateFaculty,
   listProgrammes,
-  createProgramme,
-  updateProgramme,
   listCourseUnits,
-  getCourseUnit,
-  createCourseUnit,
-  updateCourseUnit,
-  addCourseUnitFaculty,
-  removeCourseUnitFaculty,
-  createCurriculumMapping,
-  removeCurriculumMapping,
-  updateCurriculumMapping,
-  setElectiveRequirement,
-  listElectiveRequirements,
   listCurriculum,
   getProfileOptions,
 } from '../services/academic.service'
 import {
-  importStructure as importStructureCsv,
-  importLecturers as importLecturersCsv,
   importFacultyAdmins as importFacultyAdminsCsv,
-  importStudents as importStudentsCsv,
-  StructureImportType,
 } from '../services/import.service'
 import { writeAuditLog } from '../utils/audit'
 
-export const facultySchema = z.object({
-  campusCode: z.string().min(1).max(20),
-  name: z.string().min(1).max(100),
-  code: z.string().min(1).max(20),
-})
-
-export const programmeSchema = z.object({
-  facultyId: z.string().uuid(),
-  name: z.string().min(1).max(150),
-  code: z.string().min(1).max(20),
-})
-
-export const courseUnitSchema = z.object({
-  facultyId: z.string().uuid(),
-  code: z.string().min(1).max(20),
-  name: z.string().min(1).max(150),
-})
-
-export const curriculumSchema = z.object({
-  courseUnitId: z.string().uuid(),
-  programmeId: z.string().uuid(),
-  year: z.number().int().min(1).max(6),
-  semester: z.number().int().min(1).max(2),
-  isElective: z.boolean().optional(),
-})
-
-export const curriculumUpdateSchema = z.object({
-  isElective: z.boolean(),
-})
-
-export const electiveRequirementSchema = z.object({
-  programmeId: z.string().uuid(),
-  year: z.number().int().min(1).max(6),
-  semester: z.number().int().min(1).max(2),
-  minPick: z.number().int().min(0).max(6),
-})
-
-export const updateFacultySchema = facultySchema.partial().extend({ isActive: z.boolean().optional() })
-export const updateProgrammeSchema = programmeSchema.partial().extend({ isActive: z.boolean().optional() })
-export const updateCourseUnitSchema = courseUnitSchema.partial().extend({ isActive: z.boolean().optional() })
-
-// ─── Campuses (fixed list) ───
+// ─── Profile cascade options (authenticated users) ───
 
 export async function getCampuses(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -83,7 +23,7 @@ export async function getCampuses(req: Request, res: Response, next: NextFunctio
   }
 }
 
-// ─── Faculties ───
+// ─── Faculties (read-only — created by Moodle hierarchy sync) ───
 
 export async function getFaculties(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -95,23 +35,7 @@ export async function getFaculties(req: Request, res: Response, next: NextFuncti
   }
 }
 
-export async function postFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    created(res, { faculty: await createFaculty(req.body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function putFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    ok(res, { faculty: await updateFaculty(req.params.id, req.body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-// ─── Programmes ───
+// ─── Programmes (read-only — created by Moodle hierarchy sync) ───
 
 export async function getProgrammes(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -123,23 +47,7 @@ export async function getProgrammes(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function postProgramme(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    created(res, { programme: await createProgramme(req.body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function putProgramme(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    ok(res, { programme: await updateProgramme(req.params.id, req.body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-// ─── Course units ───
+// ─── Course units (read-only — created by Moodle hierarchy sync) ───
 
 export async function getCourseUnits(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -151,128 +59,12 @@ export async function getCourseUnits(req: Request, res: Response, next: NextFunc
   }
 }
 
-export async function postCourseUnit(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const body = { ...req.body }
-    // Faculty Admins may add units only to their own faculty — ignore any
-    // facultyId they send. System Admin chooses freely.
-    if (req.user!.role === 'faculty_admin') {
-      if (!req.user!.facultyId) {
-        res.status(403).json({ error: 'No faculty assigned to your account' })
-        return
-      }
-      body.facultyId = req.user!.facultyId
-    }
-    created(res, { courseUnit: await createCourseUnit(body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function putCourseUnit(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const body: Record<string, unknown> = { ...req.body }
-    // Faculty Admins may edit a unit's name/code only — and only for units in
-    // their own faculty. System Admin edits freely.
-    if (req.user!.role === 'faculty_admin') {
-      if (!req.user!.facultyId) {
-        res.status(403).json({ error: 'No faculty assigned to your account' })
-        return
-      }
-      delete body.facultyId
-      delete body.isActive
-      const unit = await getCourseUnit(req.params.id)
-      if (!unit) {
-        res.status(404).json({ error: 'Course unit not found' })
-        return
-      }
-      if (unit.facultyId !== req.user!.facultyId) {
-        res.status(403).json({ error: 'You can only edit units in your own faculty' })
-        return
-      }
-    }
-    ok(res, { courseUnit: await updateCourseUnit(req.params.id, body) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-/** POST /api/academic/course-units/:id/faculties — share with an additional faculty */
-export async function postCourseUnitFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { facultyId } = z.object({ facultyId: z.string().uuid() }).parse(req.body)
-    const link = await addCourseUnitFaculty(req.params.id, facultyId)
-    created(res, { link })
-  } catch (e) {
-    next(e)
-  }
-}
-
-/** DELETE /api/academic/course-units/:id/faculties/:facultyId — remove a shared faculty */
-export async function deleteCourseUnitFaculty(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    await removeCourseUnitFaculty(req.params.id, req.params.facultyId)
-    noContent(res)
-  } catch (e) {
-    next(e)
-  }
-}
-
-// ─── Curriculum mapping ───
+// ─── Curriculum mapping (read-only — managed by Moodle hierarchy sync) ───
 
 export async function getCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const programmeId = (req.query.programmeId as string) || undefined
     ok(res, { curriculum: await listCurriculum({ programmeId }) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function postCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    // Pass the actor's facultyId so the service can scope faculty_admin to their own faculty
-    const actorFacultyId = req.user!.facultyId ?? null
-    created(res, { curriculumUnit: await createCurriculumMapping(req.body, actorFacultyId) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function deleteCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    // Pass the actor's facultyId so the service can scope faculty_admin to their own faculty
-    const actorFacultyId = req.user!.facultyId ?? null
-    await removeCurriculumMapping(req.params.id, actorFacultyId)
-    noContent(res)
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function patchCurriculum(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const data = curriculumUpdateSchema.parse(req.body)
-    const actorFacultyId = req.user!.facultyId ?? null
-    ok(res, { curriculumUnit: await updateCurriculumMapping(req.params.id, data, actorFacultyId) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function putElectiveRequirement(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const data = electiveRequirementSchema.parse(req.body)
-    const actorFacultyId = req.user!.facultyId ?? null
-    ok(res, { requirement: await setElectiveRequirement(data, actorFacultyId) })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function getElectiveRequirements(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    ok(res, { requirements: await listElectiveRequirements(req.user!.facultyId ?? null) })
   } catch (e) {
     next(e)
   }
@@ -288,54 +80,7 @@ export async function getOptions(req: Request, res: Response, next: NextFunction
   }
 }
 
-// ─── CSV imports ───
-
-export async function importStructure(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const type = (req.body?.type as string) || ''
-    if (!['faculties', 'programmes', 'course_units', 'curriculum'].includes(type)) {
-      res.status(400).json({ error: 'type must be one of: faculties, programmes, course_units, curriculum' })
-      return
-    }
-    if (!req.file) {
-      res.status(400).json({ error: 'CSV file is required (field name: file)' })
-      return
-    }
-    const result = await importStructureCsv(req.file.buffer, type as StructureImportType)
-    await writeAuditLog(req.user!.id, 'IMPORT', 'import', type, {
-      imported: result.imported,
-      failed: result.failed,
-    })
-    ok(res, { result })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function importLecturers(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: 'CSV file is required (field name: file)' })
-      return
-    }
-    const result = await importLecturersCsv(req.file.buffer)
-    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'lecturers', {
-      imported: result.imported,
-      failed: result.failed,
-    })
-    ok(res, { result })
-  } catch (e) {
-    next(e)
-  }
-}
+// ─── CSV imports — only Faculty Admin import remains ───
 
 export async function importFacultyAdmins(
   req: Request,
@@ -349,27 +94,6 @@ export async function importFacultyAdmins(
     }
     const result = await importFacultyAdminsCsv(req.file.buffer)
     await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'faculty_admins', {
-      imported: result.imported,
-      failed: result.failed,
-    })
-    ok(res, { result })
-  } catch (e) {
-    next(e)
-  }
-}
-
-export async function importStudents(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: 'CSV file is required (field name: file)' })
-      return
-    }
-    const result = await importStudentsCsv(req.file.buffer)
-    await writeAuditLog(req.user!.id, 'IMPORT', 'import', 'students', {
       imported: result.imported,
       failed: result.failed,
     })

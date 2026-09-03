@@ -66,7 +66,6 @@ export const userRepository = {
         role: true,
         profileComplete: true,
         hasCompletedTour: true,
-        mustChangePassword: true,
         facultyId: true,
         faculty: { select: { id: true, name: true, code: true } },
         lecturerFaculties: {
@@ -80,6 +79,7 @@ export const userRepository = {
         academicYear: true,
         regNumber: true,
         studentNumber: true,
+        moodleUserId: true,
         isActive: true,
       },
     })

@@ -15,13 +15,20 @@ datasource db {
 
 // Campuses are FIXED university locations and live in code (constants/campuses.ts),
 // not in the database. Faculties reference a campus by its code.
+//
+// Academic structure is mirrored FROM Moodle (source of truth). The Moodle
+// category id (mdl_course_categories.id) is the authoritative external identity
+// for every academic node below. Names/codes are display metadata only.
 model Faculty {
   id                  String              @id @default(uuid())
   campusCode          String              @db.VarChar(20)
   name                String              @db.VarChar(100)
   code                String              @db.VarChar(20)
   isActive            Boolean             @default(true)
+  // Moodle identity — the faculty category node. Null until synced.
+  moodleCategoryId    BigInt?             @unique
   programmes          Programme[]
+  academicLevels      AcademicLevel[]
   courseUnits         CourseUnit[]
   sharedCourseUnits   CourseUnitFaculty[]
   users               User[]
@@ -40,14 +47,108 @@ model Programme {
   name            String           @db.VarChar(150)
   code            String           @db.VarChar(20)
   isActive        Boolean          @default(true)
+  // Moodle identity — the programme category node. Null until synced.
+  moodleCategoryId BigInt?         @unique
+  // The academic year this programme belongs to (Moodle-owned hierarchy).
+  academicYearId  String?
+  academicYear    AcademicYear?    @relation(fields: [academicYearId], references: [id])
+  programmeYears  ProgrammeYear[]
   curriculumUnits CurriculumUnit[]
   electiveRequirements ElectiveRequirement[]
   students        User[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  @@unique([facultyId, code])
+  // A programme may recur across academic years in Moodle (duplicate natural
+  // codes), so (facultyId, code) is a non-unique lookup index, not an identity.
+  @@index([facultyId, code])
   @@map("programmes")
+}
+
+// ── Moodle-synced academic hierarchy nodes (source of truth: Moodle) ─────────
+// These mirror the Moodle category tree Campus → Faculty → Level → Academic
+// Year → Programme → Programme Year → Semester. Each node is keyed by its
+// Moodle category id; `isActive=false` soft-deactivates a node whose Moodle
+// category becomes hidden — historical attendance data is never deleted.
+
+/// Undergraduate / Postgraduate (a level within a faculty).
+model AcademicLevel {
+  id               String         @id @default(uuid())
+  facultyId        String
+  faculty          Faculty        @relation(fields: [facultyId], references: [id])
+  name             String         @db.VarChar(100)
+  moodleCategoryId BigInt?        @unique
+  isActive         Boolean        @default(true)
+  academicYears    AcademicYear[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("academic_levels")
+}
+
+/// An academic year (e.g. "Academic Year 2026/27") within a level.
+model AcademicYear {
+  id               String       @id @default(uuid())
+  levelId          String
+  level            AcademicLevel @relation(fields: [levelId], references: [id])
+  name             String       @db.VarChar(100)
+  moodleCategoryId BigInt?      @unique
+  isActive         Boolean      @default(true)
+  programmes       Programme[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@map("academic_years")
+}
+
+/// A "Year N" node within a programme.
+model ProgrammeYear {
+  id               String       @id @default(uuid())
+  programmeId      String
+  programme        Programme    @relation(fields: [programmeId], references: [id])
+  year             Int          @db.TinyInt
+  moodleCategoryId BigInt?      @unique
+  isActive         Boolean      @default(true)
+  semesters        Semester[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([programmeId, year])
+  @@map("programme_years")
+}
+
+/// A "SEM 1"/"SEM 2" node within a programme year.
+model Semester {
+  id               String       @id @default(uuid())
+  programmeYearId  String
+  programmeYear    ProgrammeYear @relation(fields: [programmeYearId], references: [id])
+  number           Int          @db.TinyInt
+  name             String       @db.VarChar(50)
+  moodleCategoryId BigInt?      @unique
+  isActive         Boolean      @default(true)
+  courseUnits      CourseUnit[]
+  curriculumUnits  SemesterCourseUnit[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([programmeYearId, number])
+  @@map("semesters")
+}
+
+/// Moodle-sourced curriculum join: which course units belong to which semester.
+/// Distinct from Enrollment (actual student membership) and from the legacy
+/// CurriculumUnit table (which is being retired in a later phase; kept intact
+/// now so existing enrollment/attendance behaviour is preserved).
+model SemesterCourseUnit {
+  id           String     @id @default(uuid())
+  semesterId   String
+  semester     Semester   @relation(fields: [semesterId], references: [id])
+  courseUnitId String
+  courseUnit   CourseUnit @relation(fields: [courseUnitId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([semesterId, courseUnitId])
+  @@map("semester_course_units")
 }
 
 model CourseUnit {
@@ -57,7 +158,19 @@ model CourseUnit {
   code                String               @db.VarChar(20)
   name                String               @db.VarChar(150)
   isActive            Boolean              @default(true)
+  // Moodle identity — set by synchronization; null until the course is linked.
+  // Source type: mdl_course.id is BIGINT in Moodle's MySQL schema.
+  // Deployment verification required before migration: run
+  //   SHOW CREATE TABLE mdl_course; SELECT MAX(id) FROM mdl_course;
+  // on the Moodle instance to confirm BIGINT and current max before applying.
+  moodleCourseId      BigInt?              @unique
+  // The semester category the Moodle course lives under (from mdl_course.category).
+  moodleCategoryId    BigInt?
+  // The Attendance Semester node this unit belongs to (Moodle-sourced curriculum).
+  semesterId          String?
+  semester            Semester?            @relation(fields: [semesterId], references: [id])
   curriculumUnits     CurriculumUnit[]
+  semesterCurriculumUnits SemesterCourseUnit[]
   enrollments         Enrollment[]
   lecturerAssignments LecturerAssignment[]
   sessions            Session[]
@@ -66,7 +179,9 @@ model CourseUnit {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
-  @@unique([facultyId, code])
+  // Non-unique display/lookup index: the same natural code may belong to
+  // distinct Moodle courses across semesters. moodleCourseId is the identity.
+  @@index([facultyId, code])
   @@map("course_units")
 }
 
@@ -123,7 +238,6 @@ model User {
   id              String   @id @default(uuid())
   googleId        String?  @unique @db.VarChar(100)
   email           String   @unique @db.VarChar(150)
-  password        String?  @db.VarChar(255)
   fullName        String   @db.VarChar(100)
   role            Role
   // Faculty link (primary faculty for lecturers — full membership list in LecturerFaculty)
@@ -137,15 +251,18 @@ model User {
   academicYear    String?    @db.VarChar(10)
   regNumber       String?    @unique @db.VarChar(30)
   studentNumber   String?    @unique @db.VarChar(30)
+  // Moodle identity — set by synchronization; null until the account is linked.
+  // Source type: mdl_user.id is BIGINT in Moodle's MySQL schema.
+  // Deployment verification required before migration: run
+  //   SHOW CREATE TABLE mdl_user; SELECT MAX(id) FROM mdl_user;
+  // on the Moodle instance to confirm BIGINT and current max before applying.
+  moodleUserId    BigInt?    @unique
   // Profile state
   profileComplete Boolean  @default(false)
   isActive        Boolean  @default(true)
   // Onboarding: has the user seen (or skipped) the guided tour?
   hasCompletedTour Boolean @default(false)
-  // Security: accounts created with a temporary password must change it on first login
-  mustChangePassword Boolean @default(false)
-  // Set for demo/seeded accounts: the bootstrap resets these to the known
-  // demo password on startup. Cleared when the user changes their own password.
+  // Set for demo/seeded accounts: the bootstrap marks these on first seed.
   demoManaged        Boolean @default(false) @map("demo_managed")
   // Relations
   enrollments          Enrollment[]
@@ -408,4 +525,30 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// ─────────────────────────────────────────────
+// MOODLE SYNCHRONIZATION
+// ─────────────────────────────────────────────
+
+/// Records each Moodle → Attendance synchronization run for observability and audit.
+/// One row per entity type per run (e.g. one row for "users", one for "courses").
+/// Never deleted — provides a complete sync history.
+model SyncRun {
+  id           String    @id @default(uuid())
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  /// "success" | "partial" | "failed" | "running"
+  status       String    @db.VarChar(20)
+  /// "users" | "courses" | "enrolments" | "full"
+  entity       String    @db.VarChar(30)
+  /// JSON object: { fetched, created, updated, unchanged, skipped, conflicts, errors }
+  stats        Json?
+  /// Human-readable summary of errors encountered (no secrets, no tokens)
+  errorSummary String?   @db.Text
+  /// Wall-clock duration of this run in milliseconds
+  durationMs   Int?
+
+  @@index([entity, startedAt])
+  @@map("sync_runs")
 }

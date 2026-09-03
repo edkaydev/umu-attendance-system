@@ -12,9 +12,6 @@ import {
   setCurrentPeriod,
   getSupportSettings,
   setSupportSettings,
-  getDefaultUserPasswordStatus,
-  setDefaultUserPassword,
-  resetDatabase,
 } from '../services/settings.service'
 import { writeAuditLog } from '../utils/audit'
 
@@ -107,38 +104,6 @@ const supportSettingsSchema = z.object({
   guide: z.string().max(10000).optional(),
 })
 
-const defaultUserPasswordSchema = z.object({
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
-})
-
-/** GET /api/settings/default-user-password — System Admin only; never returns the password. */
-export async function getDefaultUserPasswordController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    ok(res, { defaultUserPassword: await getDefaultUserPasswordStatus() })
-  } catch (e) {
-    next(e)
-  }
-}
-
-/** PATCH /api/settings/default-user-password — changes the password for future accounts only. */
-export async function setDefaultUserPasswordController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { password } = defaultUserPasswordSchema.parse(req.body)
-    await setDefaultUserPassword(password)
-    ok(res, { message: 'Default password updated for new users' })
-  } catch (e) {
-    next(e)
-  }
-}
-
 /** GET /api/settings/support — support contacts + user guide (any authenticated user). */
 export async function getSupportSettingsController(
   req: Request,
@@ -162,24 +127,6 @@ export async function setSupportSettingsController(
     const data = supportSettingsSchema.parse(req.body)
     const support = await setSupportSettings(data)
     ok(res, { support, message: 'Support details updated' })
-  } catch (e) {
-    next(e)
-  }
-}
-
-/** POST /api/settings/reset-database — System Admin only. Full end-of-semester wipe. */
-export async function resetDatabaseController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const result = await resetDatabase(req.user!.id)
-    await writeAuditLog(req.user!.id, 'RESET_DATABASE', 'system', 'all', result as unknown as Record<string, unknown>)
-    ok(res, {
-      message: 'Database reset complete. All academic data has been wiped.',
-      result,
-    })
   } catch (e) {
     next(e)
   }

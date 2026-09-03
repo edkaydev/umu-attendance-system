@@ -110,6 +110,12 @@ export async function removeAssignment(id: string, facultyId: string) {
   })
   if (!existing) throw new ApiError('Assignment not found', 404)
 
+  // Scope check: the FA must own the unit's faculty.
+  // Cross-faculty shared units are visible to the FA but only the owning faculty can remove.
+  if (existing.courseUnit.facultyId !== facultyId) {
+    throw new ApiError('You can only remove assignments for units in your faculty', 403)
+  }
+
   await prisma.lecturerAssignment.delete({ where: { id } })
   publish('assignments-changed')
   return existing
@@ -119,6 +125,10 @@ export async function removeAssignment(id: string, facultyId: string) {
  * A lecturer may teach at most one unit per (programme + year) cohort in a
  * given academic year + semester. They may still teach across years,
  * programmes, and semesters.
+ *
+ * Uses SemesterCourseUnit (populated by Moodle sync) rather than the legacy
+ * CurriculumUnit table which is no longer written to.
+ * Join chain: SemesterCourseUnit → Semester → ProgrammeYear (programmeId + year).
  */
 async function assertNoCohortClash(
   lecturerId: string,
@@ -126,10 +136,20 @@ async function assertNoCohortClash(
   academicYear: string,
   semester: number
 ) {
-  const newUnitCohorts = await prisma.curriculumUnit.findMany({
-    where: { courseUnitId, semester },
-    select: { programmeId: true, year: true },
+  const newUnitSCUs = await prisma.semesterCourseUnit.findMany({
+    where: {
+      courseUnitId,
+      semester: { number: semester },
+    },
+    select: {
+      semester: {
+        select: {
+          programmeYear: { select: { programmeId: true, year: true } },
+        },
+      },
+    },
   })
+  const newUnitCohorts = newUnitSCUs.map((u) => u.semester.programmeYear)
   if (newUnitCohorts.length === 0) return
 
   const existing = await prisma.lecturerAssignment.findMany({
@@ -138,13 +158,20 @@ async function assertNoCohortClash(
   })
   if (existing.length === 0) return
 
-  const existingCohorts = await prisma.curriculumUnit.findMany({
+  const existingSCUs = await prisma.semesterCourseUnit.findMany({
     where: {
       courseUnitId: { in: existing.map((e) => e.courseUnitId) },
-      semester,
+      semester: { number: semester },
     },
-    select: { programmeId: true, year: true },
+    select: {
+      semester: {
+        select: {
+          programmeYear: { select: { programmeId: true, year: true } },
+        },
+      },
+    },
   })
+  const existingCohorts = existingSCUs.map((u) => u.semester.programmeYear)
 
   const newCohortSet = new Set(newUnitCohorts.map((c) => `${c.programmeId}|${c.year}`))
   const clash = existingCohorts.find((c) => newCohortSet.has(`${c.programmeId}|${c.year}`))

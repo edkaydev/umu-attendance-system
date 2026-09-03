@@ -1,22 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useLocation } from 'react-router-dom'
-import { sessionApi, attendanceApi, reportApi } from '../api/endpoints'
+import { sessionApi, reportApi } from '../api/endpoints'
 import type { SessionDetail as SessionDetailType } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { Modal } from '../components/ui/Modal'
-import { Select } from '../components/ui/Select'
-import { Input } from '../components/ui/Input'
 import { ApiClientError } from '../api/client'
 import {
   Skeleton,
   SkeletonScreen,
   SkeletonTable,
 } from '../components/ui/Skeleton'
-import type { AttendanceStatus } from '../types'
 
 // ── Stat pill ────────────────────────────────────────────────────────────────
 function StatPill({
@@ -55,22 +51,11 @@ export default function SessionDetail() {
 
   const [session, setSession] = useState<SessionDetailType | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [editing, setEditing] = useState<{ recordId: string; studentName: string; currentStatus: AttendanceStatus } | null>(null)
-  const [newStatus, setNewStatus] = useState<AttendanceStatus>('present')
-  const [reason, setReason] = useState('')
-  const [saving, setSaving] = useState(false)
   const [reopening, setReopening] = useState(false)
 
   // PDF generate → download two-step flow
   const [generating, setGenerating] = useState(false)
   const [downloading, setDownloading] = useState(false)
-
-  // Only Faculty Admin and System Admin can edit attendance records.
-  // Lecturers are read-only — they cannot change a student's recorded status.
-  const canEdit =
-    session !== null &&
-    session.status === 'closed' &&
-    (user?.role === 'faculty_admin' || user?.role === 'system_admin')
 
   async function handleGenerateAndDownload() {
     if (!session) return
@@ -103,7 +88,6 @@ export default function SessionDetail() {
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl
-      // e.g. "Database Systems - 2025_2026 Sem 1.pdf"
       const safeName = session.courseUnit.name.replace(/[/\\?%*:|"<>]/g, '-')
       const safeYear = session.academicYear.replace('/', '_')
       a.download = `${safeName} - ${safeYear} Sem ${session.semester}.pdf`
@@ -132,31 +116,6 @@ export default function SessionDetail() {
       )
       .finally(() => setLoaded(true))
   }, [sessionId, toast])
-
-  function openEdit(recordId: string, studentName: string, currentStatus: AttendanceStatus) {
-    setEditing({ recordId, studentName, currentStatus })
-    setNewStatus(currentStatus)
-    setReason('')
-  }
-
-  async function handleSave() {
-    if (!editing) return
-    if (!reason.trim()) {
-      toast.error('A reason is required for any attendance change')
-      return
-    }
-    setSaving(true)
-    try {
-      await attendanceApi.edit(editing.recordId, newStatus, reason.trim())
-      toast.success('Attendance updated')
-      setEditing(null)
-      await reload()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update attendance')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   async function handleReopen() {
     setReopening(true)
@@ -263,7 +222,6 @@ export default function SessionDetail() {
             loading={generating || downloading}
             onClick={handleGenerateAndDownload}
           >
-            {/* Download icon */}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -282,7 +240,7 @@ export default function SessionDetail() {
           </svg>
           <p className="text-body-sm text-warning">
             <span className="font-semibold">Session is still open.</span>{' '}
-            Attendance records are not final — students may still check in. Editing is only available to Faculty Admin after the session is closed.
+            Attendance records are not final — students may still check in.
           </p>
         </div>
       )}
@@ -303,7 +261,7 @@ export default function SessionDetail() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left">
+            <table className="w-full min-w-[600px] text-left">
               <thead>
                 <tr className="border-b border-border bg-surface-1">
                   <th className="px-5 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
@@ -318,116 +276,35 @@ export default function SessionDetail() {
                   <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
                     Checked In
                   </th>
-                  <th className="px-4 py-3 text-label font-semibold uppercase tracking-wide text-text-secondary">
-                    Last Edit
-                  </th>
-                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {session.attendanceRecords.map((r) => {
-                  const edit = r.edits?.[0]
-                  return (
-                    <tr key={r.id} className="transition-colors hover:bg-surface-1">
-                      <td className="px-5 py-3">
-                        <p className="text-body font-medium text-text-primary">{r.student.fullName}</p>
-                      </td>
-                      <td className="px-4 py-3 text-body text-text-secondary">
-                        {r.student.regNumber ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge status={r.status} />
-                      </td>
-                      <td className="px-4 py-3 text-body text-text-secondary">
-                        {r.checkedInAt
-                          ? new Date(r.checkedInAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-body-sm text-text-secondary max-w-[200px]">
-                        {edit ? (
-                          <span title={edit.reason}>
-                            <span className="font-medium">{edit.oldStatus}</span>
-                            {' → '}
-                            <span className="font-medium">{edit.newStatus}</span>
-                            {': '}
-                            <span className="truncate">{edit.reason}</span>
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {canEdit ? (
-                          <Button
-                            variant="ghost"
-                            className="px-3 py-1 text-body-sm"
-                            onClick={() => openEdit(r.id, r.student.fullName, r.status)}
-                          >
-                            Edit
-                          </Button>
-                        ) : isLecturer ? (
-                          <span className="text-body-sm text-text-disabled" title="Only Faculty Admin can edit attendance records">
-                            Read-only
-                          </span>
-                        ) : session?.status === 'open' ? (
-                          <span className="text-body-sm text-text-disabled" title="Close the session before editing attendance">
-                            Session open
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {session.attendanceRecords.map((r) => (
+                  <tr key={r.id} className="transition-colors hover:bg-surface-1">
+                    <td className="px-5 py-3">
+                      <p className="text-body font-medium text-text-primary">{r.student.fullName}</p>
+                    </td>
+                    <td className="px-4 py-3 text-body text-text-secondary">
+                      {r.student.regNumber ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3 text-body text-text-secondary">
+                      {r.checkedInAt
+                        ? new Date(r.checkedInAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </Card>
-
-      {/* ── Edit modal ── */}
-      <Modal
-        open={Boolean(editing)}
-        onClose={() => setEditing(null)}
-        title={`Edit attendance — ${editing?.studentName ?? ''}`}
-      >
-        <div className="space-y-4">
-          {editing && (
-            <p className="text-body-sm text-text-secondary">
-              Current status: <Badge status={editing.currentStatus} />
-            </p>
-          )}
-          <Select
-            label="New status"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value as AttendanceStatus)}
-            options={[
-              { value: 'present', label: 'Present' },
-              { value: 'absent',  label: 'Absent' },
-              { value: 'excused', label: 'Excused' },
-            ]}
-          />
-          <Input
-            label="Reason (required)"
-            placeholder="e.g. Medical note submitted, lecturer verified"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-          <p className="text-body-sm text-text-secondary">
-            This change will be recorded in the audit log.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              Cancel
-            </Button>
-            <Button loading={saving} onClick={handleSave}>
-              Save Change
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

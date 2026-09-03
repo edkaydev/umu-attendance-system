@@ -1,33 +1,76 @@
-# 08 — Deployment Guide
+# Deployment Guide
 
-## Target Environment
-- **Server OS:** Ubuntu Server 22.04 LTS or 24.04 LTS
-- **Deployment:** Docker + Docker Compose
-- **Domain:** e.g. `attendance.umu.ac.ug` (or `YOUR-IP.sslip.io` while testing)
-- **SSL:** Certbot (Let's Encrypt)
-
-> These steps assume a **fresh** server. To redeploy to a new server/domain, see
-> [Deploying to a new server or a new domain](#deploying-to-a-new-server-or-a-new-domain).
+**Target:** Ubuntu Server 22.04/24.04 LTS · Docker Compose · Let's Encrypt SSL · Google OAuth · Moodle sync
 
 ---
 
-## Services (Docker Compose)
+## What you will end up with
 
-| Service | Image | Port |
+- The full UMU Attendance System running at `https://attendance.umu.ac.ug`
+- Secured with HTTPS (browser padlock, auto-renewing certificate)
+- Restarting automatically if the server reboots
+- Connected to Moodle so academic structure, lecturers, and students sync on demand
+- Daily automated database backups, last 30 kept
+
+---
+
+## What you need before you start
+
+| Thing | Where to get it |
+|---|---|
+| Ubuntu Server 22.04 or 24.04 machine | VPS provider or physical server on campus |
+| Server IP address | VPS dashboard, or run `ip addr` on the server |
+| Domain name pointing at the server | Ask UMU IT: add an A record `attendance.umu.ac.ug → your IP` in DNS |
+| SSH access to the server | VPS provider gives a username + password or SSH key |
+| Google OAuth credentials | Google Cloud Console (see Step 12) |
+| Gmail App Password for sending emails | Gmail account → Security → App Passwords (see Step 7) |
+| Moodle admin access | To run the one-time setup script on the Moodle server (see Step 13) |
+
+---
+
+## Services that Docker Compose runs
+
+| Service | Image | Network exposure |
 |---|---|---|
-| `db` | `mysql:8` | 3306 (internal only) |
-| `redis` | `redis:7-alpine` | 6379 (internal only) |
-| `app` | Custom Node.js build | 4000 (internal only) |
-| `nginx` | `nginx:alpine` | 80, 443 (public) |
-
-> `redis` backs API rate limiting; its data is persisted in a Docker volume.
+| `db` | `mysql:8` | Internal only — port 3306 never public |
+| `redis` | `redis:7-alpine` | Internal only — port 6379 never public |
+| `app` | Node.js 20 (custom build) | Internal only — port 4000, proxied by Nginx |
+| `nginx` | `nginx:alpine` | Public — ports 80 (HTTP→HTTPS redirect) and 443 (HTTPS) |
 
 ---
 
-## Step 1 — Install Docker
+## Step 1 — Open firewall ports
+
+In your VPS / cloud provider's security group or firewall console:
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| 22 | TCP | SSH access |
+| 80 | TCP | HTTP — Let's Encrypt challenge + redirect to HTTPS |
+| 443 | TCP | HTTPS — the app |
+
+**Do not** open 3306 (MySQL) or 6379 (Redis) to the internet.
+
+---
+
+## Step 2 — Connect to the server and update it
 
 ```bash
+ssh ubuntu@YOUR-SERVER-IP
 sudo apt update && sudo apt upgrade -y
+sudo reboot   # optional but recommended after a kernel update
+```
+
+After reboot, reconnect:
+```bash
+ssh ubuntu@YOUR-SERVER-IP
+```
+
+---
+
+## Step 3 — Install Docker
+
+```bash
 sudo apt install -y ca-certificates curl gnupg
 
 sudo install -m 0755 -d /etc/apt/keyrings
@@ -41,413 +84,790 @@ echo "deb [arch=$(dpkg --print-architecture) \
   | sudo tee /etc/apt/sources.list.d/docker.list
 
 sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin certbot
 
+# Allow your user to run Docker without sudo
 sudo usermod -aG docker $USER
 newgrp docker
 ```
 
+Verify Docker is installed:
+```bash
+docker --version        # Docker version 26.x.x or newer
+docker compose version  # Docker Compose version v2.x.x
+```
+
 ---
 
-## Step 2 — Clone the Repository
+## Step 4 — Install Node.js 20 (needed only to build the frontend)
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+node --version   # v20.x.x
+```
+
+---
+
+## Step 5 — Clone the repository
 
 ```bash
 sudo mkdir -p /var/www/umu-attendance
 sudo chown $USER:$USER /var/www/umu-attendance
-
 git clone https://github.com/edkaydev/umu-attendance-system.git /var/www/umu-attendance
 cd /var/www/umu-attendance
 ```
 
 ---
 
-## Step 3 — Configure Environment Variables
+## Step 6 — Create environment files
 
-Two env files are needed:
-
-- **`server/.env`** — settings for the Node.js app.
-- **`.env`** (repo root) — database passwords for Docker Compose.
+Two files are required. Neither is stored in GitHub — you create them fresh on every server.
 
 ```bash
 cp server/.env.example server/.env
 cp .env.example .env
+```
+
+### Edit `server/.env`
+
+```bash
 nano server/.env
 ```
 
-```bash
+Fill in every value. The file should look like this when done:
+
+```ini
 NODE_ENV=production
 PORT=4000
 CLIENT_URL=https://attendance.umu.ac.ug
 
-DATABASE_URL=mysql://umu_user:StrongPassword123@db:3306/umu_attendance
+# ── Database ─────────────────────────────────────────────────────────────────
+# Password MUST match MYSQL_PASSWORD in the root .env below.
+# If the password contains # @ or % → URL-encode: # → %23  @ → %40  % → %25
+DATABASE_URL=mysql://umu_user:StrongPassword@db:3306/umu_attendance
 
+# ── Google OAuth ─────────────────────────────────────────────────────────────
+# From Google Cloud Console — see Step 12.
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_CALLBACK_URL=https://attendance.umu.ac.ug/api/auth/google/callback
 
-JWT_ACCESS_SECRET=<64-char-random>
-JWT_REFRESH_SECRET=<64-char-random>
+# ── JWT secrets ───────────────────────────────────────────────────────────────
+# Generate each with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+# Run the command TWICE and use different values for each secret.
+JWT_ACCESS_SECRET=paste-first-64-char-hex-string-here
+JWT_REFRESH_SECRET=paste-second-64-char-hex-string-here
+JWT_ACCESS_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
 
+# ── Email alerts (Gmail SMTP) ─────────────────────────────────────────────────
+# SMTP_PASS must be a Gmail App Password, not your real Gmail password — see Step 7.
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=attendance@umu.ac.ug
-SMTP_PASS=your-google-app-password
+SMTP_PASS=paste-16-char-gmail-app-password-here
+ALERT_FROM_EMAIL=attendance@umu.ac.ug
+ALERT_FROM_NAME=UMU Attendance System
+
+# ── Moodle integration ────────────────────────────────────────────────────────
+# Token is generated by devops/scripts/moodle/setup-webservice.php — see Step 13.
+MOODLE_BASE_URL=https://moodle.umu.ac.ug
+MOODLE_WS_TOKEN=paste-64-char-token-here
+MOODLE_WS_SERVICE=umu_attendance_sync
+
+# ── Geo-fencing ───────────────────────────────────────────────────────────────
+# Nkozi Campus coordinates. Students must be within CAMPUS_RADIUS_METERS to check in.
+CAMPUS_LAT=0.00389
+CAMPUS_LNG=32.01353
+CAMPUS_RADIUS_METERS=500
+LECTURER_PROXIMITY_RADIUS_METERS=50
+
+# ── First System Admin ────────────────────────────────────────────────────────
+# Pre-register the admin's email so they can sign in with Google OAuth.
+# Run: docker compose exec app npm run seed:admin
+SEED_ADMIN_EMAIL=admin@umu.ac.ug
+SEED_ADMIN_NAME=System Administrator
+
+# Keep false in production — prevents demo data seeding on empty database.
+SEED_ON_EMPTY=false
 ```
 
-Generate secure secrets:
+Generate the two JWT secrets (run the command twice — use a different value for each):
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-> The database password in `DATABASE_URL` must **match** `MYSQL_PASSWORD` in the root
-> `.env` file. If it contains special characters (like `#`, `@`, `%`), URL-encode it in
-> `DATABASE_URL` — e.g. `Console.log#75` becomes `Console.log%2375`.
->
-> The logo (`umu-logo.svg`) is already committed in `server/assets/` and embedded into PDFs
-> as base64, so no asset or env step is needed after cloning.
+### Edit root `.env`
+
+The database password here **must match** `StrongPassword` in `DATABASE_URL` above.
+
+```bash
+nano .env
+```
+
+```ini
+MYSQL_ROOT_PASSWORD=choose-a-strong-root-password
+MYSQL_PASSWORD=StrongPassword
+```
+
+Generate strong passwords:
+```bash
+openssl rand -base64 32
+```
+
+### Lock both files
+
+```bash
+chmod 600 server/.env .env
+```
 
 ---
 
-## Step 4 — SSL with Certbot (BEFORE starting containers)
+## Step 7 — Get a Gmail App Password
 
-> **Important:** Nginx needs the certificate file to exist when it starts. Get the
-> certificate **before** the first `docker compose up` (Step 5). If Nginx starts first it
-> crash-loops with `cannot load certificate "...": No such file or directory`.
+The system sends attendance alerts and absence notifications via Gmail. Gmail blocks
+sign-in with your real password from scripts — you need an **App Password** instead.
 
-Nginx runs inside Docker, so get the certificate with certbot's **standalone** mode. On a
-fresh server nothing is using port 80 yet, so it works directly:
+1. Go to [myaccount.google.com](https://myaccount.google.com) → **Security**
+2. Under "How you sign in to Google", turn on **2-Step Verification** if not already on
+3. Go back to **Security** → scroll down → click **App passwords**
+   (This option only appears after 2-Step Verification is enabled)
+4. App: **Mail** · Device: **Other (Custom name)** · Name: `UMU Attendance`
+5. Click **Create** → Google shows a 16-character password like `abcd efgh ijkl mnop`
+6. Copy it (spaces are ignored) → paste it as `SMTP_PASS` in `server/.env`
 
+> The App Password is shown only once. If you lose it, generate a new one — it does
+> not expire unless you revoke it.
+
+---
+
+## Step 8 — Get an SSL certificate (do this BEFORE starting containers)
+
+> Nginx reads the certificate paths when it starts. If the files don't exist yet,
+> Nginx crash-loops with: `cannot load certificate: No such file or directory`
+> Get the certificate first, then start containers.
+
+### Option A — real domain (recommended for production)
+
+Verify DNS has propagated first:
 ```bash
-sudo apt install -y certbot
+ping attendance.umu.ac.ug
+# Should reply from your server IP. If not, wait 10–30 min and try again.
+```
 
+Then get the certificate:
+```bash
 sudo certbot certonly --standalone -d attendance.umu.ac.ug
 ```
 
-> No domain yet? Use the server IP with a free `sslip.io` subdomain, e.g. for IP
-> `41.210.100.50` use `-d 41.210.100.50.sslip.io` and that address everywhere below.
->
-> If the containers are already running (e.g. you started early), stop nginx first:
-> `cd /var/www/umu-attendance && docker compose stop nginx`, run certbot, then
-> `docker compose start nginx`.
+Certbot asks for your email and terms agreement — type `Y` and Enter.
 
-Enable auto-renewal (certificates expire every 90 days):
+### Option B — no domain yet (for testing)
+
+Use `YOUR-IP.sslip.io` — a free service that maps any IP to a DNS name automatically.
+Example: server IP `41.210.100.50` → use `41.210.100.50.sslip.io` as your domain.
+Replace `YOUR-DOMAIN` everywhere with this address.
+
+```bash
+sudo certbot certonly --standalone -d 41.210.100.50.sslip.io
+```
+
+### Enable automatic renewal (certificates expire every 90 days)
+
 ```bash
 sudo systemctl enable certbot.timer
 sudo systemctl start certbot.timer
+sudo systemctl status certbot.timer   # should show "active (waiting)"
 ```
 
-Then point the Nginx config (`devops/nginx/umu-attendance.conf`) at your certificate:
-change the `ssl_certificate`/`ssl_certificate_key` paths and both `server_name` lines to
-your domain.
+### Update the Nginx config with your domain
+
+```bash
+nano devops/nginx/umu-attendance.conf
+```
+
+Change **all four** domain occurrences:
+- `server_name` in the HTTP block (line that says `return 301 https://...`)
+- `server_name` in the HTTPS block
+- `ssl_certificate` path
+- `ssl_certificate_key` path
+
+Replace the existing demo domain with your actual domain. Save: **Ctrl+X → Y → Enter**
 
 ---
 
-## Step 5 — Build and Start
+## Step 9 — Build the frontend
+
+The React PWA must be compiled into static files before Nginx can serve it.
 
 ```bash
-# Build React PWA (needs Node.js on the server — see Steps 7–8 of the beginner guide)
-cd client && npm install && npm run build && cd ..
+cd /var/www/umu-attendance/client
+npm install
+npm run build
+cd ..
+```
 
-# Start all Docker services
+This takes 1–3 minutes and creates `client/dist/`. Nginx serves files from there.
+
+---
+
+## Step 10 — Start all containers
+
+```bash
+cd /var/www/umu-attendance
 docker compose up -d --build
+```
 
-# Verify all containers running
+The first run pulls Docker images and builds the Node.js container — takes 3–5 minutes.
+
+Check that all four containers started:
+```bash
 docker compose ps
 ```
 
----
+Expected output:
+```
+NAME                        STATUS
+umu-attendance-db-1         Up (healthy)
+umu-attendance-redis-1      Up (healthy)
+umu-attendance-app-1        Up (healthy)
+umu-attendance-nginx-1      Up
+```
 
-## Step 6 — Run Database Migrations
-
+If a container shows `Restarting`:
 ```bash
-docker compose exec app npx prisma migrate deploy
+docker compose logs app --tail=30   # see what went wrong
 ```
 
 ---
 
-## Step 7 — Seed First System Admin
+## Step 11 — Run database migrations and seed the first admin
 
 ```bash
+# Create all database tables
+docker compose exec app npx prisma migrate deploy
+
+# Pre-register the first System Admin in the database
 docker compose exec app npm run seed:admin
 ```
 
-Creates the first System Admin account using `SEED_ADMIN_EMAIL` /
-`SEED_ADMIN_PASSWORD` from `server/.env` (default `edward@umu.ac.ug`). The
-login page has an email + password form, so the admin signs in without Google.
-After logging in, set the current period (`Settings → Current Period`) before any
-other setup.
+The seed command registers the email from `SEED_ADMIN_EMAIL` so that person can sign in
+with Google OAuth. No password is created — all authentication goes through Google.
 
 ---
 
-## docker-compose.yml
+## Step 12 — Google OAuth setup
 
-```yaml
-services:
-  db:
-    image: mysql:8
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: umu_attendance
-      MYSQL_USER: umu_user
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+All users sign in via Google OAuth. This must be configured in Google Cloud Console
+before anyone can log in.
 
-  redis:
-    image: redis:7-alpine
-    restart: always
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+### 12.1 Create the project and OAuth client
 
-  app:
-    build: .
-    restart: always
-    environment:
-      REDIS_URL: redis://redis:6379
-    env_file: ./server/.env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    volumes:
-      - ./server/assets:/app/assets
-    expose:
-      - "4000"
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Click **Select a project → New Project** → Name: `UMU Attendance System` → Create
+3. Go to **APIs & Services → Library** → search `Google+ API` → Enable
+4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+5. Application type: **Web application** · Name: `UMU Attendance`
+6. Under **Authorised redirect URIs** → **Add URI**:
+   ```
+   https://attendance.umu.ac.ug/api/auth/google/callback
+   ```
+   Must be `https://` — Google rejects `http://` URIs.
+7. Click **Create** → copy the **Client ID** and **Client Secret**
+8. Paste both into `server/.env` (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`)
 
-  nginx:
-    image: nginx:alpine
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./devops/nginx/umu-attendance.conf:/etc/nginx/conf.d/default.conf
-      - ./client/dist:/usr/share/nginx/html
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - app
+### 12.2 Configure the consent screen
 
-volumes:
-  db_data:
-  redis_data:
+1. Go to **APIs & Services → OAuth consent screen**
+2. **User type: External** — choose this even for internal UMU use.
+   "Internal" only works for accounts inside the same Google Workspace that *owns*
+   the Cloud project — it would block everyone else.
+3. Fill in:
+   - App name: `UMU Attendance System`
+   - User support email: your email
+   - Developer contact email: your email
+4. Click **Save and Continue** through the Scopes page (no extra scopes needed)
+5. Add test users if prompted (optional — you'll publish in the next step anyway)
+
+### 12.3 Publish the app (required)
+
+1. Back on the OAuth consent screen → click **Publish App → Confirm**
+2. Status must change to **In production**
+
+Apps left in "Testing" mode only allow the specific test users you listed.
+Apps with `http://` redirect URIs are blocked by Google. Both conditions require
+the app to be published with HTTPS URIs.
+
+### 12.4 Allow the app in UMU Google Workspace
+
+By default, Google Workspace admins block all third-party OAuth apps. Without this
+step, users see: **"Access blocked: UMU Attendance System has not completed the
+Google verification process"**.
+
+Ask the UMU IT Google Workspace admin to:
+
+1. Sign in to [admin.google.com](https://admin.google.com)
+2. Go to **Security → Access and data control → API controls**
+3. Click **Manage Third-Party App Access → Add app → OAuth App Name or Client ID**
+4. Paste the **Client ID** from Step 12.1
+5. Set access to **Trusted** → Save
+
+---
+
+## Step 13 — Set up Moodle integration and get the token
+
+Moodle is the source of truth for academic structure (faculties, programmes, course units),
+lecturers, and students. The attendance system syncs from Moodle on demand — read-only.
+
+### 13.1 What the setup script does
+
+The file `devops/scripts/moodle/setup-webservice.php` runs on the Moodle server and:
+
+1. Enables Web Services and the REST protocol in Moodle site settings
+2. Creates the external service `UMU Attendance Sync` (`umu_attendance_sync`) and
+   attaches the 10 required read-only functions
+3. Creates a service account user `umu_sync_admin` (never used for browser login)
+4. Assigns the system Manager role so the account can read all users and enrolments
+5. Issues a permanent token and prints it to the console
+
+The script is **fully idempotent** — safe to run multiple times. If everything already
+exists it just reuses it and prints the existing token.
+
+### 13.2 Run the script on the Moodle server
+
+ICT needs to copy the script to the Moodle server and run it. The commands depend on
+how Moodle is hosted:
+
+**If Moodle runs in Docker** (find the container name with `docker ps`):
+```bash
+# Copy the script into the Moodle container
+docker cp /var/www/umu-attendance/devops/scripts/moodle/setup-webservice.php \
+  MOODLE-CONTAINER-NAME:/var/www/html/admin/cli/setup-webservice.php
+
+# Run it as the web server user
+docker exec -u www-data MOODLE-CONTAINER-NAME \
+  php /var/www/html/admin/cli/setup-webservice.php
 ```
 
-> `${MYSQL_ROOT_PASSWORD}` and `${MYSQL_PASSWORD}` come from the root `.env` file
-> (Step 3). They must match the database password in `server/.env`'s `DATABASE_URL`.
+**If Moodle runs directly on the server (no Docker):**
+```bash
+# Copy the script to Moodle's CLI tools directory
+sudo cp /var/www/umu-attendance/devops/scripts/moodle/setup-webservice.php \
+  /var/www/html/admin/cli/setup-webservice.php
 
----
-
-## Nginx Config
-
-The config at `devops/nginx/umu-attendance.conf` currently targets the test deployment
-(`102.133.161.8.sslip.io`). For a new server, replace the two `ssl_certificate` paths and
-both `server_name` values with your own domain.
-
-```nginx
-server {
-    listen 80;
-    server_name YOUR-DOMAIN;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    http2 on;
-    server_name YOUR-DOMAIN;
-
-    ssl_certificate     /etc/letsencrypt/live/YOUR-DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/YOUR-DOMAIN/privkey.pem;
-
-    client_max_body_size 10m;
-
-    # React PWA — SPA routing
-    root /usr/share/nginx/html;
-    index index.html;
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API proxy
-    location /api/ {
-        proxy_pass http://app:4000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+# Run it as the web server user
+sudo -u www-data php /var/www/html/admin/cli/setup-webservice.php
 ```
 
----
+### 13.3 Read the output and copy the token
 
-## Google OAuth Setup
+Successful output looks like this:
 
-1. [console.cloud.google.com](https://console.cloud.google.com) → Create project "UMU Attendance System"
-2. Enable **Google OAuth2 API**
-3. Create **OAuth 2.0 credentials** (Web Application type)
-4. Authorised redirect URI: `https://attendance.umu.ac.ug/api/auth/google/callback` (must be **https**)
-5. Copy Client ID + Secret → `server/.env`
-6. On the **OAuth consent screen → Audience** page:
-   - Set **User type** to **External** (Internal only allows accounts inside the Google
-     Workspace that owns the project — it blocks everyone else)
-   - Set **Publishing status** to **In production** (Google refuses production for clients
-     with `http://` redirect URIs, so HTTPS is required first)
-7. Optionally restrict sign-ins in the app itself — it already rejects any email that
-   isn't `@umu.ac.ug` or `@stud.umu.ac.ug` (`server/src/config/google-oauth.ts`)
+```
+== UMU Moodle Web Services setup ==
+Moodle site: https://moodle.umu.ac.ug
+[1/5] Web services enabled, REST protocol active.
+[2/5] Created external service: UMU Attendance Sync (#42)
+[2/5] Functions attached: 10 added, 0 already present.
+[3/5] Created service account user: umu_sync_admin.
+[4/5] Assigned Manager role at system context.
+[5/5] Issued new permanent token.
 
-> A client can hold **several** origins and redirect URIs. When you deploy to a new
-> domain/IP, just **add** the new ones — keep the old ones so the previous deployment
-> keeps working.
+=============================================================
+ Setup complete. Use these values in the attendance server:
+   MOODLE_BASE_URL=https://moodle.umu.ac.ug
+   MOODLE_WS_TOKEN=a1b2c3d4e5f6...  (64 hex characters)
+=============================================================
 
-> **Google is optional.** Every account can sign in with email + password instead, so the
-> app works even while the UMU Workspace admin hasn't approved the Google app. Students
-> use `@stud.umu.ac.ug` accounts, staff use `@umu.ac.ug`. Accounts are created by the
-> System Admin (User Management → Add User, or CSV imports on the Import page).
+Smoke test: POST core_webservice_get_site_info ...
+PASS: token works — site "UMU Moodle" (https://moodle.umu.ac.ug)
+```
 
----
-
-## Deploy Script (`devops/scripts/deploy.sh`)
+Copy the `MOODLE_WS_TOKEN` value (the 64-character hex string) and paste it into
+`server/.env`:
 
 ```bash
-#!/bin/bash
-set -e
-cd /var/www/umu-attendance
-
-echo "Pulling latest..."
-git pull origin main
-
-echo "Building frontend..."
-cd client && npm install && npm run build && cd ..
-
-echo "Restarting containers..."
-docker compose up -d --build
-
-echo "Running migrations..."
-docker compose exec app npx prisma migrate deploy
-
-echo "Done."
+nano /var/www/umu-attendance/server/.env
+# Find MOODLE_WS_TOKEN= and paste the token
 ```
 
+Restart the app container to load the new token:
 ```bash
-chmod +x devops/scripts/deploy.sh
+docker compose up -d app
+```
+
+### 13.4 Alternative — generate the token manually in the Moodle admin UI
+
+If ICT cannot run PHP scripts directly, the token can be created through the browser:
+
+**Step A — Enable Web Services:**
+Site administration → Advanced features → tick **Enable web services** → Save changes
+
+**Step B — Enable REST protocol:**
+Site admin → Server → Web services → Manage protocols → REST: click Enable
+
+**Step C — Create the external service:**
+Site admin → Server → Web services → External services → Add a new service:
+- Name: `UMU Attendance Sync`
+- Short name: `umu_attendance_sync`
+- Enabled: Yes
+→ Save, then click **Add functions** and add all 10:
+
+| Function name |
+|---|
+| `core_webservice_get_site_info` |
+| `core_course_get_courses` |
+| `core_course_get_courses_by_field` |
+| `core_course_get_categories` |
+| `core_course_get_contents` |
+| `core_user_get_users_by_field` |
+| `core_user_get_users_by_id` |
+| `core_user_get_course_user_profiles` |
+| `core_enrol_get_enrolled_users` |
+| `core_enrol_get_users_courses` |
+
+**Step D — Create the service account user:**
+Site admin → Users → Accounts → Add a new user:
+- Username: `umu_sync_admin`
+- First name: `UMU`, Last name: `Sync`
+- Email: `umu_sync@umu.ac.ug`
+- Auth method: Manual
+
+**Step E — Assign Manager role:**
+Site admin → Users → Permissions → Assign system roles → Manager → search `umu_sync_admin` → Add
+
+**Step F — Generate the token:**
+Site admin → Server → Web services → Manage tokens → Add:
+- User: `umu_sync_admin`
+- Service: `UMU Attendance Sync`
+- Valid until: leave blank (permanent)
+→ Save → copy the token value
+
+Paste the token as `MOODLE_WS_TOKEN` in `server/.env` and restart the app.
+
+### 13.5 Configure which Moodle semester is active
+
+After getting the token and running the first sync, the system needs to know which Moodle
+category represents the current semester.
+
+1. Sign in as System Admin → **Moodle Sync**
+2. Click **Configure Period**
+3. The page displays the parsed Moodle category tree. Find the current semester
+   (e.g. "Semester 1 2026/27") and note its **Category ID** shown beside it
+4. Enter:
+   - **Moodle Semester Category ID** — required (the semester's category ID)
+   - **Moodle Academic Year Category ID** — optional (the year's category ID)
+   - **Semester Number** — 1 or 2
+5. Save → **Run Full Sync**
+
+The sync fails with a clear error if the semester ID doesn't match the tree — it never
+silently picks the wrong period.
+
+---
+
+## Step 14 — Verify the deployment
+
+Open `https://attendance.umu.ac.ug` in a browser. You should see the UMU Attendance
+login page with a **Sign in with Google** button.
+
+1. Click **Sign in with Google** → use the `SEED_ADMIN_EMAIL` account
+2. You should land on the **System Admin dashboard**
+
+If the login fails — see the Troubleshooting section at the bottom.
+
+---
+
+## Step 15 — Complete first-time setup as System Admin
+
+After first login, do these steps in order:
+
+1. **Settings → Current Period** — set academic year (e.g. `2026/2027`) and semester number
+2. **Settings → Profile Editing** — turn on for Students and Lecturers
+3. **Moodle Sync → Configure Period** — enter the Moodle semester category ID (Step 13.5)
+4. **Moodle Sync → Run Full Sync** — pulls all faculties, programmes, course units,
+   lecturers, and students from Moodle. Takes 1–5 minutes depending on Moodle size.
+5. **Imports → Faculty Admins** — upload the Faculty Admin CSV
+   Format: `email,fullName,facultyCode` — one row per admin, no header needed
+6. Faculty Admins sign in with Google → complete profiles → assign lecturers to course units
+7. Students sign in with Google → complete profiles → auto-enrolled in their course units
+
+---
+
+## Step 16 — Set up a swap file (strongly recommended)
+
+Prevents Puppeteer (PDF generation) and MySQL from running out of memory on servers
+with less than 4 GB RAM:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Make it persistent across reboots
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Verify
+free -h   # Swap row should show 2.0G total
 ```
 
 ---
 
-## Database Backup (`devops/scripts/backup-db.sh`)
+## Step 17 — Set up automatic database backups
 
-```bash
-#!/bin/bash
-# Requires MYSQL_PASSWORD to be set (matching server/.env DATABASE_URL).
-set -e
-DATE=$(date +%Y-%m-%d_%H-%M)
-BACKUP_DIR=/var/backups/umu-attendance
-mkdir -p "$BACKUP_DIR"
-
-docker compose exec -T db mysqldump \
-  -u umu_user -p"${MYSQL_PASSWORD:?set MYSQL_PASSWORD in the environment}" umu_attendance \
-  > "$BACKUP_DIR/backup_$DATE.sql"
-
-echo "Backup saved: $BACKUP_DIR/backup_$DATE.sql"
-
-# Keep only last 30 backups
-ls -t "$BACKUP_DIR"/*.sql | tail -n +31 | xargs -r rm
-```
-
-Set `MYSQL_PASSWORD` from the root `.env` (or run with `set -a; source .env; set +a`),
-then schedule via cron:
 ```bash
 crontab -e
-# 0 2 * * * cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
+```
+
+Add this line (runs at 2 am every night, keeps the last 30 backups):
+```
+0 2 * * * cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
+```
+
+Save: **Ctrl+X → Y → Enter**
+
+Backups are saved to `/var/backups/umu-attendance/` as `.sql` files.
+
+Test the backup script right now:
+```bash
+cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
+ls -lh /var/backups/umu-attendance/   # should see a .sql file
 ```
 
 ---
 
-## Deploying to a new server or a new domain
+## Deploying code updates
 
-The project is designed to be redeployed. When you get the new server's IP and domain,
-change the domain in **four** places — missing one causes either a wrong address or a
-Google login failure.
+Every time new code is pushed to GitHub, run on the server:
 
-| # | Place | What to change |
+```bash
+cd /var/www/umu-attendance
+bash devops/scripts/deploy.sh
+```
+
+The deploy script does:
+1. `git pull origin main`
+2. Rebuilds the React frontend (`npm install && npm run build`)
+3. Rebuilds and restarts Docker containers (`docker compose up -d --build`)
+4. Runs any new database migrations (`prisma migrate deploy`)
+
+Or step by step manually:
+```bash
+cd /var/www/umu-attendance
+git pull origin main
+cd client && npm install && npm run build && cd ..
+docker compose up -d --build
+docker compose exec app npx prisma migrate deploy
+```
+
+---
+
+## Moving to a new server or domain
+
+Do these in order — missing a step causes login failures or wrong addresses.
+
+| # | What | How |
 |---|---|---|
-| 1 | **DNS** | The domain's A record must point to the new server's IP. Check with `ping your-domain`. |
-| 2 | **SSL certificate** | On the new server, run `sudo certbot certonly --standalone -d YOUR-DOMAIN` (Step 4). Certificates are per-domain and cannot be copied between servers. |
-| 3 | **Nginx config** (`devops/nginx/umu-attendance.conf`) | `server_name` on both server blocks, and both `ssl_certificate`/`ssl_certificate_key` paths → `YOUR-DOMAIN`. |
-| 4 | **`server/.env`** | `CLIENT_URL=https://YOUR-DOMAIN` and `GOOGLE_CALLBACK_URL=https://YOUR-DOMAIN/api/auth/google/callback` |
-| 5 | **Google Cloud Console** | Add `https://YOUR-DOMAIN` to **Authorised JavaScript origins** and `https://YOUR-DOMAIN/api/auth/google/callback` to **Authorised redirect URIs** (old ones can stay). |
-| 6 | **Environment files** | On a new server, `.env` and `server/.env` are created fresh from the `.example` files — nothing is committed to GitHub. Set a new strong database password, new JWT secrets, and `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. |
+| 1 | **DNS** | Point the domain A record to the new server IP |
+| 2 | **Verify DNS** | `ping attendance.umu.ac.ug` → should return new IP |
+| 3 | **SSL cert on new server** | `sudo certbot certonly --standalone -d YOUR-NEW-DOMAIN` |
+| 4 | **Nginx config** | Update `server_name` (both blocks) + cert paths in `devops/nginx/umu-attendance.conf` |
+| 5 | **`server/.env`** | Update `CLIENT_URL` and `GOOGLE_CALLBACK_URL` |
+| 6 | **Google Cloud Console** | Add new domain to Authorised redirect URIs (keep old ones too) |
+| 7 | **Root `.env`** | Generate fresh strong passwords and JWT secrets on the new server |
 
-Quick search for leftover references to the old domain:
+Find any leftover old-domain references:
 ```bash
-grep -rn "old-domain-or-ip" . --include="*.conf" --include="*.env*" --exclude-dir=node_modules
+grep -rn "old-domain.example.com" . --include="*.conf" --include="*.env*" --exclude-dir=node_modules
 ```
 
-> If the new server gets a **new IP** but keeps the **same domain**, only items 2, 4 and
-> the DNS record change — the Google Console entries and Nginx `server_name` stay the same.
-
 ---
 
-## After First Deploy — System Admin Checklist
+## Server commands reference
 
-1. Log in with the System Admin account (`edward@umu.ac.ug` + `SEED_ADMIN_PASSWORD`)
-2. **Settings → Current Period** — set academic year and semester
-3. **Settings → Profile Editing** — enable for students and lecturers
-4. **Academic Setup** — create Campus, Faculty, Programmes, Course Units, Curriculum mappings
-5. **Users → Add User** or **CSV Imports** — create Staff (`name,email,role,facultyCode,password`) and
-   Student (`name,email,password`) accounts. Students choose their own academic path on first login.
-6. Faculty Admins log in, complete their profiles, assign lecturers to units
-7. Students log in, complete profiles — auto-enrolled into course units
-
----
-
-## Monitoring
+### Container status and logs
 
 ```bash
-# Live logs
-docker compose logs -f app
-
-# Container status
+# See status of all four containers
 docker compose ps
 
-# Restart single service
-docker compose restart app
+# Live log stream — Ctrl+C to stop
+docker compose logs -f app
+docker compose logs -f nginx
+docker compose logs -f db
+
+# Last 50 lines (useful when something just crashed)
+docker compose logs app --tail=50
+docker compose logs nginx --tail=50
+
+# Logs for all containers at once
+docker compose logs -f
 ```
 
-> For `.env` changes use `docker compose up -d app` instead — `restart` keeps the old
-> environment variables, but `up -d` recreates the container and reads the new `.env`.
+### Starting and stopping
+
+```bash
+# Start everything (after server reboot)
+docker compose up -d
+
+# Stop everything cleanly
+docker compose down
+
+# Restart one container (e.g. after a crash)
+docker compose restart app
+
+# Reload environment variables — use up -d, NOT restart
+# (restart keeps the old env vars loaded in memory)
+docker compose up -d app
+
+# Rebuild images and restart (after a code change)
+docker compose up -d --build
+```
+
+### Database
+
+```bash
+# Open a MySQL shell inside the database container
+docker compose exec db mysql -u umu_user -p umu_attendance
+
+# Run a migration
+docker compose exec app npx prisma migrate deploy
+
+# Check migration history
+docker compose exec app npx prisma migrate status
+
+# Manual backup right now
+cd /var/www/umu-attendance && set -a && source .env && set +a && bash devops/scripts/backup-db.sh
+
+# Restore a backup
+docker compose exec -T db mysql -u umu_user -p'StrongPassword' umu_attendance \
+  < /var/backups/umu-attendance/backup_2026-09-03_02-00.sql
+
+# List saved backups
+ls -lh /var/backups/umu-attendance/
+```
+
+### Shell access inside containers
+
+```bash
+# Get a shell inside the app container (Node.js)
+docker compose exec app sh
+
+# Get a shell inside the Nginx container
+docker compose exec nginx sh
+
+# Run a one-off Node.js command inside the app
+docker compose exec app node -e "console.log('hello from app')"
+```
+
+### Server health checks
+
+```bash
+# Check all containers are up
+docker compose ps
+
+# Disk space
+df -h
+
+# Memory and swap
+free -h
+
+# CPU and memory per container (live, Ctrl+C to stop)
+docker stats
+
+# System uptime and load
+uptime
+
+# Check if the SSL cert is still valid
+sudo certbot certificates
+
+# Force certificate renewal (normally done automatically by the timer)
+sudo certbot renew --force-renewal
+
+# Check the auto-renewal timer status
+sudo systemctl status certbot.timer
+```
+
+### Nginx
+
+```bash
+# Test Nginx config for syntax errors (without restarting)
+docker compose exec nginx nginx -t
+
+# Reload Nginx config (zero-downtime, for conf file changes)
+docker compose exec nginx nginx -s reload
+
+# View Nginx access log
+docker compose logs nginx --tail=50
+
+# Check if the site is responding from the server itself
+curl -I https://attendance.umu.ac.ug
+```
+
+### Environment and secrets
+
+```bash
+# Edit server environment (then restart with: docker compose up -d app)
+nano /var/www/umu-attendance/server/.env
+
+# Edit root env (DB passwords — then: docker compose up -d)
+nano /var/www/umu-attendance/.env
+
+# See what environment variables the running app container has
+docker compose exec app env | grep -v PASS | grep -v SECRET
+```
+
+### Git and code updates
+
+```bash
+# Check current version
+cd /var/www/umu-attendance && git log --oneline -5
+
+# Update to latest (full deploy)
+bash devops/scripts/deploy.sh
+
+# Check for uncommitted changes on server (should be none in production)
+git status
+```
+
+### Clearing space
+
+```bash
+# How much space Docker is using
+docker system df
+
+# Remove stopped containers, dangling images, unused networks (safe to run)
+docker system prune -f
+
+# Remove all unused Docker images (more aggressive — use if disk is very low)
+docker image prune -a -f
+
+# Check disk usage by directory
+du -sh /var/www/umu-attendance/*
+du -sh /var/backups/umu-attendance/*
+```
 
 ---
 
 ## Troubleshooting
 
-| Problem | Check |
+| Problem | Fix |
 |---|---|
-| App not starting | `docker compose logs app` |
-| DB connection error | Verify `DATABASE_URL` in `server/.env` matches `MYSQL_PASSWORD` in root `.env` |
-| Nginx crash-looping "cannot load certificate" | Certificate doesn't exist yet — get the Let's Encrypt cert first (Step 4), then check `server_name`/cert paths in `devops/nginx/umu-attendance.conf` |
-| Google login failing | `GOOGLE_CALLBACK_URL` must be `https://` and match exactly in Google Console |
-| Google "Access Denied / Something went wrong during sign-in" | OAuth consent screen: User type must be **External**, Publishing status **In production**, redirect URIs **https**. For UMU accounts this can also mean the Google Workspace admin hasn't allowed the app (admin.google.com → Security → Access and data control → API controls → Manage Third-Party App Access) |
-| PDF not generating | Puppeteer's bundled Chromium — rebuild the image with `docker compose up -d --build`; check `server/assets/umu-logo.svg` exists; see logs with `docker compose logs app \| grep -i -E "pdf\|puppeteer\|chromium"` |
-| Emails not sending | `SMTP_PASS` must be a Google App Password (not account password) |
-| 502 Bad Gateway | Node.js crashed — `docker compose logs app` |
-| PWA not installing | Check `/manifest.webmanifest` returns 200; check icons exist in `/public` |
+| Site not loading, SSH works | Firewall ports 80/443 not open — check cloud security group |
+| App not starting | `docker compose logs app --tail=50` |
+| 502 Bad Gateway | App crashed — `docker compose logs app`; common cause: wrong `DATABASE_URL` or missing env var |
+| DB connection refused | `DATABASE_URL` password must match `MYSQL_PASSWORD` in root `.env`. Passwords must match exactly — check for special characters needing URL encoding |
+| Nginx crash-loop "cannot load certificate" | Certificate doesn't exist yet — run certbot first (Step 8), then `docker compose up -d nginx`. Also check `server_name` and cert paths in `devops/nginx/umu-attendance.conf` match your domain |
+| Google login: "redirect_uri_mismatch" | `GOOGLE_CALLBACK_URL` in `server/.env` must match exactly what's registered in Google Cloud Console (including `https://`, no trailing slash) |
+| Google login: "Access blocked" | OAuth consent screen must be External + status In production. Also, UMU Workspace admin must allow the app — Step 12.4 |
+| Google login: "Access Denied / not-registered" | The user's email is not in the database yet. System Admin must import them, or run a Moodle sync first |
+| Emails not sending | `SMTP_PASS` must be a Gmail App Password (16 chars), not your real Gmail password. 2-Step Verification must be enabled on the Gmail account |
+| PDF not generating | `docker compose up -d --build` to rebuild the app image (Puppeteer/Chromium must be installed). Check `server/assets/umu-logo.svg` exists. Add a 2 GB swap file — Step 16 |
+| PWA not installing | Check `/manifest.webmanifest` returns HTTP 200. Check PWA icons exist in `client/public/` |
+| Moodle sync: "MOODLE_NOT_CONFIGURED" | Set `MOODLE_BASE_URL` and `MOODLE_WS_TOKEN` in `server/.env`, then `docker compose up -d app` |
+| Moodle sync: "semester not resolved" | Go to System Admin → Moodle Sync → Configure Period and set the Moodle semester category ID |
+| Moodle sync: users skipped "wrong domain" | Student emails must be `@stud.umu.ac.ug`. Lecturer emails must be `@umu.ac.ug`. Users with other domains are skipped |
+| No space left on device | `docker system prune -f`, then `df -h`. Delete old backups in `/var/backups/umu-attendance/` if needed |
+| Container keeps restarting | `docker compose logs app --tail=20` — read the last few lines before the crash message |
+| Changes to `.env` not taking effect | Use `docker compose up -d app` — not `docker compose restart app`. `restart` keeps old env vars in memory; `up -d` recreates the container with the new values |

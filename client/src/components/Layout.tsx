@@ -100,12 +100,11 @@ function IconScroll() {
   )
 }
 
-function IconKey() {
+function IconRefresh() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="7.5" cy="15.5" r="4.5"/>
-      <path d="M21 2l-9.6 9.6"/>
-      <path d="M15.5 7.5l3 3L22 7l-3-3"/>
+      <polyline points="23 4 23 10 17 10"/>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
     </svg>
   )
 }
@@ -155,9 +154,9 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: '/system-admin',                  label: 'Dashboard',       Icon: IconHome },
     { to: '/system-admin/academic',         label: 'Academic Setup',  Icon: IconBuilding },
     { to: '/system-admin/users',            label: 'Users',           Icon: IconUsers },
-    { to: '/system-admin/reset-password',   label: 'Reset Password',  Icon: IconKey },
     { to: '/system-admin/imports',          label: 'Imports',         Icon: IconUpload },
     { to: '/system-admin/settings',         label: 'Global Settings', Icon: IconScroll },
+    { to: '/system-admin/moodle',           label: 'Moodle Sync',     Icon: IconRefresh },
     { to: '/system-admin/logs',             label: 'System Log',      Icon: IconScroll },
   ],
 }

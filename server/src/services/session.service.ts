@@ -544,6 +544,7 @@ export async function reopenSession(sessionId: string, lecturerId: string) {
     },
   })
 
+  publish('sessions-changed')
   return reopened
 }
 
@@ -585,5 +586,6 @@ export async function extendSessionTime(sessionId: string, lecturerId: string, m
     classDuration,
   })
 
+  publish('sessions-changed')
   return extended
 }

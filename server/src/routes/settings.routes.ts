@@ -8,9 +8,6 @@ import {
   setCurrentPeriodController,
   getSupportSettingsController,
   setSupportSettingsController,
-  getDefaultUserPasswordController,
-  setDefaultUserPasswordController,
-  resetDatabaseController,
   clearCacheController,
 } from '../controllers/settings.controller'
 
@@ -25,10 +22,6 @@ router.patch('/current-period', authenticate, requireRole('system_admin'), setCu
 router.get('/support', authenticate, getSupportSettingsController)
 router.patch('/support', authenticate, requireRole('system_admin'), setSupportSettingsController)
 
-router.get('/default-user-password', authenticate, requireRole('system_admin'), getDefaultUserPasswordController)
-router.patch('/default-user-password', authenticate, requireRole('system_admin'), setDefaultUserPasswordController)
-
-router.post('/reset-database', authenticate, requireRole('system_admin'), resetDatabaseController)
 router.post('/clear-cache', authenticate, requireRole('system_admin'), clearCacheController)
 
 export default router

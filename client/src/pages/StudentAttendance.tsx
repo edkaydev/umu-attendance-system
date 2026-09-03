@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { attendanceApi, checkinApi } from '../api/endpoints'
 import type { LiveSessionForStudent } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
@@ -11,6 +11,7 @@ import {
   SkeletonCard,
   SkeletonScreen,
 } from '../components/ui/Skeleton'
+import { useRealtime } from '../hooks/useRealtime'
 
 export default function StudentAttendance() {
   const toast = useToast()
@@ -18,7 +19,7 @@ export default function StudentAttendance() {
   const [loaded, setLoaded] = useState(false)
   const [live, setLive] = useState<LiveSessionForStudent[]>([])
 
-  useEffect(() => {
+  const load = useCallback(() => {
     attendanceApi
       .my()
       .then(setData)
@@ -30,6 +31,11 @@ export default function StudentAttendance() {
       .then(setLive)
       .catch(() => {}) // non-critical — pending indicators just won't show
   }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  // Refresh when a session closes (attendance % changes) or an excuse is resolved
+  useRealtime(['attendance-changed', 'sessions-changed', 'excuse-changed'], load)
 
   if (!loaded) {
     return (

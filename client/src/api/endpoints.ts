@@ -6,8 +6,6 @@ import type {
   Programme,
   CourseUnit,
   CurriculumUnitEntry,
-  ElectivesState,
-  ElectiveRule,
   ManagedUser,
   Role,
   Session,
@@ -21,21 +19,12 @@ import type {
 } from '../types'
 
 // ─── Auth ───
-export interface LoginResponse {
-  user: User
-  redirect: string
-}
-
 export const authApi = {
   me: async () => {
     const res = await http.get<{ user: User }>('/api/auth/me')
     return res.user
   },
-  login: (email: string, password: string) =>
-    http.post<LoginResponse>('/api/auth/login', { email, password }),
   logout: () => http.post<{ message: string }>('/api/auth/logout'),
-  changePassword: (currentPassword: string, newPassword: string) =>
-    http.post<{ message: string }>('/api/auth/password', { currentPassword, newPassword }),
   devLogin: (role: Role) =>
     http.post<{ user: User; redirect: string }>('/api/auth/dev-login', { role }),
 }
@@ -100,8 +89,6 @@ export const attendanceApi = {
     }>(
       `/api/attendance/unit/${courseUnitId}?academicYear=${encodeURIComponent(period.academicYear)}&semester=${period.semester}`
     ),
-  edit: (recordId: string, status: AttendanceStatus, reason: string) =>
-    http.patch<{ message: string }>(`/api/attendance/${recordId}`, { status, reason }),
 }
 
 // ─── Sessions ───
@@ -278,7 +265,7 @@ interface DashboardActivityEntry {
   user: { fullName: string; email: string }
 }
 
-// ─── Academic structure (System Admin) ───
+// ─── Academic structure (System Admin — read-only; writes managed by Moodle sync) ───
 export const academicApi = {
   campuses: async () => {
     const res = await http.get<{ campuses: Campus[] }>('/api/academic/campuses')
@@ -288,75 +275,18 @@ export const academicApi = {
     const res = await http.get<{ faculties: Faculty[] }>('/api/academic/faculties')
     return res.faculties
   },
-  createFaculty: async (data: { campusCode: string; name: string; code: string }) => {
-    const res = await http.post<{ faculty: Faculty }>('/api/academic/faculties', data)
-    return res.faculty
-  },
-  updateFaculty: async (id: string, data: { campusCode: string; name: string; code: string }) => {
-    const res = await http.put<{ faculty: Faculty }>(`/api/academic/faculties/${id}`, data)
-    return res.faculty
-  },
   programmes: async () => {
     const res = await http.get<{ programmes: Programme[] }>('/api/academic/programmes')
     return res.programmes
-  },
-  createProgramme: async (data: { facultyId: string; name: string; code: string }) => {
-    const res = await http.post<{ programme: Programme }>('/api/academic/programmes', data)
-    return res.programme
-  },
-  updateProgramme: async (id: string, data: { facultyId: string; name: string; code: string }) => {
-    const res = await http.put<{ programme: Programme }>(`/api/academic/programmes/${id}`, data)
-    return res.programme
   },
   courseUnits: async () => {
     const res = await http.get<{ courseUnits: CourseUnit[] }>('/api/academic/course-units')
     return res.courseUnits
   },
-  createCourseUnit: async (data: { facultyId: string; name: string; code: string }) => {
-    const res = await http.post<{ courseUnit: CourseUnit }>('/api/academic/course-units', data)
-    return res.courseUnit
-  },
-  updateCourseUnit: async (id: string, data: { facultyId?: string; name: string; code: string }) => {
-    const res = await http.put<{ courseUnit: CourseUnit }>(`/api/academic/course-units/${id}`, data)
-    return res.courseUnit
-  },
-  shareCourseUnit: async (id: string, facultyId: string) => {
-    const res = await http.post<{ link: unknown }>(`/api/academic/course-units/${id}/faculties`, { facultyId })
-    return res.link
-  },
-  unshareCourseUnit: async (id: string, facultyId: string) => {
-    await http.del<{ message: string }>(`/api/academic/course-units/${id}/faculties/${facultyId}`)
-  },
   curriculum: async () => {
     const res = await http.get<{ curriculum: CurriculumUnitEntry[] }>('/api/academic/curriculum')
     return res.curriculum
   },
-  createCurriculum: (data: {
-    courseUnitId: string
-    programmeId: string
-    year: number
-    semester: number
-    isElective?: boolean
-  }) => http.post<{ curriculumUnit: CurriculumUnitEntry }>('/api/academic/curriculum', data),
-  patchCurriculum: (id: string, data: { isElective: boolean }) =>
-    http.patch<{ curriculumUnit: CurriculumUnitEntry }>(`/api/academic/curriculum/${id}`, data),
-  setElectiveRequirement: (data: { programmeId: string; year: number; semester: number; minPick: number }) =>
-    http.put<{ requirement: { minPick: number } | { minPick: 0 } }>('/api/academic/elective-requirement', data),
-  electiveRequirements: async (): Promise<ElectiveRule[]> => {
-    const res = await http.get<{ requirements: ElectiveRule[] }>('/api/academic/elective-requirements')
-    return res.requirements
-  },
-  removeCurriculum: (id: string) => http.del<{ message: string }>(`/api/academic/curriculum/${id}`),
-}
-
-// ─── Electives (student picker) ───
-export const electivesApi = {
-  get: async (): Promise<ElectivesState | null> => {
-    const res = await http.get<ElectivesState | null>('/api/enrollments/electives')
-    return res as unknown as ElectivesState | null
-  },
-  save: (courseUnitIds: string[]) =>
-    http.put<{ message: string; state: ElectivesState }>('/api/enrollments/electives', { courseUnitIds }),
 }
 
 // ─── Lecturer assignments (Faculty Admin) ───
@@ -446,7 +376,6 @@ export interface AdminUserUpdateInput {
 
 export interface CreateUserInput extends AdminUserUpdateInput {
   role: Role
-  password?: string
 }
 
 export const userApi = {
@@ -465,8 +394,6 @@ export const userApi = {
   remove:       (id: string) => http.del<{ deleted: number }>(`/api/users/${id}`),
   removeMany: (data: { userIds?: string[]; allMatching?: boolean; role?: Role; search?: string }) =>
     http.post<{ result: { deleted: number; skipped: number; errors: { id: string; message: string }[] } }>('/api/users/bulk-delete', data),
-  resetPassword: (id: string) =>
-    http.patch<{ message: string }>(`/api/users/${id}/reset-password`),
 }
 
 // ─── Imports (System Admin) ───
@@ -477,26 +404,10 @@ export interface ImportResult {
 }
 
 export const importApi = {
-  structure: (type: string, file: File) => {
-    const fd = new FormData()
-    fd.append('type', type)
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/structure', fd)
-  },
-  lecturers: (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/lecturers', fd)
-  },
   facultyAdmins: (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
     return http.upload<{ result: ImportResult }>('/api/academic/import/faculty-admins', fd)
-  },
-  students: (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    return http.upload<{ result: ImportResult }>('/api/academic/import/students', fd)
   },
 }
 
@@ -534,6 +445,67 @@ export const excuseApi = {
     http.patch<{ message: string }>(`/api/excuses/${excuseId}/reject`),
 }
 
+// ─── Moodle sync (System Admin) ───
+export interface MoodleConfigInfo {
+  configured: boolean
+  baseUrl?: string
+  wsService?: string
+  tokenSet?: boolean
+}
+
+export interface MoodleConnectionTest {
+  configured: boolean
+  siteName?: string
+  siteUrl?: string
+  release?: string
+  serviceUsername?: string
+  availableFunctions?: string[]
+}
+
+export interface MoodleSyncStats {
+  fetched: number
+  created: number
+  updated: number
+  unchanged: number
+  skipped: number
+  conflicts: number
+  errors: number
+}
+
+export interface MoodleSyncRunInfo {
+  id: string
+  startedAt: string
+  completedAt: string | null
+  status: string
+  entity: string
+  stats: unknown
+  errorSummary: string | null
+  durationMs: number | null
+}
+
+export interface MoodleFullSyncResult {
+  users: MoodleSyncStats
+  courses: MoodleSyncStats
+  enrolments: MoodleSyncStats
+  durationMs: number
+  warnings: string[]
+}
+
+export const moodleApi = {
+  config: async (): Promise<MoodleConfigInfo> => {
+    const res = await http.get<{ configured: boolean; baseUrl?: string; wsService?: string; tokenSet?: boolean }>(
+      '/api/moodle/config'
+    )
+    return res as MoodleConfigInfo
+  },
+  testConnection: async (): Promise<MoodleConnectionTest> =>
+    http.post<MoodleConnectionTest>('/api/moodle/test-connection', {}),
+  syncStatus: async (): Promise<{ lastRun: MoodleSyncRunInfo | null }> =>
+    http.get<{ lastRun: MoodleSyncRunInfo | null }>('/api/moodle/sync-status'),
+  sync: async (): Promise<MoodleFullSyncResult> =>
+    http.post<MoodleFullSyncResult>('/api/moodle/sync', {}),
+}
+
 // ─── System settings ───
 export interface ProfileEditingSettings {
   students: boolean
@@ -566,10 +538,4 @@ export const settingsApi = {
       '/api/settings/current-period',
       period
     ),
-  defaultUserPassword: async () => {
-    const res = await http.get<{ defaultUserPassword: { configured: boolean } }>('/api/settings/default-user-password')
-    return res.defaultUserPassword
-  },
-  setDefaultUserPassword: (password: string) =>
-    http.patch<{ message: string }>('/api/settings/default-user-password', { password }),
 }

@@ -111,7 +111,7 @@ function CreateUserModal({
           options={ROLE_OPTIONS}
         />
         <p className="rounded border border-border bg-surface-1 px-4 py-3 text-body-sm text-text-secondary">
-          This account will receive the system default password and must change it on first sign-in.
+          The account will be created immediately. The user signs in with Google using this email address.
           {role === 'student' && ' The student will choose their faculty, programme and year on first login.'}
         </p>
 
@@ -158,8 +158,6 @@ function EditUserModal({
 
   const [options, setOptions] = useState<ProfileOptions | null>(null)
   const [saving, setSaving] = useState(false)
-  const [resettingPassword, setResettingPassword] = useState(false)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   const [fullName, setFullName] = useState(user.fullName)
   const [email, setEmail] = useState(user.email)
@@ -208,19 +206,6 @@ function EditUserModal({
     }
   }
 
-  async function handleResetPassword() {
-    setResettingPassword(true)
-    try {
-      const { message } = await userApi.resetPassword(user.id)
-      toast.success(message)
-      setShowResetConfirm(false)
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to reset password')
-    } finally {
-      setResettingPassword(false)
-    }
-  }
-
   return (
     <Modal open onClose={onClose} title={`Edit User — ${user.fullName}`}>
       <div className="space-y-4">
@@ -254,28 +239,11 @@ function EditUserModal({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant="secondary"
-            loading={resettingPassword}
-            onClick={() => setShowResetConfirm(true)}
-          >
-            Reset Password
-          </Button>
           <Button loading={saving} onClick={handleSave}>
             Save Changes
           </Button>
         </div>
       </div>
-
-      <ConfirmModal
-        open={showResetConfirm}
-        title="Reset Password to Default"
-        message={`Reset ${user.fullName}'s password to the system default? They will be forced to change it on next login. All their data is untouched.`}
-        confirmLabel="Reset Password"
-        loading={resettingPassword}
-        onConfirm={handleResetPassword}
-        onCancel={() => !resettingPassword && setShowResetConfirm(false)}
-      />
     </Modal>
   )
 }
@@ -471,8 +439,7 @@ export default function UserManagement() {
         <div>
           <h1 className="text-h1 font-bold text-text-primary">User Management</h1>
           <p className="mt-1 text-body text-text-secondary">
-            Manage accounts, roles, and faculty assignments. Users sign in with their email
-            and password (or Google).
+            Manage accounts, roles, and faculty assignments. Users sign in with Google.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -2,12 +2,11 @@ import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ok, created, noContent } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
+
 import {
   getFacultyUnitOverview,
   createEnrollment,
   removeEnrollment,
-  getElectiveOfferings,
-  saveElectiveSelections,
 } from '../services/enrollment.service'
 
 const enrollmentSchema = z.object({
@@ -70,33 +69,3 @@ export async function deleteEnrollment(
   }
 }
 
-/** GET /api/enrollments/electives — the student's elective picker state. */
-export async function getElectives(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    ok(res, await getElectiveOfferings(req.user!.id))
-  } catch (e) {
-    next(e)
-  }
-}
-
-const electiveSelectionSchema = z.object({
-  courseUnitIds: z.array(z.string().uuid()).max(20),
-})
-
-/** PUT /api/enrollments/electives — save the student's elective choices. */
-export async function putElectives(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { courseUnitIds } = electiveSelectionSchema.parse(req.body)
-    ok(res, { message: 'Electives saved', state: await saveElectiveSelections(req.user!.id, courseUnitIds) })
-  } catch (e) {
-    next(e)
-  }
-}

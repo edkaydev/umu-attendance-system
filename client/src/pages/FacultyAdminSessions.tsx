@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { sessionApi } from '../api/endpoints'
 import { usePeriod } from '../hooks/usePeriod'
@@ -9,6 +9,7 @@ import { Select } from '../components/ui/Select'
 import { ApiClientError } from '../api/client'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import type { Session, SessionStatus } from '../types'
+import { useRealtime } from '../hooks/useRealtime'
 
 type FacultySession = Session & {
   lecturer: { id: string; fullName: string }
@@ -23,7 +24,7 @@ export default function FacultyAdminSessions() {
   const [todayOnly, setTodayOnly] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'' | 'open' | 'closed'>('')
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!globalPeriod) return
     setLoading(true)
     const params: Record<string, string> = {
@@ -39,6 +40,10 @@ export default function FacultyAdminSessions() {
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load sessions'))
       .finally(() => setLoading(false))
   }, [globalPeriod, statusFilter, todayOnly, toast])
+
+  useEffect(() => { load() }, [load])
+
+  useRealtime(['sessions-changed'], load)
 
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric',

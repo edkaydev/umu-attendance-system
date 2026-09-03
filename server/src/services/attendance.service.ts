@@ -2,7 +2,6 @@ import { AttendanceStatus, SessionStatus } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
 import { attendancePercentage, attendanceStatus } from '../utils/attendanceCalc'
-import { writeAuditLog } from '../utils/audit'
 
 /** All records of a session with student details (FR-05.12 / FR-07.5).
  *  Lecturer must own the session; Faculty Admin must be in the same or shared faculty. */
@@ -201,79 +200,4 @@ export async function getUnitSummary(courseUnitId: string, academicYear: string,
   }
 }
 
-/**
- * Manual attendance edit (FR-07.4/07.5):
- * requires a reason, stored in attendance_edits + audit_logs.
- * Lecturer owns the session; Faculty Admin within own faculty.
- */
-export async function editAttendance(
-  recordId: string,
-  newStatus: AttendanceStatus,
-  reason: string,
-  editor: { id: string; role: string; facultyId: string | null }
-) {
-  if (!reason.trim()) {
-    throw new ApiError('A reason is required for attendance edits', 400)
-  }
 
-  const record = await prisma.attendanceRecord.findUnique({
-    where: { id: recordId },
-    include: {
-      session: {
-        include: {
-          courseUnit: {
-            select: {
-              facultyId: true,
-              sharedFaculties: { select: { facultyId: true } },
-            },
-          },
-        },
-      },
-    },
-  })
-  if (!record) throw new ApiError('Attendance record not found', 404)
-  if (record.status === newStatus) {
-    throw new ApiError('Status is already ' + newStatus, 400)
-  }
-
-  // Only Faculty Admin and System Admin can edit attendance records.
-  // Lecturers are not permitted to change a student's recorded status.
-  if (editor.role === 'lecturer') {
-    throw new ApiError('Lecturers cannot edit attendance records. Contact your Faculty Admin.', 403)
-  } else if (editor.role === 'faculty_admin') {
-    const allowedFaculties = new Set([
-      record.session.courseUnit.facultyId,
-      ...record.session.courseUnit.sharedFaculties.map((sf) => sf.facultyId),
-    ])
-    if (!editor.facultyId || !allowedFaculties.has(editor.facultyId)) {
-      throw new ApiError('This session is outside your faculty', 403)
-    }
-  } else if (editor.role !== 'system_admin') {
-    throw new ApiError('Forbidden', 403)
-  }
-
-  const updated = await prisma.$transaction([
-    prisma.attendanceRecord.update({
-      where: { id: record.id },
-      data: { status: newStatus },
-    }),
-    prisma.attendanceEdit.create({
-      data: {
-        attendanceRecordId: record.id,
-        changedById: editor.id,
-        oldStatus: record.status,
-        newStatus,
-        reason: reason.trim(),
-      },
-    }),
-  ])
-
-  await writeAuditLog(editor.id, 'ATTENDANCE_EDIT', 'attendance_record', record.id, {
-    sessionId: record.sessionId,
-    from: record.status,
-    to: newStatus,
-    reason,
-  })
-
-  return updated[0]
-}

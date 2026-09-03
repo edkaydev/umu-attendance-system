@@ -17,7 +17,6 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
-import { PasswordInput } from '../components/ui/PasswordInput'
 import { ApiClientError } from '../api/client'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.systemAdmin>>
@@ -86,15 +85,18 @@ const QUICK_ACTIONS = [
 ]
 
 const ACTION_LABELS: Record<string, string> = {
-  LOGIN:            'Login',
-  SESSION_OPEN:     'Session opened',
-  SESSION_CLOSE:    'Session closed',
-  ATTENDANCE_EDIT:  'Attendance edited',
-  PDF_DOWNLOAD:     'PDF downloaded',
-  IMPORT_STRUCTURE: 'Structure imported',
-  IMPORT_STAFF:     'Staff imported',
-  PROFILE_COMPLETE: 'Profile completed',
-  PROFILE_UPDATE:   'Profile updated',
+  SESSION_OPEN:       'Session opened',
+  SESSION_CLOSE:      'Session closed',
+  SESSION_AUTO_CLOSE: 'Session closed automatically',
+  SESSION_EXTEND:     'Session extended',
+  IMPORT_STRUCTURE:   'Structure imported',
+  IMPORT:             'CSV import',
+  MOODLE_SYNC:        'Moodle sync',
+  USER_CREATE:        'User created',
+  USER_UPDATE:        'User updated',
+  USER_DELETE:        'User deleted',
+  PROFILE_UPDATE:     'Profile updated',
+  RESET_DATABASE:     'Database reset',
 }
 
 export default function SystemAdminDashboard() {
@@ -111,11 +113,6 @@ export default function SystemAdminDashboard() {
   const [periodYear, setPeriodYear] = useState('')
   const [periodSemester, setPeriodSemester] = useState('1')
   const [savingPeriod, setSavingPeriod] = useState(false)
-  const [defaultPasswordConfigured, setDefaultPasswordConfigured] = useState(false)
-  const [defaultPasswordModalOpen, setDefaultPasswordModalOpen] = useState(false)
-  const [defaultPassword, setDefaultPassword] = useState('')
-  const [defaultPasswordConfirm, setDefaultPasswordConfirm] = useState('')
-  const [savingDefaultPassword, setSavingDefaultPassword] = useState(false)
 
   const { startOnce } = useTour()
 
@@ -136,10 +133,6 @@ export default function SystemAdminDashboard() {
       .currentPeriod()
       .then(setCurrentPeriod)
       .catch(() => setCurrentPeriod(null))
-    settingsApi
-      .defaultUserPassword()
-      .then(({ configured }) => setDefaultPasswordConfigured(configured))
-      .catch(() => setDefaultPasswordConfigured(false))
   }, [toast])
 
   // Onboarding walkthrough — fires once per user, shortly after data lands
@@ -184,28 +177,6 @@ export default function SystemAdminDashboard() {
       toast.error(e instanceof ApiClientError ? e.message : 'Failed to set period')
     } finally {
       setSavingPeriod(false)
-    }
-  }
-
-  function openDefaultPasswordModal() {
-    setDefaultPassword('')
-    setDefaultPasswordConfirm('')
-    setDefaultPasswordModalOpen(true)
-  }
-
-  async function handleSetDefaultPassword() {
-    if (defaultPassword.length < 6) return toast.error('Password must be at least 6 characters')
-    if (defaultPassword !== defaultPasswordConfirm) return toast.error('Passwords do not match')
-    setSavingDefaultPassword(true)
-    try {
-      const res = await settingsApi.setDefaultUserPassword(defaultPassword)
-      setDefaultPasswordConfigured(true)
-      toast.success(res.message)
-      setDefaultPasswordModalOpen(false)
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Could not save the default password — please try again')
-    } finally {
-      setSavingDefaultPassword(false)
     }
   }
 
@@ -335,20 +306,6 @@ export default function SystemAdminDashboard() {
               </div>
             )
           })}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border px-5 py-4">
-            <div className="min-w-0">
-              <p className="text-body font-semibold text-text-primary">Default password for new users</p>
-              <p className="mt-0.5 text-body-sm text-text-secondary">
-                {defaultPasswordConfigured
-                  ? 'A custom default is active for accounts created from now on.'
-                  : 'Using the initial default: Umu@2026.'}{' '}
-                Every new user must change it at their first password sign-in.
-              </p>
-            </div>
-            <Button variant="secondary" onClick={openDefaultPasswordModal}>
-              {defaultPasswordConfigured ? 'Change Default' : 'Set Default'}
-            </Button>
-          </div>
         </Card>
       </section>
 
@@ -485,39 +442,6 @@ export default function SystemAdminDashboard() {
         </div>
       </Modal>
 
-      <Modal
-        open={defaultPasswordModalOpen}
-        onClose={() => setDefaultPasswordModalOpen(false)}
-        title="Set Default Password for New Users"
-      >
-        <div className="space-y-4">
-          <p className="text-body-sm text-text-secondary">
-            This applies only to accounts created after you save it. Existing users keep their current passwords.
-            New users must change this password at their first sign-in.
-          </p>
-          <PasswordInput
-            label="New Default Password"
-            autoComplete="new-password"
-            value={defaultPassword}
-            onChange={(e) => setDefaultPassword(e.target.value)}
-            showStrength
-          />
-          <PasswordInput
-            label="Confirm Default Password"
-            autoComplete="new-password"
-            value={defaultPasswordConfirm}
-            onChange={(e) => setDefaultPasswordConfirm(e.target.value)}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setDefaultPasswordModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button loading={savingDefaultPassword} onClick={handleSetDefaultPassword}>
-              Save Default Password
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

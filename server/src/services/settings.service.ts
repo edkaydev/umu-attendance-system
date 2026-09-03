@@ -1,5 +1,4 @@
 import { prisma } from '../config/db'
-import { hashPassword } from '../utils/password'
 
 export const PROFILE_EDITING_KEYS = {
   students:  'profileEditing.students',
@@ -12,9 +11,40 @@ export const CURRENT_PERIOD_KEYS = {
   semester:     'currentPeriod.semester',
 } as const
 
-/** New local accounts use this until a System Admin sets an organisation-specific one. */
-export const INITIAL_DEFAULT_USER_PASSWORD = 'Umu@2026'
-export const DEFAULT_USER_PASSWORD_KEY = 'auth.defaultUserPasswordHash'
+/**
+ * Moodle academic current-period configuration.
+ *
+ * The Attendance "current period" must map onto a specific node in the Moodle
+ * academic hierarchy. Because the Moodle instance contains multiple parallel
+ * and historical trees with duplicate names, this is NEVER auto-detected from
+ * category names/visibility/depth. It is always explicit and referenceable by
+ * stable Moodle category ID.
+ *
+ *   moodle.current.academicYearId   Verified Moodle academic-year category id
+ *   moodle.current.academicYearName Display label, e.g. "2026/27" (optional)
+ *   moodle.current.semesterNumber   Attendance semester (1 or 2)
+ *   moodle.current.semesterId       Verified Moodle semester category id
+ *
+ * The semester category id is the strongest signal; the sync must fail clearly
+ * if the configured id cannot be resolved in the parsed Moodle tree.
+ */
+export const MOODLE_CURRENT_PERIOD_KEYS = {
+  academicYearId: 'moodle.current.academicYearId',
+  academicYearName: 'moodle.current.academicYearName',
+  semesterNumber: 'moodle.current.semesterNumber',
+  semesterId: 'moodle.current.semesterId',
+} as const
+
+export interface MoodleCurrentPeriodConfig {
+  /** Verified Moodle academic-year category id (bigint as decimal string). */
+  academicYearId: bigint | null
+  /** Optional display label for the academic year, e.g. "2026/27". */
+  academicYearName: string | null
+  /** Attendance semester number (1 or 2). */
+  semesterNumber: number
+  /** Verified Moodle semester category id (bigint as decimal string). */
+  semesterId: bigint | null
+}
 
 export type ProfileEditingScope = keyof typeof PROFILE_EDITING_KEYS
 
@@ -31,24 +61,6 @@ export async function setSetting(key: string, value: string): Promise<void> {
     create: { key, value },
     update: { value },
   })
-}
-
-/**
- * Returns a bcrypt hash suitable for a newly-created account. The plaintext
- * default is never stored in the database; only a configured bcrypt hash is.
- */
-export async function getDefaultUserPasswordHash(): Promise<string> {
-  const hash = await getSetting(DEFAULT_USER_PASSWORD_KEY, '')
-  return hash || hashPassword(INITIAL_DEFAULT_USER_PASSWORD)
-}
-
-export async function getDefaultUserPasswordStatus(): Promise<{ configured: boolean }> {
-  const hash = await getSetting(DEFAULT_USER_PASSWORD_KEY, '')
-  return { configured: Boolean(hash) }
-}
-
-export async function setDefaultUserPassword(password: string): Promise<void> {
-  await setSetting(DEFAULT_USER_PASSWORD_KEY, await hashPassword(password))
 }
 
 export interface ProfileEditingSettings {
@@ -107,6 +119,55 @@ export async function setCurrentPeriod(academicYear: string, semester: number): 
   return { academicYear, semester }
 }
 
+/** Parse a stored bigint-as-decimal-string setting, or null when absent/invalid. */
+function readBigIntOrNull(value: string | undefined): bigint | null {
+  if (!value || !/^\d+$/.test(value.trim())) return null
+  return BigInt(value.trim())
+}
+
+/**
+ * Read the explicit Moodle academic current-period configuration.
+ *
+ * Defaults to "not configured" (all null / semester 1). The sync MUST NOT run
+ * blindly when this is unset or partially set — caller should reject with a
+ * clear error (see resolveMoodleCurrentPeriod).
+ */
+export async function getMoodleCurrentPeriodConfig(): Promise<MoodleCurrentPeriodConfig> {
+  const [academicYearId, academicYearName, semesterNumber, semesterId] = await Promise.all([
+    getSetting(MOODLE_CURRENT_PERIOD_KEYS.academicYearId, ''),
+    getSetting(MOODLE_CURRENT_PERIOD_KEYS.academicYearName, ''),
+    getSetting(MOODLE_CURRENT_PERIOD_KEYS.semesterNumber, '1'),
+    getSetting(MOODLE_CURRENT_PERIOD_KEYS.semesterId, ''),
+  ])
+  return {
+    academicYearId: readBigIntOrNull(academicYearId),
+    academicYearName: academicYearName || null,
+    semesterNumber: Number(semesterNumber) || 1,
+    semesterId: readBigIntOrNull(semesterId),
+  }
+}
+
+/** Persist the explicit Moodle academic current-period configuration. */
+export async function setMoodleCurrentPeriodConfig(
+  cfg: Partial<Omit<MoodleCurrentPeriodConfig, 'semesterNumber'>> & { semesterNumber?: number }
+): Promise<MoodleCurrentPeriodConfig> {
+  const writes: Promise<unknown>[] = []
+  if (cfg.academicYearId !== undefined) {
+    writes.push(setSetting(MOODLE_CURRENT_PERIOD_KEYS.academicYearId, cfg.academicYearId === null ? '' : cfg.academicYearId.toString()))
+  }
+  if (cfg.academicYearName !== undefined) {
+    writes.push(setSetting(MOODLE_CURRENT_PERIOD_KEYS.academicYearName, cfg.academicYearName ?? ''))
+  }
+  if (cfg.semesterNumber !== undefined) {
+    writes.push(setSetting(MOODLE_CURRENT_PERIOD_KEYS.semesterNumber, String(cfg.semesterNumber)))
+  }
+  if (cfg.semesterId !== undefined) {
+    writes.push(setSetting(MOODLE_CURRENT_PERIOD_KEYS.semesterId, cfg.semesterId === null ? '' : cfg.semesterId.toString()))
+  }
+  if (writes.length > 0) await Promise.all(writes)
+  return getMoodleCurrentPeriodConfig()
+}
+
 // ─── Support & user guide ────────────────────────────────────────────────────
 
 export const SUPPORT_KEYS = {
@@ -131,7 +192,7 @@ RULES
 • Attendance below 80% triggers a warning alert; below 75% a critical alert.
 
 BEST PRACTICES
-• Keep your login details private and change your password regularly.
+• Keep your login details private.
 • Make sure your profile (campus, faculty, programme and year) is complete and up to date.
 • Confirm your enrolled units each semester and report any mistakes to your Faculty Admin.
 • Report missing or incorrect attendance records to your lecturer as soon as possible.
@@ -159,104 +220,4 @@ export async function setSupportSettings(
   if (data.phone !== undefined) await setSetting(SUPPORT_KEYS.phone, data.phone)
   if (data.guide !== undefined) await setSetting(SUPPORT_KEYS.guide, data.guide)
   return getSupportSettings()
-}
-
-// ─── End-of-semester database reset ─────────────────────────────────────────
-
-export interface ResetDatabaseResult {
-  deletedAttendanceEdits: number
-  deletedAttendanceRecords: number
-  deletedSessions: number
-  deletedEnrollments: number
-  deletedAssignments: number
-  deletedAlerts: number
-  deletedCurriculumUnits: number
-  deletedCourseUnitFaculties: number
-  deletedCourseUnits: number
-  deletedProgrammes: number
-  deletedFaculties: number
-  deletedUsers: number
-  deletedRefreshTokens: number
-  deletedAuditLogs: number
-}
-
-/**
- * End-of-semester full database wipe.
- *
- * Deletes ALL transactional and academic data in the correct FK order.
- * System Admin accounts (role = system_admin) and system settings are KEPT
- * so the admin can still log in and reconfigure for the next semester.
- *
- * @param actorId  The system_admin user performing the reset (never deleted).
- */
-export async function resetDatabase(actorId: string): Promise<ResetDatabaseResult> {
-  // Run everything in a transaction so it's all-or-nothing
-  return prisma.$transaction(async (tx) => {
-    // 1. Attendance edits (FK → attendance_records)
-    const { count: deletedAttendanceEdits } = await tx.attendanceEdit.deleteMany({})
-
-    // 2. Attendance records (FK → sessions, users)
-    const { count: deletedAttendanceRecords } = await tx.attendanceRecord.deleteMany({})
-
-    // 3. Sessions (FK → course_units, users)
-    const { count: deletedSessions } = await tx.session.deleteMany({})
-
-    // 4. Enrollments (FK → users, course_units)
-    const { count: deletedEnrollments } = await tx.enrollment.deleteMany({})
-
-    // 5. Lecturer assignments (FK → users, course_units)
-    const { count: deletedAssignments } = await tx.lecturerAssignment.deleteMany({})
-
-    // 6. Attendance alerts (FK → users, course_units)
-    const { count: deletedAlerts } = await tx.attendanceAlert.deleteMany({})
-
-    // 7. Curriculum units (FK → course_units, programmes)
-    const { count: deletedCurriculumUnits } = await tx.curriculumUnit.deleteMany({})
-
-    // 8. Course-unit ↔ faculty sharing links (FK → course_units, faculties)
-    const { count: deletedCourseUnitFaculties } = await tx.courseUnitFaculty.deleteMany({})
-
-    // 9. Course units (FK → faculties)
-    const { count: deletedCourseUnits } = await tx.courseUnit.deleteMany({})
-
-    // 10. Programmes (FK → faculties)
-    const { count: deletedProgrammes } = await tx.programme.deleteMany({})
-
-    // 11. Non-system-admin users — refresh tokens + audit logs first to free FKs
-    const nonAdminUserIds = await tx.user.findMany({
-      where: { role: { not: 'system_admin' } },
-      select: { id: true },
-    })
-    const ids = nonAdminUserIds.map((u) => u.id)
-
-    const { count: deletedRefreshTokens } = await tx.refreshToken.deleteMany({
-      where: { userId: { in: ids } },
-    })
-    const { count: deletedAuditLogs } = await tx.auditLog.deleteMany({
-      where: { userId: { in: ids } },
-    })
-    const { count: deletedUsers } = await tx.user.deleteMany({
-      where: { role: { not: 'system_admin' } },
-    })
-
-    // 12. Faculties (safe now — all FK children gone)
-    const { count: deletedFaculties } = await tx.faculty.deleteMany({})
-
-    return {
-      deletedAttendanceEdits,
-      deletedAttendanceRecords,
-      deletedSessions,
-      deletedEnrollments,
-      deletedAssignments,
-      deletedAlerts,
-      deletedCurriculumUnits,
-      deletedCourseUnitFaculties,
-      deletedCourseUnits,
-      deletedProgrammes,
-      deletedFaculties,
-      deletedUsers,
-      deletedRefreshTokens,
-      deletedAuditLogs,
-    }
-  }, { timeout: 60000 }) // allow up to 60 s for large datasets
 }

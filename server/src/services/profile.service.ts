@@ -34,18 +34,46 @@ export async function validateStudentPath(input: StudentPathInput): Promise<void
 /**
  * Recalculate a student's enrolments for the given academic year + semester.
  * Old enrolments in that period are removed, then recreated from the
- * curriculum mapping for the student's current path (FR-02.4 / FR-02.6).
+ * Moodle-sourced curriculum (SemesterCourseUnit) for the student's current
+ * path (programme + year + semester). Falls back to the legacy CurriculumUnit
+ * table only when no Moodle-sourced semester is linked, so existing behaviour
+ * is preserved for programmes not yet synced from Moodle.
  * CORE units only — electives are chosen separately via the picker.
  */
 export async function recalculateEnrollments(
   studentId: string,
   { programmeId, year, semester, academicYear }: StudentPathInput
 ): Promise<number> {
-  const rows = await prisma.curriculumUnit.findMany({
-    where: { programmeId, year, semester, isElective: false },
-    select: { courseUnitId: true },
+  // Prefer Moodle-sourced curriculum: find the Semester node for this path
+  // (Programme → ProgrammeYear → Semester) and read SemesterCourseUnit rows.
+  const semesterNode = await prisma.semester.findFirst({
+    where: {
+      number: semester,
+      programmeYear: {
+        year,
+        programmeId,
+      },
+    },
+    select: { id: true },
   })
-  const curriculum = [...new Set(rows.map((r) => r.courseUnitId))]
+
+  let curriculum: string[]
+
+  if (semesterNode) {
+    // Moodle-sourced path: SemesterCourseUnit is the authoritative curriculum
+    const rows = await prisma.semesterCourseUnit.findMany({
+      where: { semesterId: semesterNode.id },
+      select: { courseUnitId: true },
+    })
+    curriculum = [...new Set(rows.map((r) => r.courseUnitId))]
+  } else {
+    // Legacy fallback: CurriculumUnit (used until Moodle sync has run)
+    const rows = await prisma.curriculumUnit.findMany({
+      where: { programmeId, year, semester, isElective: false },
+      select: { courseUnitId: true },
+    })
+    curriculum = [...new Set(rows.map((r) => r.courseUnitId))]
+  }
 
   await prisma.enrollment.deleteMany({
     where: { studentId, academicYear, semester },

@@ -29,152 +29,6 @@ function isStudent(u: ManageUser): u is FacultyUnitOverview['students'][number] 
   return 'regNumber' in u
 }
 
-/* ─────────────────────────── Add unit form ─────────────────────────── */
-
-function AddCourseUnitCard({
-  units,
-  onCreated,
-}: {
-  units: { id: string; code: string; name: string }[]
-  onCreated: () => void
-}) {
-  const { user } = useAuth()
-  const toast = useToast()
-  const [mode, setMode] = useState<'create' | 'edit'>('create')
-  const [selectedId, setSelectedId] = useState('')
-  const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  if (!user?.facultyId) {
-    return (
-      <Card title="Course Units">
-        <p className="text-body-sm text-text-secondary">
-          Your account is not linked to a faculty yet, so you cannot manage units.
-          Ask a System Admin to assign your faculty first.
-        </p>
-      </Card>
-    )
-  }
-
-  // Switching into edit mode for a unit loads its current values.
-  function selectUnit(id: string) {
-    setSelectedId(id)
-    const unit = units.find((u) => u.id === id)
-    setName(unit?.name ?? '')
-    setCode(unit?.code ?? '')
-  }
-
-  async function handleSubmit() {
-    const trimmedName = name.trim()
-    const trimmedCode = code.trim().toUpperCase()
-    if (!trimmedName || !trimmedCode) {
-      toast.error('Enter both a unit name and a unit code')
-      return
-    }
-    setBusy(true)
-    try {
-      if (mode === 'edit') {
-        if (!selectedId) { toast.error('Select a unit to edit'); return }
-        await academicApi.updateCourseUnit(selectedId, {
-          name: trimmedName,
-          code: trimmedCode,
-        })
-        toast.success(`Unit ${trimmedCode} updated`)
-      } else {
-        await academicApi.createCourseUnit({
-          facultyId: user!.facultyId!,
-          name: trimmedName,
-          code: trimmedCode,
-        })
-        toast.success(`Unit ${trimmedCode} created`)
-        setName('')
-        setCode('')
-      }
-      onCreated()
-      setMode('create')
-      setSelectedId('')
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to save unit')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const editing = mode === 'edit'
-
-  return (
-    <Card title={editing ? 'Edit a Course Unit' : 'Add a New Course Unit'}>
-      <div className="mb-3 flex gap-2">
-        <button
-          aria-pressed={mode === 'create'}
-          onClick={() => { setMode('create'); setSelectedId(''); setName(''); setCode('') }}
-          className={`min-h-[44px] rounded px-4 text-body-sm font-semibold transition-colors ${
-            mode === 'create' ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
-          }`}
-        >
-          Add new
-        </button>
-        <button
-          aria-pressed={mode === 'edit'}
-          onClick={() => { setMode('edit'); setSelectedId(''); setName(''); setCode('') }}
-          className={`min-h-[44px] rounded px-4 text-body-sm font-semibold transition-colors ${
-            mode === 'edit' ? 'bg-umu-red text-white' : 'bg-surface-1 text-text-secondary hover:bg-surface-2'
-          }`}
-        >
-          Edit unit
-        </button>
-      </div>
-      {editing ? (
-        <>
-          <p className="mb-3 text-body-sm text-text-secondary">
-            Change a unit's name or code. This updates it everywhere it appears across your faculty.
-          </p>
-          <Select
-            label="Course Unit"
-            placeholder={units.length === 0 ? 'No units in your faculty yet' : 'Select a unit to edit'}
-            value={selectedId}
-            onChange={(e) => selectUnit(e.target.value)}
-            options={units
-              .slice()
-              .sort((a, b) => a.code.localeCompare(b.code))
-              .map((u) => ({ value: u.id, label: `${u.code} — ${u.name}` }))}
-            className="mb-3"
-          />
-        </>
-      ) : (
-        <p className="mb-3 text-body-sm text-text-secondary">
-          Missing a unit from the import? Create it here — it goes straight into your faculty and
-          becomes available in the Add-unit dropdowns.
-        </p>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input
-          label="Unit name"
-          placeholder="e.g. Database Systems"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Input
-          label="Unit code"
-          placeholder="e.g. BCS2201"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-        />
-      </div>
-      <div className="mt-3">
-        <Button
-          loading={busy}
-          disabled={!name.trim() || !code.trim() || (editing && !selectedId)}
-          onClick={handleSubmit}
-        >
-          {editing ? 'Save Changes' : 'Create Unit'}
-        </Button>
-      </div>
-    </Card>
-  )
-}
-
 function matchesQuery(u: ManageUser, q: string): boolean {
   if (!q) return true
   const haystack = [u.fullName, u.email, isStudent(u) ? u.regNumber ?? '' : '']
@@ -222,8 +76,6 @@ export default function FacultyUnits() {
           The study paths your students follow, plus the lecturers teaching in your faculty.
         </p>
       </div>
-
-      <AddCourseUnitCard units={data?.courseUnits ?? []} onCreated={reload} />
 
       <Card>
         <div className="flex flex-wrap items-end gap-3">
@@ -664,53 +516,30 @@ function UserUnitsEditor({
   )
 }
 
-/* ─────────────────────────── Pathways tab ─────────────────────────── */
-
-const PATHWAY_YEARS = [1, 2, 3, 4, 5, 6]
-
-type PathwayAdd =
-  | { kind: 'add'; programmeId: string; programmeName: string; year: number; semester: number; unitId: string; unitName: string }
-  | { kind: 'remove'; entryId: string; unitName: string; programmeName: string }
-  | { kind: 'toggle'; entryId: string; unitName: string; programmeName: string; isElective: boolean }
+/* ─────────────────────────── Course Matrix tab ─────────────────────────── */
 
 /**
- * Curriculum pathway tables — Programme → Year → Semester sections, like the
- * faculty curriculum matrix. Each section is editable by the Faculty Admin:
- * add a unit to the path or remove it. The Students column shows how many
- * students in this faculty are enrolled in the unit for the current period.
+ * Read-only curriculum pathway tables — Programme → Year → Semester sections.
+ * Shows enrolled-student counts for the current period.
  */
-function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOverview; onChanged: () => void }) {
+function CourseMatrixTab({ overview }: { overview: FacultyUnitOverview; onChanged: () => void }) {
   const { user } = useAuth()
   const toast = useToast()
   const { period } = usePeriod()
   const [curriculum, setCurriculum] = useState<CurriculumUnitEntry[] | null>(null)
   const [programmes, setProgrammes] = useState<Programme[] | null>(null)
-  const [rules, setRules] = useState<Record<string, number>>({})
   const [selectedProgrammeId, setSelectedProgrammeId] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<PathwayAdd | null>(null)
-  /** Per-section selected unit for the inline "add to path" row, keyed by programmeId:year:semester */
-  const [addPick, setAddPick] = useState<Record<string, string>>({})
-  /** Whether the next "Add to Path" goes in as an elective */
-  const [addElective, setAddElective] = useState(false)
-  /** Year/semester chosen in each programme's add-row, keyed by programmeId */
-  const [addYear, setAddYear] = useState<Record<string, number>>({})
 
   // Realtime: enrollment/curriculum changes from any user refresh the matrix instantly.
   useRealtime(['enrollments-changed', 'curriculum-changed', 'users-changed'], () => {
     academicApi.curriculum().then(setCurriculum).catch(() => {})
-    onChanged()
   })
-  const [addSemester, setAddSemester] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    Promise.all([academicApi.curriculum(), academicApi.programmes(), academicApi.electiveRequirements()])
-      .then(([c, p, r]) => {
+    Promise.all([academicApi.curriculum(), academicApi.programmes()])
+      .then(([c, p]) => {
         setCurriculum(c)
         setProgrammes(p)
-        const map: Record<string, number> = {}
-        for (const rule of r) map[`${rule.programmeId}:${rule.year}:${rule.semester}`] = rule.minPick
-        setRules(map)
       })
       .catch(() => toast.error('Failed to load the curriculum'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -718,19 +547,16 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
 
   const facultyId = user?.facultyId ?? null
 
-  // Only programmes that belong to this admin's faculty
   const myProgrammes = useMemo(
     () => (programmes ?? []).filter((p) => p.facultyId === facultyId).sort((a, b) => a.name.localeCompare(b.name)),
     [programmes, facultyId]
   )
 
-  // Drill-down: which programme's matrix is open (defaults to the first)
   const selectedProgramme = useMemo(
     () => myProgrammes.find((p) => p.id === selectedProgrammeId) ?? myProgrammes[0] ?? null,
     [myProgrammes, selectedProgrammeId]
   )
 
-  // Curriculum entries grouped by programmeId
   const entriesByProgramme = useMemo(() => {
     const map = new Map<string, CurriculumUnitEntry[]>()
     for (const e of curriculum ?? []) {
@@ -741,7 +567,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
     return map
   }, [curriculum])
 
-  // Enrolled-student counts per course unit for the current period
   const enrolledCounts = useMemo(() => {
     const counts = new Map<string, number>()
     if (!period) return counts
@@ -755,47 +580,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
     return counts
   }, [overview, period])
 
-  async function reloadCurriculum() {
-    try {
-      setCurriculum(await academicApi.curriculum())
-    } catch {
-      toast.error('Failed to refresh the curriculum')
-    }
-    onChanged() // also refresh enrollment counts
-  }
-
-  async function runPending() {
-    if (!pending) return
-    setBusy(true)
-    try {
-      if (pending.kind === 'add') {
-        await academicApi.createCurriculum({
-          courseUnitId: pending.unitId,
-          programmeId: pending.programmeId,
-          year: pending.year,
-          semester: pending.semester,
-          isElective: addElective,
-        })
-        toast.success(
-          `${pending.unitName} added to ${pending.programmeName} · Year ${pending.year} Sem ${pending.semester}${addElective ? ' as an ELECTIVE' : ''}`
-        )
-      } else if (pending.kind === 'toggle') {
-        await academicApi.patchCurriculum(pending.entryId, { isElective: pending.isElective })
-        toast.success(`${pending.unitName} is now ${pending.isElective ? 'an elective — students must pick it' : 'a core unit — everyone takes it'}`)
-      } else {
-        await academicApi.removeCurriculum(pending.entryId)
-        toast.success(`${pending.unitName} removed from ${pending.programmeName} path`)
-      }
-      setPending(null)
-      await reloadCurriculum()
-    } catch (e) {
-      toast.error(e instanceof ApiClientError ? e.message : 'Failed to update the pathway')
-      setPending(null)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (!curriculum || !programmes) {
     return (
       <Card noPadding>
@@ -808,7 +592,7 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
     return (
       <Card>
         <p className="py-6 text-center text-body-sm text-text-secondary">
-          No programmes are linked to your faculty yet. Ask a System Admin to import them.
+          No programmes are linked to your faculty yet. Academic structure is managed via Moodle sync.
         </p>
       </Card>
     )
@@ -826,7 +610,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
         </div>
       )}
 
-      {/* Programme picker — drill into one programme's matrix */}
       {myProgrammes.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {myProgrammes.map((p) => (
@@ -850,17 +633,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
         const prog = selectedProgramme
         if (!prog) return null
         const entries = entriesByProgramme.get(prog.id) ?? []
-        const mappedUnitIds = new Set(entries.map((e) => e.courseUnitId))
-        const year = addYear[prog.id] ?? 1
-        const semester = addSemester[prog.id] ?? 1
-        const sectionKey = `${prog.id}:${year}:${semester}`
-        const sectionUnitIds = new Set(
-          entries.filter((e) => e.year === year && e.semester === semester).map((e) => e.courseUnitId)
-        )
-        const availableUnits = overview.courseUnits.filter((cu) => !sectionUnitIds.has(cu.id))
-        const pickedUnitId = addPick[sectionKey] ?? ''
-
-        // Years present on this programme's path (Excel order)
         const years = [...new Set(entries.map((e) => e.year))].sort((a, b) => a - b)
 
         return (
@@ -872,7 +644,7 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
 
             {entries.length === 0 ? (
               <p className="px-5 py-6 text-body-sm text-text-secondary">
-                No units on this path yet — add the first one below.
+                No units on this path yet. Structure is synced from Moodle.
               </p>
             ) : (
               <div className="divide-y divide-border">
@@ -892,9 +664,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                           .filter((e) => e.year === y && e.semester === s)
                           .sort((a, b) => a.courseUnit.code.localeCompare(b.courseUnit.code))
                         const isCurrent = period?.semester === s
-                        const cellKey = `${prog.id}:${y}:${s}`
-                        const electivesInCell = list.filter((e) => e.isElective)
-                        const minPick = rules[cellKey] ?? 0
                         return (
                           <div key={s} className="rounded border border-border">
                             <div className={`flex items-center justify-between border-b px-3 py-2 ${
@@ -907,42 +676,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                                 </span>
                               )}
                             </div>
-                            {electivesInCell.length > 0 && (
-                              <div className="flex items-center justify-between gap-2 border-b border-[#FFE9E9] bg-[#FFFafa] px-3 py-2">
-                                <span className="text-body-sm text-text-secondary">
-                                  Electives — students must pick at least
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                  <button
-                                    aria-label="Decrease minimum"
-                                    disabled={busy || minPick <= 1}
-                                    onClick={async () => {
-                                      try {
-                                        await academicApi.setElectiveRequirement({ programmeId: prog.id, year: y, semester: s, minPick: minPick - 1 })
-                                        setRules({ ...rules, [cellKey]: Math.max(1, minPick - 1) })
-                                      } catch (err) {
-                                        toast.error(err instanceof ApiClientError ? err.message : 'Failed to update rule')
-                                      }
-                                    }}
-                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 font-bold text-text-primary hover:bg-surface-1 disabled:opacity-40"
-                                  >−</button>
-                                  <span className="w-6 text-center text-body font-bold text-umu-red">{Math.max(1, minPick)}</span>
-                                  <button
-                                    aria-label="Increase minimum"
-                                    disabled={busy || minPick >= electivesInCell.length}
-                                    onClick={async () => {
-                                      try {
-                                        await academicApi.setElectiveRequirement({ programmeId: prog.id, year: y, semester: s, minPick: Math.min(electivesInCell.length, minPick + 1) })
-                                        setRules({ ...rules, [cellKey]: Math.min(electivesInCell.length, minPick + 1) })
-                                      } catch (err) {
-                                        toast.error(err instanceof ApiClientError ? err.message : 'Failed to update rule')
-                                      }
-                                    }}
-                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 font-bold text-text-primary hover:bg-surface-1 disabled:opacity-40"
-                                  >+</button>
-                                </span>
-                              </div>
-                            )}
                             {list.length === 0 ? (
                               <p className="px-3 py-3 text-body-sm text-text-disabled">No units.</p>
                             ) : (
@@ -952,7 +685,6 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                                     <th className="px-3 py-1.5 text-label font-semibold uppercase tracking-wide text-text-secondary">Code</th>
                                     <th className="px-2 py-1.5 text-label font-semibold uppercase tracking-wide text-text-secondary">Course Name</th>
                                     <th className="px-2 py-1.5 text-right text-label font-semibold uppercase tracking-wide text-text-secondary">Students</th>
-                                    <th className="px-2 py-1.5" aria-label="Actions" />
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
@@ -960,37 +692,10 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                                     <tr key={e.id} className="transition-colors hover:bg-surface-1">
                                       <td className="whitespace-nowrap px-3 py-2 text-body-sm font-medium text-text-primary">
                                         {e.courseUnit.code}
-                                        {e.isElective && (
-                                          <span className="ml-1.5 rounded-full bg-[#FFF4F4] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-umu-red">
-                                            Elective
-                                          </span>
-                                        )}
                                       </td>
                                       <td className="px-2 py-2 text-body-sm text-text-primary">{e.courseUnit.name}</td>
                                       <td className="px-2 py-2 text-right text-body-sm text-text-secondary">
                                         {period ? (enrolledCounts.get(e.courseUnitId) ?? 0) : '—'}
-                                      </td>
-                                      <td className="whitespace-nowrap px-2 py-2 text-right">
-                                        <Button
-                                          variant={e.isElective ? 'secondary' : 'ghost'}
-                                          className="mr-1 px-2 py-1 text-body-sm"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setPending({ kind: 'toggle', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name, isElective: !e.isElective })
-                                          }
-                                        >
-                                          {e.isElective ? 'Make Core' : 'Make Elective'}
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          className="px-2 py-1 text-body-sm"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setPending({ kind: 'remove', entryId: e.id, unitName: e.courseUnit.name, programmeName: prog.name })
-                                          }
-                                        >
-                                          Remove
-                                        </Button>
                                       </td>
                                     </tr>
                                   ))}
@@ -1005,95 +710,9 @@ function CourseMatrixTab({ overview, onChanged }: { overview: FacultyUnitOvervie
                 ))}
               </div>
             )}
-
-            {/* Add-to-path row */}
-            <div className="flex flex-wrap items-end gap-3 border-t border-border px-5 py-4">
-              <Select
-                label="Year"
-                value={String(year)}
-                onChange={(e) => setAddYear({ ...addYear, [prog.id]: Number(e.target.value) })}
-                options={PATHWAY_YEARS.map((y) => ({ value: String(y), label: `Year ${y}` }))}
-                className="mb-0 w-32"
-              />
-              <Select
-                label="Semester"
-                value={String(semester)}
-                onChange={(e) => setAddSemester({ ...addSemester, [prog.id]: Number(e.target.value) })}
-                options={[1, 2].map((s) => ({ value: String(s), label: `Semester ${s}` }))}
-                className="mb-0 w-36"
-              />
-              <Select
-                label="Type"
-                value={addElective ? 'elective' : 'core'}
-                onChange={(e) => setAddElective(e.target.value === 'elective')}
-                options={[
-                  { value: 'core', label: 'Core — everyone takes it' },
-                  { value: 'elective', label: 'Elective — students pick it' },
-                ]}
-                className="mb-0 w-56"
-              />
-              <Select
-                label="Course Unit"
-                placeholder={availableUnits.length === 0 ? 'All faculty units are on this path' : 'Select a unit'}
-                value={pickedUnitId}
-                onChange={(e) => setAddPick({ ...addPick, [sectionKey]: e.target.value })}
-                options={availableUnits.map((cu) => ({ value: cu.id, label: `${cu.code} — ${cu.name}` }))}
-                className="mb-0 min-w-[240px] flex-1"
-              />
-              <Button
-                disabled={!pickedUnitId || busy}
-                onClick={() => {
-                  const cu = availableUnits.find((x) => x.id === pickedUnitId)
-                  if (cu) setPending({ kind: 'add', programmeId: prog.id, programmeName: prog.name, year, semester, unitId: cu.id, unitName: cu.name })
-                }}
-              >
-                Add to Path
-              </Button>
-            </div>
-            {mappedUnitIds.size > 0 && (
-              <p className="px-5 pb-3 text-xs text-text-disabled">
-                Units already on another Year/Semester of this path can be repeated there if your curriculum requires it.
-              </p>
-            )}
           </Card>
         )
       })()}
-
-      {/* Confirm modal */}
-      <Modal
-        open={Boolean(pending)}
-        onClose={() => setPending(null)}
-        closeOnOverlay={false}
-        closeOnEscape={false}
-        title={
-          pending?.kind === 'remove' ? 'Remove from pathway?'
-          : pending?.kind === 'toggle'
-            ? pending.isElective ? 'Make this an elective?' : 'Make this a core unit?'
-          : 'Add to pathway?'
-        }
-        description={
-          pending?.kind === 'remove'
-            ? `Remove ${pending.unitName} from the ${pending.programmeName} path. Enrolled students lose this unit immediately.`
-            : pending?.kind === 'toggle'
-              ? pending.isElective
-                ? `${pending.unitName} becomes optional in ${pending.programmeName}. Students will pick it from the electives screen; current enrollments are kept as their choice.`
-                : `${pending.unitName} becomes compulsory in ${pending.programmeName} — every student on this path is enrolled automatically.`
-              : pending
-                ? `Add ${pending.unitName} to ${pending.programmeName} · Year ${pending.year} · Semester ${pending.semester}${addElective ? ' as an ELECTIVE' : ''}?`
-                : ''
-        }
-      >
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>Cancel</Button>
-          <Button
-            variant={pending?.kind === 'remove' ? 'danger' : 'primary'}
-            loading={busy}
-            onClick={runPending}
-          >
-            {pending?.kind === 'remove' ? 'Remove' : 'Confirm'}
-          </Button>
-        </div>
-      </Modal>
     </div>
   )
 }

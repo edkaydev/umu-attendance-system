@@ -20,11 +20,9 @@ https://attendance.umu.ac.ug/api
 |---|---|---|---|
 | GET | `/auth/google` | Public | Redirect to Google consent screen |
 | GET | `/auth/google/callback` | Public | OAuth callback — sets JWT HttpOnly cookies |
-| POST | `/auth/login` | Public | Local email + password login |
 | POST | `/auth/logout` | Authenticated | Clear cookies, revoke refresh token |
 | POST | `/auth/refresh` | Authenticated | Silently rotate access token |
 | GET | `/auth/me` | Authenticated | Get current user profile |
-| POST | `/auth/password` | Authenticated | Change own password |
 | POST | `/auth/dev-login` | Dev only | Quick login by role (disabled in production) |
 
 ---
@@ -90,15 +88,14 @@ https://attendance.umu.ac.ug/api
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/users` | List users (filterable: `?role=lecturer&search=&page=&limit=`) |
-| POST | `/users` | Create a new user account (assigns default password) |
+| POST | `/users` | Create a new user account (email + role only — signs in via Google) |
 | PATCH | `/users/:id` | Update user name/email/faculty |
 | DELETE | `/users/:id` | Delete a user |
 | POST | `/users/bulk-delete` | Bulk delete users (`{ userIds: [...] }` or `{ allMatching: true, role?, search? }`) |
 | PATCH | `/users/:id/deactivate` | Deactivate account |
 | PATCH | `/users/:id/activate` | Reactivate account |
-| PATCH | `/users/:id/role` | Change user role (no longer exposed in the UI) |
+| PATCH | `/users/:id/role` | Change user role |
 | PATCH | `/users/:id/faculty` | Assign/unassign faculty |
-| PATCH | `/users/:id/reset-password` | Reset user's password to system default (forces change on next login) |
 
 ---
 
@@ -110,6 +107,8 @@ https://attendance.umu.ac.ug/api
 | PATCH | `/settings/current-period` | Set active academic year + semester |
 | GET | `/settings/profile-editing` | Get profile editing settings per role |
 | PATCH | `/settings/profile-editing` | Update profile editing settings |
+| GET | `/settings/support` | Get support contacts + user guide |
+| PATCH | `/settings/support` | Update support contacts + user guide |
 
 **GET /settings/current-period response**
 ```json

@@ -123,26 +123,32 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
       return
     }
     if (isStudent) {
-      // Edit mode only changes identity numbers — academic path is locked
-      if (!edit && (!campusCode || !facultyId || !programmeId || !year)) {
-        toast.error('Please complete all fields')
+      if (!studentNumber.trim()) {
+        toast.error('Please enter your Student Number')
         return
       }
-      if (!regNumber.trim() || !studentNumber.trim()) {
-        toast.error('Please enter your Reg Number and Student Number')
-        return
+      // For non-Moodle students doing first-time setup, also require path fields
+      if (!user?.moodleLinked && !edit) {
+        if (!campusCode || !facultyId || !programmeId || !year) {
+          toast.error('Please complete all fields')
+          return
+        }
+        if (!regNumber.trim()) {
+          toast.error('Please enter your Reg Number')
+          return
+        }
       }
       if (!globalPeriod) {
         toast.error('Academic year not set yet — please wait a moment and try again')
         return
       }
       const data: StudentProfileInput = {
-        campusCode,
-        facultyId,
-        programmeId,
-        year: Number(year),
+        campusCode: campusCode || (user?.faculty ? 'NKZ' : ''),
+        facultyId: facultyId || user?.facultyId || '',
+        programmeId: programmeId || user?.programmeId || '',
+        year: Number(year) || user?.year || 1,
         semester: globalPeriod.semester,
-        regNumber: regNumber.trim(),
+        regNumber: regNumber.trim() || user?.regNumber || '',
         studentNumber: studentNumber.trim(),
         academicYear: globalPeriod.academicYear,
       }
@@ -151,7 +157,6 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         await (edit ? profileApi.update(data) : profileApi.complete(data))
         await refresh()
         toast.success('Profile saved')
-        // RequireAuth will redirect to the dashboard once profileComplete = true
       } catch (e) {
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
       } finally {
@@ -168,7 +173,6 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         await (edit ? profileApi.update({ facultyIds }) : profileApi.complete({ facultyIds }))
         await refresh()
         toast.success('Profile saved')
-        // RequireAuth will redirect to /lecturer once profileComplete = true
       } catch (e) {
         toast.error(e instanceof ApiClientError ? e.message : 'Failed to save profile')
       } finally {
@@ -183,9 +187,13 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
         <h1 className="text-h1 font-bold text-text-primary">Welcome, {user?.fullName}!</h1>
         <p className="mt-1 mb-6 text-body-lg text-text-secondary">
           {edit
-            ? isStudent
+            ? isStudent && user?.moodleLinked
+              ? 'Update your Student Number below.'
+              : isStudent
               ? 'Only your Reg Number and Student Number can be changed.'
               : 'Update the faculties you teach in.'
+            : isStudent && user?.moodleLinked
+            ? 'Your study path is set from Moodle. Just enter your Student Number to finish.'
             : 'Complete your profile to continue.'}
         </p>
 
@@ -208,7 +216,32 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
           )}
 
           {isStudent ? (
-            edit ? (
+            user?.moodleLinked ? (
+              /* ── Moodle-synced student: path already set, just need student number ── */
+              <>
+                <div className="mb-5 rounded-md border border-border bg-surface-1 px-4 py-3">
+                  <p className="text-body-sm font-semibold text-text-primary">Your study path (from Moodle)</p>
+                  <div className="mt-2 space-y-1 text-body-sm text-text-secondary">
+                    {user.faculty && <p>Faculty: <span className="font-medium text-text-primary">{user.faculty.name}</span></p>}
+                    {user.programme && <p>Programme: <span className="font-medium text-text-primary">{user.programme.name}</span></p>}
+                    {user.year && <p>Year: <span className="font-medium text-text-primary">{user.year}</span></p>}
+                    {user.regNumber && <p>Reg Number: <span className="font-medium text-text-primary">{user.regNumber}</span></p>}
+                  </div>
+                  <p className="mt-2 text-xs text-text-disabled">These details are managed in Moodle and cannot be changed here.</p>
+                </div>
+                <Input
+                  label="Student Number"
+                  placeholder="e.g. 2024012301"
+                  value={studentNumber}
+                  onChange={(e) => setStudentNumber(e.target.value)}
+                  autoFocus
+                />
+                <p className="mb-4 text-xs text-text-secondary">
+                  Your student number is your UMU identity number (not your reg number). Check your admission letter or student ID card.
+                </p>
+              </>
+            ) : edit ? (
+              /* ── Non-Moodle student edit: show read-only path + editable identity fields ── */
               <>
                 <div className="mb-4 rounded bg-surface-1 px-4 py-3 text-body-sm">
                   <p className="font-medium text-text-primary">Your study path</p>
@@ -235,6 +268,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
                 />
               </>
             ) : (
+              /* ── Non-Moodle student first-time setup: full cascade ── */
               <>
                 <Select
                   label="Campus"

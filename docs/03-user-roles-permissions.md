@@ -26,12 +26,10 @@ Faculty Admin and System Admin portals are blocked on narrow viewports with a
 | Set active academic year + semester | ❌ | ❌ | ❌ | ✅ |
 | Enable/disable profile editing per role | ❌ | ❌ | ❌ | ✅ |
 | **Academic Structure** |
-| Create / edit Campus, Faculty, Programme, Course Units | ❌ | ❌ | ❌ | ✅ |
-| Map course units to programmes (curriculum) | ❌ | ❌ | ✅ (own faculty) | ✅ |
-| View course units and programmes | ❌ | ❌ | ✅ (own faculty) | ✅ |
+| View academic structure (faculties, programmes, course units) — read-only | ❌ | ❌ | ✅ (own faculty) | ✅ |
+| Sync academic structure from Moodle | ❌ | ❌ | ❌ | ✅ |
 | Share course units across faculties | ❌ | ❌ | ❌ | ✅ |
-| Import academic structure via CSV | ❌ | ❌ | ❌ | ✅ |
-| Import staff accounts via CSV | ❌ | ❌ | ❌ | ✅ |
+| Import Faculty Admin accounts via CSV | ❌ | ❌ | ❌ | ✅ |
 | Deactivate / reactivate any user account | ❌ | ❌ | ❌ | ✅ |
 | Change user role | ❌ | ❌ | ❌ | ✅ |
 | **Lecturer Assignment** |
@@ -48,7 +46,7 @@ Faculty Admin and System Admin portals are blocked on narrow viewports with a
 | View live check-in list | ❌ | ✅ (own sessions) | ❌ | ❌ |
 | View session detail | ❌ | ✅ (own sessions) | ✅ (read-only, own faculty) | ❌ |
 | **Attendance Editing** |
-| Edit attendance record | ❌ | ✅ (own closed sessions only) | ❌ (read-only) | ❌ |
+| Edit attendance record (closed sessions only) | ❌ | ✅ (own sessions) | ✅ (own faculty) | ❌ |
 | **Check-In** |
 | Enter session code to check in | ✅ | ❌ | ❌ | ❌ |
 | **Attendance Records** |
@@ -78,8 +76,9 @@ Faculty Admin and System Admin portals are blocked on narrow viewports with a
 Technical owner of the system. Typically UMU IT staff. Multiple allowed.
 
 Responsibilities:
-- Sets up the academic hierarchy each semester: Campus, Faculty, Programme, Course Units, curriculum
-- Imports staff via CSV
+- Configures the Moodle connection (base URL, token, current period category IDs)
+- Runs Moodle sync — pulls academic structure, lecturers, and students automatically
+- Imports Faculty Admin accounts via CSV
 - Manages user accounts (activate, deactivate, change role, update details)
 - Sets the global current academic year and semester
 - Enables/disables profile editing per role
@@ -97,16 +96,16 @@ Academic monitoring officer. Belongs to one faculty.
 
 Responsibilities:
 - Assigns lecturers to course units in their faculty
-- Enrols students in course units
-- **Manages curriculum mappings** (maps course units to programmes, year, and semester) for their faculty
+- Enrols/removes students in course units within their faculty
 - Monitors attendance across the entire faculty
+- Edits attendance records on closed sessions within their faculty
 - Generates and downloads PDF reports (lecturer, programme, unit, student)
 - Receives all below-threshold alerts for their faculty
 
 Does NOT:
-- Set up or edit faculties, programmes, or course units
+- Create or edit faculties, programmes, or course units (managed via Moodle sync)
 - Open attendance sessions
-- Edit attendance records (read-only)
+- Access sessions or records outside their faculty
 
 ---
 

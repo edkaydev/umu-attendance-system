@@ -2,18 +2,11 @@ import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ok } from '../utils/apiResponse'
 import { ApiError } from '../utils/apiResponse'
-import { AttendanceStatus } from '@prisma/client'
 import {
   getMyAttendance,
   getSessionAttendance,
   getUnitSummary,
-  editAttendance,
 } from '../services/attendance.service'
-
-const editSchema = z.object({
-  status: z.enum(['present', 'absent', 'excused']),
-  reason: z.string().min(1).max(500),
-})
 
 /** Student: own attendance per unit for the current semester (FR-07.2). */
 export async function myAttendanceController(req: Request, res: Response, next: NextFunction) {
@@ -58,18 +51,4 @@ export async function unitSummaryController(req: Request, res: Response, next: N
   }
 }
 
-/** Manual attendance edit with reason (lecturer / faculty admin). */
-export async function editAttendanceController(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { status, reason } = editSchema.parse(req.body)
-    const record = await editAttendance(
-      req.params.recordId,
-      status as AttendanceStatus,
-      reason,
-      { id: req.user!.id, role: req.user!.role, facultyId: req.user!.facultyId ?? null }
-    )
-    ok(res, { message: 'Attendance updated', record })
-  } catch (e) {
-    next(e)
-  }
-}
+

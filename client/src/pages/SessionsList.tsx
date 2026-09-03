@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { sessionApi } from '../api/endpoints'
 import { useToast } from '../context/ToastContext'
@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge'
 import { ApiClientError } from '../api/client'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import type { Session } from '../types'
+import { useRealtime } from '../hooks/useRealtime'
 
 type Tab = 'today' | 'all'
 
@@ -32,12 +33,8 @@ export default function SessionsList() {
     setSearchParams(next_params, { replace: true })
   }
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true)
-    const params: Record<string, string> = {}
-    if (tab === 'today') params.today = 'true'
-    if (unitFilter) params.unit = unitFilter   // unit filter applied client-side below
-
     sessionApi
       .list(tab === 'today' ? { today: 'true' } : {})
       .then((all) => {
@@ -46,6 +43,10 @@ export default function SessionsList() {
       .catch((e) => toast.error(e instanceof ApiClientError ? e.message : 'Failed to load sessions'))
       .finally(() => setLoading(false))
   }, [tab, unitFilter, toast])
+
+  useEffect(() => { load() }, [load])
+
+  useRealtime(['sessions-changed'], load)
 
   const emptyMsg =
     tab === 'today'

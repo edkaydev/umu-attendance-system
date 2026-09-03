@@ -1,8 +1,6 @@
 import { Prisma, Role } from '@prisma/client'
 import { prisma } from '../config/db'
 import { ApiError } from '../utils/apiResponse'
-import { hashPassword } from '../utils/password'
-import { getDefaultUserPasswordHash } from './settings.service'
 import { roleMatchesEmail } from '../utils/domain'
 import { validateStudentPath, recalculateEnrollments, friendlyUniqueError } from './profile.service'
 
@@ -79,7 +77,6 @@ export interface CreateUserInput {
   fullName: string
   email: string
   role: Role
-  password?: string
   facultyId?: string | null
   campusCode?: string
   programmeId?: string
@@ -91,7 +88,7 @@ export interface CreateUserInput {
 }
 
 /**
- * System Admin manually creates a user account (email + password).
+ * System Admin manually creates a user account (email only — signs in via Google).
  * Students must use @stud.umu.ac.ug; staff and admins must use @umu.ac.ug.
  */
 export async function createUser(input: CreateUserInput) {
@@ -109,13 +106,8 @@ export async function createUser(input: CreateUserInput) {
     )
   }
 
-  const password = input.password
-    ? await hashPassword(input.password)
-    : await getDefaultUserPasswordHash()
-
   const data: {
     email: string
-    password: string
     fullName: string
     role: Role
     facultyId?: string | null
@@ -126,14 +118,11 @@ export async function createUser(input: CreateUserInput) {
     regNumber?: string | null
     studentNumber?: string | null
     profileComplete: boolean
-    mustChangePassword: boolean
   } = {
     email,
-    password,
     fullName: input.fullName.trim(),
     role: input.role,
     profileComplete: input.role === Role.system_admin,
-    mustChangePassword: true,
   }
 
   if (input.role === Role.student) {
@@ -446,26 +435,3 @@ export async function updateUser(id: string, input: AdminUserUpdateInput) {
   return prisma.user.findUnique({ where: { id: updated.id }, select: managedUserSelect })
 }
 
-/**
- * Reset a user's password to the system default and force them to change it
- * on next login. All their data is untouched.
- */
-export async function resetUserPassword(id: string, actorId: string) {
-  if (id === actorId) {
-    throw new ApiError('You cannot reset your own password this way — use Change Password instead', 400)
-  }
-
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, fullName: true, email: true } })
-  if (!user) throw new ApiError('User not found', 404)
-
-  const passwordHash = await getDefaultUserPasswordHash()
-  await prisma.user.update({
-    where: { id },
-    data: {
-      password: passwordHash,
-      mustChangePassword: true,
-    },
-  })
-
-  return user
-}

@@ -306,8 +306,10 @@ export async function getFacultyAdminDashboard(adminId: string) {
 
   const programmeSummary = []
   for (const p of programmes) {
-    const units = await prisma.curriculumUnit.findMany({
-      where: { programmeId: p.id },
+    // SemesterCourseUnit is populated by Moodle sync; CurriculumUnit is legacy/empty.
+    // The join chain is: SemesterCourseUnit → Semester → ProgrammeYear (has programmeId + year).
+    const units = await prisma.semesterCourseUnit.findMany({
+      where: { semester: { programmeYear: { programmeId: p.id } } },
       select: { courseUnitId: true },
     })
     const unitIds = [...new Set(units.map((u) => u.courseUnitId))]

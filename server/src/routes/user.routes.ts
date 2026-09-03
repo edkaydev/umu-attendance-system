@@ -12,7 +12,6 @@ import {
   updateUserController,
   deleteUserController,
   bulkDeleteUsersController,
-  resetPasswordController,
 } from '../controllers/user.controller'
 
 const router = Router()
@@ -28,6 +27,5 @@ router.patch('/:id/deactivate',         authenticate, adminOnly, deactivateUser)
 router.patch('/:id/activate',           authenticate, adminOnly, activateUser)
 router.patch('/:id/role',               authenticate, adminOnly, updateUserRole)
 router.patch('/:id/faculty',            authenticate, adminOnly, assignFacultyController)
-router.patch('/:id/reset-password',     authenticate, adminOnly, resetPasswordController)
 
 export default router

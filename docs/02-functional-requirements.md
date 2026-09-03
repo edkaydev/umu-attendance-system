@@ -4,9 +4,9 @@
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-01.1 | Users log in via Google OAuth **or** email + password (local auth) | ✅ Built |
-| FR-01.2 | Students must use a `@stud.umu.ac.ug` Google account (Google path) | ✅ Built |
-| FR-01.3 | Staff must use a `@umu.ac.ug` Google account (Google path) | ✅ Built |
+| FR-01.1 | Users log in via Google OAuth only | ✅ Built |
+| FR-01.2 | Students must use a `@stud.umu.ac.ug` Google account | ✅ Built |
+| FR-01.3 | Staff must use a `@umu.ac.ug` Google account | ✅ Built |
 | FR-01.4 | On first login with no profile, redirect to Complete Profile page | ✅ Built |
 | FR-01.5 | Role is determined by the role assigned in the database | ✅ Built |
 | FR-01.6 | Unregistered Google accounts see "Access denied" | ✅ Built |
@@ -14,9 +14,8 @@
 | FR-01.8 | JWT access token expires after 1 hour; refresh token rotates silently | ✅ Built |
 | FR-01.9 | Logout clears JWT cookie and invalidates refresh token | ✅ Built |
 | FR-01.10 | Deactivated accounts are blocked on every request (re-fetched from DB each time) | ✅ Built |
-| FR-01.11 | Accounts created by System Admin receive a default password; `mustChangePassword` flag forces change on first login | ✅ Built |
-| FR-01.12 | `/api/auth/refresh` is rate-limited (20 req / 15 min per IP) | ✅ Built |
-| FR-01.13 | Dev-login endpoint (`/api/auth/dev-login`) is never registered in production | ✅ Built |
+| FR-01.11 | `/api/auth/refresh` is rate-limited (120 req / 15 min per IP) | ✅ Built |
+| FR-01.12 | Dev-login endpoint (`/api/auth/dev-login`) is never registered in production | ✅ Built |
 
 ---
 
@@ -25,39 +24,29 @@
 | ID | Requirement | Status |
 |---|---|---|
 | FR-02.1 | After first login, students redirected to Complete Profile | ✅ Built |
-| FR-02.2 | Student selects: Campus → Faculty → Programme → Year → Semester → Academic Year | ✅ Built |
-| FR-02.3 | Student enters their Registration Number | ✅ Built |
-| FR-02.4 | System auto-enrols student into all course units mapped to their path | ✅ Built |
-| FR-02.5 | Student can edit profile at any time | ✅ Built |
-| FR-02.6 | On profile edit, enrolments are recalculated automatically | ✅ Built |
+| FR-02.2 | Moodle sync auto-assigns student's faculty, programme, year, and semester from enrolment hierarchy | ✅ Built |
+| FR-02.3 | Student enters their Registration Number (and student number if not provided by Moodle) | ✅ Built |
+| FR-02.4 | System auto-enrols student into all course units for their path (from SemesterCourseUnit; falls back to CurriculumUnit for unsynced paths) | ✅ Built |
+| FR-02.5 | Student can edit profile at any time (when enabled by System Admin) | ✅ Built |
+| FR-02.6 | On profile edit, enrolments are recalculated automatically from Moodle-sourced curriculum | ✅ Built |
 | FR-02.7 | After first login, lecturers redirected to Complete Profile | ✅ Built |
-| FR-02.8 | Lecturer selects their Faculty only | ✅ Built |
+| FR-02.8 | Moodle sync auto-assigns lecturer's faculty from course assignments | ✅ Built |
 | FR-02.9 | Profile editing can be enabled/disabled per role by System Admin | ✅ Built |
 
 ---
 
-## FR-03: Academic Structure Setup (System Admin)
+## FR-03: Academic Structure (Moodle-sourced, read-only in Attendance)
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-03.1 | System Admin creates and edits: Campuses, Faculties, Programmes, Course Units | ✅ Built |
-| FR-03.2 | System Admin maps course units to Programme + Year + Semester (curriculum) | ✅ Built |
-| FR-03.3 | Course units can be shared across programmes | ✅ Built |
-| FR-03.4 | System Admin imports academic structure via CSV | ✅ Built |
-| FR-03.5 | System Admin imports staff accounts via CSV | ✅ Built |
-| FR-03.6 | System Admin deactivates/reactivates user accounts | ✅ Built |
-| FR-03.7 | System Admin sets the global current academic year and semester | ✅ Built |
+| FR-03.1 | Academic structure (Campus, Faculty, Programme, Course Units, curriculum) is synced from Moodle — not created manually | ✅ Built |
+| FR-03.2 | System Admin can view academic structure read-only via Academic Setup page | ✅ Built |
+| FR-03.3 | Course units can be shared across faculties | ✅ Built |
+| FR-03.4 | System Admin imports Faculty Admin accounts via CSV (the only remaining CSV import) | ✅ Built |
+| FR-03.5 | System Admin deactivates/reactivates user accounts | ✅ Built |
+| FR-03.6 | System Admin sets the global current academic year and semester | ✅ Built |
+| FR-03.7 | System Admin configures Moodle connection (base URL, token, current period category) | ✅ Built |
 | FR-03.8 | All other roles read the current period from System Admin's setting — no manual selection | ✅ Built |
-
-## FR-03B: Curriculum Management (Faculty Admin)
-
-| ID | Requirement | Status |
-|---|---|---|
-| FR-03B.1 | Faculty Admin can view course units and programmes belonging to their faculty | ✅ Built |
-| FR-03B.2 | Faculty Admin can add curriculum mappings (unit → programme + year + semester) scoped to their own faculty | ✅ Built |
-| FR-03B.3 | Faculty Admin can remove curriculum mappings scoped to their own faculty | ✅ Built |
-| FR-03B.4 | Faculty Admin cannot map curriculum for programmes in another faculty (403 enforced server-side) | ✅ Built |
-| FR-03B.5 | Faculty Admin cannot create or edit faculties, programmes, or course units | ✅ Built |
 
 ---
 
@@ -123,8 +112,8 @@
 | FR-07.2 | Attendance % per student per unit calculated automatically | ✅ Built |
 | FR-07.3 | Formula: `(Present + Excused) / Total Closed Sessions × 100` | ✅ Built |
 | FR-07.4 | When a unit has **zero closed sessions**, reports show `—` / "No sessions" instead of a misleading 100% | ✅ Built |
-| FR-07.4 | Lecturer (own sessions only) can edit a student's status after close | ✅ Built |
-| FR-07.5 | Faculty Admin is **read-only** on attendance records | ✅ Built |
+| FR-07.4 | Lecturer (own closed sessions only) and Faculty Admin (own faculty, closed sessions only) can edit a student's status | ✅ Built |
+| FR-07.5 | Editing is disabled on open sessions — records are not final until session closes | ✅ Built |
 | FR-07.6 | Every manual edit requires a reason | ✅ Built |
 | FR-07.7 | Every edit is recorded in an audit log | ✅ Built |
 | FR-07.8 | Editing is disabled while a session is still open | ✅ Built |

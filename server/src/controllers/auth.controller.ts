@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import passport from 'passport'
 import crypto from 'crypto'
-import { z } from 'zod'
 import { Role } from '@prisma/client'
 import { ok } from '../utils/apiResponse'
 import {
@@ -9,58 +8,30 @@ import {
   refreshSession,
   logoutSession,
   getCurrentUser,
-  loginWithPassword,
-  changePassword,
   mapOAuthError,
 } from '../services/auth.service'
 import { authCookieNames } from '../services/jwt.service'
 import { prisma } from '../config/db'
-import { securityLogger } from '../middleware/securityLogger'
 
 const OAUTH_SCOPES = ['profile', 'email']
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email').max(150),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
-})
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required').max(128),
-  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(128),
-})
-
-/** POST /api/auth/login — sign in with email + password. */
-export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { email, password } = loginSchema.parse(req.body)
-    const user = await loginWithPassword(email, password)
-    securityLogger.logAuthSuccess(req, user.id)
-    const redirect = await finalizeLogin(user, res)
-    ok(res, { user: await getCurrentUser(user.id), redirect })
-  } catch (error) {
-    securityLogger.logAuthFailure(req, error instanceof Error ? error.message : 'Unknown error')
-    next(error)
-  }
-}
-
-/** POST /api/auth/password — change the current password (forced or voluntary). */
-export async function postPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
-    await changePassword(req.user!.id, currentPassword, newPassword)
-    // Re-fetch the user so mustChangePassword is now false — otherwise
-    // finalizeLogin would redirect back to /password/change again.
-    const updated = await getCurrentUser(req.user!.id)
-    await finalizeLogin(updated, res)
-    ok(res, { message: 'Password changed successfully' })
-  } catch (error) {
-    next(error)
-  }
-}
+const OAUTH_STATE_COOKIE = 'oauth_state'
+const OAUTH_STATE_TTL_SECONDS = 600 // 10 minutes — matches the Google auth window
 
 /** GET /api/auth/google — start the OAuth flow (redirect to Google). */
 export function googleRedirect(req: Request, res: Response, next: NextFunction): void {
-  passport.authenticate('google', { scope: OAUTH_SCOPES })(req, res, next)
+  // Generate a cryptographically random state token to prevent CSRF on the
+  // OAuth callback. It is held in a short-lived, HttpOnly, SameSite=Lax cookie
+  // and echoed back by Google so the strategy can verify it on return.
+  const state = crypto.randomBytes(32).toString('hex')
+  res.cookie(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: OAUTH_STATE_TTL_SECONDS * 1000,
+    path: '/',
+  })
+
+  passport.authenticate('google', { scope: OAUTH_SCOPES, state })(req, res, next)
 }
 
 /** GET /api/auth/google/callback — exchange code, set cookies, redirect. */
@@ -79,7 +50,6 @@ export function googleCallback(req: Request, res: Response, next: NextFunction):
         email: string
         role: Role
         profileComplete: boolean
-        mustChangePassword: boolean
       },
       res
     )
@@ -179,7 +149,6 @@ export async function devLogin(req: Request, res: Response, next: NextFunction):
         email: user.email,
         role: user.role,
         profileComplete: user.profileComplete,
-        mustChangePassword: user.mustChangePassword,
       },
       res
     )

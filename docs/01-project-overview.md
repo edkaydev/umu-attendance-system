@@ -19,15 +19,14 @@ to generate meaningful academic reports.
 ## How It Works
 
 ```
-System Admin sets up:
-  Campus → Faculty → Programme → Course Units → Curriculum mapping
+Moodle is the academic source of truth — academic structure syncs automatically.
+System Admin configures: current academic year + semester, Moodle connection settings.
 
-System Admin sets the current academic year and semester (global setting).
+Moodle sync runs → faculties, programmes, course units, lecturers, and students
+  are pulled in automatically. Student profiles and lecturer assignments are set.
 
-Lecturer logs in → opens a session for an assigned unit → 6-character code generated
-
+Lecturer logs in → opens a session → system generates a 6-character code
 Students log in → enter the code → marked Present
-
 Session closes → absentees auto-recorded
 
 Faculty Admin monitors → generates reports → downloads PDF
@@ -41,11 +40,11 @@ Faculty Admin monitors → generates reports → downloads PDF
 |---|---|
 | Nkozi Campus only | Other campuses (Phase 2) |
 | Web PWA (installable on phone + PC) | Native mobile apps |
-| Google OAuth login only (works fully with password sign-in too) | Google as the *only* auth method |
-| Student self-registration via profile completion + bulk CSV import | — |
+| Google OAuth login only | Other identity providers |
+| Student self-registration via profile completion + Moodle sync | — |
 | Code-based student check-in | Biometric / QR code check-in |
 | Course-unit level attendance tracking | — |
-| PDF reports for Faculty Admin + Lecturer | Moodle integration |
+| PDF reports for Faculty Admin + Lecturer | SMS alerts |
 | Email alerts for threshold breaches | SMS alerts |
 | Docker-based deployment on Ubuntu Server | Cloud deployment |
 
@@ -82,12 +81,15 @@ Faculty Admin monitors → generates reports → downloads PDF
 Nkozi Campus
     └── Faculty (e.g. Faculty of Science)
             └── Programme (e.g. BSCS)
-                    └── CurriculumUnit (Programme + Year + Semester + CourseUnit)
-                                └── Course Unit (e.g. Database Systems)
+                    └── ProgrammeYear → Semester
+                                └── SemesterCourseUnit → Course Unit (e.g. Database Systems)
 ```
 
-Course units can be **shared** across programmes — one session, one attendance list.
-Sharing is managed by System Admin (share a unit to another faculty) or via curriculum mapping.
+Academic structure (faculties, programmes, course units, curriculum) is **synced from Moodle**
+automatically — it is not created or edited inside the Attendance System. The only manual
+import remaining is Faculty Admin accounts (CSV).
+
+Course units can be **shared** across faculties — one session, one attendance list.
 
 ---
 
@@ -110,7 +112,6 @@ drops again, a new alert fires.
 - Deployed via **Docker + Docker Compose**
 - Must work on campus network — no offline mode
 - PDF reports include the UMU logo
-- Accounts sign in with **email + password**; Google OAuth is available once the UMU Workspace approves the app
-- Students use `@stud.umu.ac.ug`, staff use `@umu.ac.ug`
+- Accounts sign in with **Google OAuth only** (`@umu.ac.ug` and `@stud.umu.ac.ug`)
 - Faculty Admin and System Admin: **desktop browsers only**
 - Students and Lecturers: mobile + desktop (PWA)

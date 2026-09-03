@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { dashboardApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
@@ -11,6 +11,7 @@ import { DashboardSkeleton } from '../components/ui/Skeleton'
 import { useTour } from '../components/OnboardingTour'
 import { TOURS } from '../components/tour/tourConfig'
 import { ApiClientError } from '../api/client'
+import { useRealtime } from '../hooks/useRealtime'
 
 type DashData = Awaited<ReturnType<typeof dashboardApi.facultyAdmin>>
 type PeopleTab = 'students' | 'lecturers'
@@ -50,8 +51,34 @@ export default function FacultyAdminDashboard() {
   const [loaded, setLoaded] = useState(false)
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('students')
   const [peopleSearch, setPeopleSearch] = useState('')
+  const [pdfDownloading, setPdfDownloading] = useState<string | null>(null)
 
-  useEffect(() => {
+  async function downloadLecturerPdf(lecturerId: string, lecturerName: string) {
+    if (!period) return
+    setPdfDownloading(lecturerId)
+    try {
+      const url = `/api/reports/lecturer/${lecturerId}/pdf?academicYear=${encodeURIComponent(period.academicYear)}&semester=${period.semester}`
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      const safeYear = period.academicYear.replace('/', '_')
+      const safeName = lecturerName.replace(/\s+/g, '-')
+      a.download = `${safeName}-report-${safeYear}-sem${period.semester}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) {
+      toast.error(e instanceof ApiClientError ? e.message : 'Failed to download PDF')
+    } finally {
+      setPdfDownloading(null)
+    }
+  }
+
+  const load = useCallback(() => {
     dashboardApi
       .facultyAdmin()
       .then(setData)
@@ -60,6 +87,14 @@ export default function FacultyAdminDashboard() {
       )
       .finally(() => setLoaded(true))
   }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  // Refresh when sessions open/close, attendance changes, or Moodle sync runs
+  useRealtime(
+    ['sessions-changed', 'attendance-changed', 'users-changed', 'enrollments-changed', 'assignments-changed'],
+    load
+  )
 
   // Onboarding walkthrough — fires once per user, shortly after data lands
   const { startOnce } = useTour()
@@ -291,12 +326,13 @@ export default function FacultyAdminDashboard() {
                             >
                               Units
                             </Link>
-                            <a
-                              href={`/api/reports/lecturer/${l.id}/pdf?academicYear=${encodeURIComponent(period?.academicYear ?? '')}&semester=${period?.semester ?? 1}`}
-                              className="text-body-sm font-medium text-text-secondary hover:text-umu-red hover:underline"
+                            <button
+                              onClick={() => downloadLecturerPdf(l.id, l.fullName)}
+                              disabled={pdfDownloading === l.id}
+                              className="text-body-sm font-medium text-text-secondary hover:text-umu-red hover:underline disabled:cursor-wait disabled:opacity-50"
                             >
-                              PDF
-                            </a>
+                              {pdfDownloading === l.id ? 'Downloading…' : 'PDF'}
+                            </button>
                           </div>
                         </td>
                       </tr>

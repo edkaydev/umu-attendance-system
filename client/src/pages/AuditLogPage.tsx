@@ -12,35 +12,27 @@ const ACTION_OPTIONS = [
   { value: 'SESSION_CLOSE', label: 'Session closed' },
   { value: 'SESSION_AUTO_CLOSE', label: 'Session closed automatically' },
   { value: 'SESSION_EXTEND', label: 'Session extended' },
-  { value: 'ATTENDANCE_EDIT', label: 'Attendance changed' },
-  { value: 'PDF_DOWNLOAD', label: 'Report downloaded' },
-  { value: 'PROFILE_COMPLETE', label: 'Profile completed' },
   { value: 'IMPORT', label: 'CSV import' },
+  { value: 'MOODLE_SYNC', label: 'Moodle sync' },
   { value: 'USER_CREATE', label: 'User created' },
   { value: 'USER_UPDATE', label: 'User updated' },
   { value: 'USER_DELETE', label: 'User deleted' },
-  { value: 'LOGIN', label: 'Sign in' },
-  { value: 'LOGOUT', label: 'Sign out' },
   { value: 'RESET_DATABASE', label: 'Database reset' },
 ]
 
 const PAGE_SIZE = 25
 
 const ACTION_LABEL: Record<string, string> = {
-  SESSION_OPEN: 'Session opened',
-  SESSION_CLOSE: 'Session closed',
+  SESSION_OPEN:       'Session opened',
+  SESSION_CLOSE:      'Session closed',
   SESSION_AUTO_CLOSE: 'Session closed automatically',
-  SESSION_EXTEND: 'Session extended',
-  ATTENDANCE_EDIT: 'Attendance changed',
-  PDF_DOWNLOAD: 'Report downloaded',
-  PROFILE_COMPLETE: 'Profile completed',
-  LOGIN: 'Signed in',
-  LOGOUT: 'Signed out',
-  USER_CREATE: 'User created',
-  USER_UPDATE: 'User updated',
-  USER_DELETE: 'User deleted',
-  IMPORT: 'CSV import',
-  RESET_DATABASE: 'Database reset',
+  SESSION_EXTEND:     'Session extended',
+  USER_CREATE:        'User created',
+  USER_UPDATE:        'User updated',
+  USER_DELETE:        'User deleted',
+  IMPORT:             'CSV import',
+  MOODLE_SYNC:        'Moodle sync',
+  RESET_DATABASE:     'Database reset',
 }
 
 export default function AuditLogPage() {
