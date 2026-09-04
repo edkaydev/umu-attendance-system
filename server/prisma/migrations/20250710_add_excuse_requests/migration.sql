@@ -13,7 +13,7 @@ CREATE TABLE `excuse_requests` (
     INDEX `excuse_requests_sessionId_status_idx`(`sessionId`, `status`),
     INDEX `excuse_requests_studentId_idx`(`studentId`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4_unicode COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
 ALTER TABLE `excuse_requests` ADD CONSTRAINT `excuse_requests_studentId_fkey` FOREIGN KEY (`studentId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
