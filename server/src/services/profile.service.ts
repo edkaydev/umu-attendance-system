@@ -3,6 +3,7 @@ import { publish } from './events.service'
 import { ApiError } from '../utils/apiResponse'
 import { isValidCampusCode } from '../constants/campuses'
 import { isProfileEditingEnabled } from './settings.service'
+import { getCurrentPeriod } from './settings.service'
 export interface StudentPathInput {
   campusCode: string
   facultyId: string
@@ -199,6 +200,211 @@ async function assertProfileEditingAllowed(
   if (!(await isProfileEditingEnabled(scope))) {
     throw new ApiError('Profile editing is currently disabled by the System Admin', 403)
   }
+}
+
+// ─── Lazy auto-detection (on-demand, at login time) ──────────────────────────
+
+export interface AutoDetectResult {
+  detected: boolean
+  facultyId?: string
+  programmeId?: string
+  year?: number
+  semester?: number
+  academicYear?: string
+  regNumber?: string | null
+}
+
+/**
+ * Attempt to detect a student's programme/faculty/year from their Moodle
+ * enrolments at login time. Reuses the same hierarchy-walking logic as
+ * autoAssignStudentProgramme in the sync service, but runs on-demand for
+ * a single student.
+ *
+ * Returns { detected: true } with the resolved path fields when successful,
+ * or { detected: false } when the student has no enrolments, no hierarchy
+ * data, or a tied majority vote.
+ *
+ * On success, updates the user record with the detected path AND sets
+ * profileComplete = true. Caller must still redirect to /profile/setup
+ * when detected = false.
+ */
+export async function autoDetectStudentProfile(userId: string): Promise<AutoDetectResult> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      moodleUserId: true,
+      profileComplete: true,
+      facultyId: true,
+      programmeId: true,
+      year: true,
+      regNumber: true,
+    },
+  })
+
+  if (!user || user.role !== 'student' || user.moodleUserId === null || user.profileComplete) {
+    return { detected: false }
+  }
+
+  const currentPeriod = await getCurrentPeriod()
+  if (!currentPeriod) return { detected: false }
+
+  // Find this student's current-period enrolments
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      studentId: userId,
+      academicYear: currentPeriod.academicYear,
+      semester: currentPeriod.semester,
+    },
+    select: {
+      courseUnit: {
+        select: { semesterId: true, facultyId: true },
+      },
+    },
+  })
+
+  if (enrollments.length === 0) return { detected: false }
+
+  // Walk the hierarchy: CourseUnit → Semester → ProgrammeYear → Programme
+  // and count how many enrolments map to each programme (majority vote).
+  const programmeCounts = new Map<
+    string,
+    { programmeId: string; facultyId: string; year: number; semester: number; count: number }
+  >()
+
+  for (const enr of enrollments) {
+    if (!enr.courseUnit.semesterId) continue
+
+    const semester = await prisma.semester.findUnique({
+      where: { id: enr.courseUnit.semesterId },
+      select: {
+        number: true,
+        programmeYear: {
+          select: {
+            year: true,
+            programme: {
+              select: { id: true, facultyId: true },
+            },
+          },
+        },
+      },
+    })
+
+    if (!semester?.programmeYear?.programme) continue
+
+    const progId = semester.programmeYear.programme.id
+    const existing = programmeCounts.get(progId)
+    if (existing) {
+      existing.count++
+    } else {
+      programmeCounts.set(progId, {
+        programmeId: progId,
+        facultyId: semester.programmeYear.programme.facultyId,
+        year: semester.programmeYear.year,
+        semester: semester.number,
+        count: 1,
+      })
+    }
+  }
+
+  if (programmeCounts.size === 0) return { detected: false }
+
+  // Pick the programme with the most enrolments.
+  // Skip on a tie — never assign arbitrarily.
+  let best: { programmeId: string; facultyId: string; year: number; semester: number } | null = null
+  let bestCount = 0
+  let tied = false
+  for (const [, entry] of programmeCounts) {
+    if (entry.count > bestCount) {
+      bestCount = entry.count
+      best = { programmeId: entry.programmeId, facultyId: entry.facultyId, year: entry.year, semester: entry.semester }
+      tied = false
+    } else if (entry.count === bestCount) {
+      tied = true
+    }
+  }
+
+  if (!best || tied) return { detected: false }
+
+  // Detection succeeded — persist the path
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      programmeId: best.programmeId,
+      facultyId: best.facultyId,
+      year: best.year,
+      semester: currentPeriod.semester,
+      academicYear: currentPeriod.academicYear,
+      profileComplete: true,
+    },
+  })
+
+  publish('users-changed')
+
+  return {
+    detected: true,
+    facultyId: best.facultyId,
+    programmeId: best.programmeId,
+    year: best.year,
+    semester: currentPeriod.semester,
+    academicYear: currentPeriod.academicYear,
+    regNumber: user.regNumber,
+  }
+}
+
+/**
+ * Attempt to auto-detect a lecturer's faculty from their course assignments.
+ * Same logic as autoAssignLecturerFaculties in the sync service, on-demand.
+ */
+export async function autoDetectLecturerProfile(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      moodleUserId: true,
+      profileComplete: true,
+    },
+  })
+
+  if (!user || user.role !== 'lecturer' || user.moodleUserId === null || user.profileComplete) {
+    return false
+  }
+
+  const currentPeriod = await getCurrentPeriod()
+  if (!currentPeriod) return false
+
+  const assignments = await prisma.lecturerAssignment.findMany({
+    where: {
+      lecturerId: userId,
+      academicYear: currentPeriod.academicYear,
+      semester: currentPeriod.semester,
+    },
+    select: { courseUnit: { select: { facultyId: true } } },
+  })
+
+  const facultyIds = [...new Set(
+    assignments.map((a) => a.courseUnit.facultyId).filter((id): id is string => id !== null)
+  )]
+
+  if (facultyIds.length === 0) return false
+
+  const limited = facultyIds.slice(0, MAX_LECTURER_FACULTIES)
+
+  await prisma.$transaction([
+    prisma.lecturerFaculty.deleteMany({ where: { userId } }),
+    prisma.lecturerFaculty.createMany({
+      data: limited.map((facultyId, i) => ({ userId, facultyId, isPrimary: i === 0 })),
+    }),
+    prisma.user.update({
+      where: { id: userId },
+      data: { facultyId: limited[0], profileComplete: true },
+    }),
+  ])
+
+  publish('users-changed')
+  return true
 }
 
 /** Persist that the user has seen (or skipped) the onboarding tour. */

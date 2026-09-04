@@ -193,7 +193,7 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
               ? 'Only your Reg Number and Student Number can be changed.'
               : 'Update the faculties you teach in.'
             : isStudent && user?.moodleLinked
-            ? 'Your study path is set from Moodle. Just enter your Student Number to finish.'
+            ? 'Your study path was detected from your Moodle enrolments. Just enter your Student Number to finish.'
             : 'Complete your profile to continue.'}
         </p>
 
@@ -220,14 +220,14 @@ export default function ProfileSetup({ edit = false }: { edit?: boolean }) {
               /* ── Moodle-synced student: path already set, just need student number ── */
               <>
                 <div className="mb-5 rounded-md border border-border bg-surface-1 px-4 py-3">
-                  <p className="text-body-sm font-semibold text-text-primary">Your study path (from Moodle)</p>
+                  <p className="text-body-sm font-semibold text-text-primary">Your study path (detected from Moodle enrolments)</p>
                   <div className="mt-2 space-y-1 text-body-sm text-text-secondary">
                     {user.faculty && <p>Faculty: <span className="font-medium text-text-primary">{user.faculty.name}</span></p>}
                     {user.programme && <p>Programme: <span className="font-medium text-text-primary">{user.programme.name}</span></p>}
                     {user.year && <p>Year: <span className="font-medium text-text-primary">{user.year}</span></p>}
                     {user.regNumber && <p>Reg Number: <span className="font-medium text-text-primary">{user.regNumber}</span></p>}
                   </div>
-                  <p className="mt-2 text-xs text-text-disabled">These details are managed in Moodle and cannot be changed here.</p>
+                  <p className="mt-2 text-xs text-text-disabled">These details are set from your Moodle course enrolments.</p>
                 </div>
                 <Input
                   label="Student Number"

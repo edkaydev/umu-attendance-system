@@ -1,10 +1,12 @@
 import { Response } from 'express'
 import { Role } from '@prisma/client'
 import { userRepository } from '../repositories/user.repository'
+import { prisma } from '../config/db'
 import { signAccessToken, setAuthCookies, clearAuthCookies } from './jwt.service'
 import { createRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from './refresh-token.service'
 import { ApiError } from '../utils/apiResponse'
 import { roleMatchesEmail } from '../utils/domain'
+import { autoDetectStudentProfile, autoDetectLecturerProfile } from './profile.service'
 
 const DASHBOARD_BY_ROLE: Record<Role, string> = {
   student: '/student',
@@ -55,13 +57,50 @@ interface AuthUser {
  * Issue access + refresh tokens, set HttpOnly cookies, and return the
  * redirect URL for the browser (profile setup on first login, otherwise
  * the role dashboard).
+ *
+ * For students and lecturers with profileComplete=false, attempts lazy
+ * auto-detection from Moodle enrolments before falling back to the
+ * profile setup page. This means most Moodle-synced users never see
+ * the manual profile form.
  */
 export async function finalizeLogin(user: AuthUser, res: Response): Promise<string> {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role })
   const refreshToken = await createRefreshToken(user.id)
   setAuthCookies(res, { accessToken, refreshToken })
 
-  const target = user.profileComplete
+  let profileComplete = user.profileComplete
+
+  // Lazy auto-detection: try to resolve the profile from Moodle data
+  // before sending the user to the manual profile form.
+  if (!profileComplete) {
+    if (user.role === Role.student) {
+      const result = await autoDetectStudentProfile(user.id)
+      if (result.detected) {
+        // Auto-detection resolved programme/faculty/year from enrolments.
+        // Check if the student still needs to enter identity numbers
+        // (regNumber, studentNumber). If so, revert profileComplete so
+        // they land on /profile/setup where the path is shown read-only
+        // and they just fill in the remaining fields.
+        const fullUser = await userRepository.findFullProfile(user.id)
+        const needsIdentityNumbers = !fullUser?.regNumber || !fullUser?.studentNumber
+        if (needsIdentityNumbers) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { profileComplete: false },
+          })
+        } else {
+          profileComplete = true
+        }
+      }
+    } else if (user.role === Role.lecturer) {
+      const detected = await autoDetectLecturerProfile(user.id)
+      if (detected) {
+        profileComplete = true
+      }
+    }
+  }
+
+  const target = profileComplete
     ? dashboardUrlForRole(user.role)
     : '/profile/setup'
   return `${clientUrl()}${target}`
