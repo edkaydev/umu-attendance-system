@@ -58,7 +58,6 @@ function HomeRedirect() {
     )
   }
   if (!user) return <Navigate to="/login" replace />
-  if (!user.profileComplete) return <Navigate to="/profile/setup" replace />
   return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace state={{ from: location.pathname }} />
 }
 

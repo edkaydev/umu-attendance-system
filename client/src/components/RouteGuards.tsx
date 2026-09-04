@@ -19,23 +19,13 @@ function FullScreenLoader() {
   )
 }
 
-/** Requires an authenticated user. Redirects to profile setup if incomplete. */
+/** Requires an authenticated user. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
   if (loading) return <FullScreenLoader />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
-
-  // Profile not yet complete — only the setup screen is allowed
-  if (!user.profileComplete && location.pathname !== '/profile/setup') {
-    return <Navigate to="/profile/setup" replace />
-  }
-
-  // Profile already complete — don't go back to setup
-  if (user.profileComplete && location.pathname === '/profile/setup') {
-    return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
-  }
 
   return <>{children}</>
 }
@@ -53,10 +43,7 @@ export function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <FullScreenLoader />
   if (user) {
-    const target = user.profileComplete
-      ? DASHBOARD_BY_ROLE[user.role]
-      : '/profile/setup'
-    return <Navigate to={target} replace />
+    return <Navigate to={DASHBOARD_BY_ROLE[user.role]} replace />
   }
   return <>{children}</>
 }
